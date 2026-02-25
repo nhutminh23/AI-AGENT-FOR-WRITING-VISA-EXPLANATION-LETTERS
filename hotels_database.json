@@ -1,0 +1,1039 @@
+{
+  "Australia": {
+    "Sydney": [
+      {
+        "hotel_name": "Four Seasons Hotel Sydney",
+        "hotel_address": "199 George Street, Sydney CBD, Sydney, NSW, Australia, 2000",
+        "hotel_phone": "+61 2 9250 3100",
+        "star_rating": 5,
+        "price_range": {"min": 450, "max": 650},
+        "currency": "AUD",
+        "room_types": ["Superior King", "Deluxe Harbour View", "Premier Suite"]
+      },
+      {
+        "hotel_name": "Sofitel Sydney Darling Harbour",
+        "hotel_address": "12 Darling Drive, Darling Harbour, Sydney, NSW, Australia, 2000",
+        "hotel_phone": "+61 2 8388 8888",
+        "star_rating": 5,
+        "price_range": {"min": 350, "max": 550},
+        "currency": "AUD",
+        "room_types": ["Superior Room", "Luxury Room", "Opera Suite"]
+      },
+      {
+        "hotel_name": "InterContinental Sydney",
+        "hotel_address": "117 Macquarie Street, Sydney CBD, Sydney, NSW, Australia, 2000",
+        "hotel_phone": "+61 2 9253 9000",
+        "star_rating": 5,
+        "price_range": {"min": 320, "max": 500},
+        "currency": "AUD",
+        "room_types": ["Classic Room", "Club Room", "Harbour Bridge Suite"]
+      },
+      {
+        "hotel_name": "Shangri-La Hotel Sydney",
+        "hotel_address": "176 Cumberland Street, The Rocks, Sydney, NSW, Australia, 2000",
+        "hotel_phone": "+61 2 9250 6000",
+        "star_rating": 5,
+        "price_range": {"min": 380, "max": 600},
+        "currency": "AUD",
+        "room_types": ["Deluxe King", "Horizon Club Room", "Sydney Suite"]
+      }
+    ],
+    "Melbourne": [
+      {
+        "hotel_name": "The Langham Melbourne",
+        "hotel_address": "1 Southgate Avenue, Southbank, Melbourne, VIC, Australia, 3006",
+        "hotel_phone": "+61 3 8696 8888",
+        "star_rating": 5,
+        "price_range": {"min": 400, "max": 600},
+        "currency": "AUD",
+        "room_types": ["Superior King", "Deluxe River View", "Langham Suite"]
+      },
+      {
+        "hotel_name": "Crown Towers Melbourne",
+        "hotel_address": "8 Whiteman Street, Southbank, Melbourne, VIC, Australia, 3006",
+        "hotel_phone": "+61 3 9292 6868",
+        "star_rating": 5,
+        "price_range": {"min": 380, "max": 550},
+        "currency": "AUD",
+        "room_types": ["Deluxe King", "Crystal Club Room", "Villa Suite"]
+      },
+      {
+        "hotel_name": "Park Hyatt Melbourne",
+        "hotel_address": "1 Parliament Square, East Melbourne, VIC, Australia, 3002",
+        "hotel_phone": "+61 3 9224 1234",
+        "star_rating": 5,
+        "price_range": {"min": 450, "max": 700},
+        "currency": "AUD",
+        "room_types": ["Park King", "Park View Suite", "Ambassador Suite"]
+      }
+    ],
+    "Gold Coast": [
+      {
+        "hotel_name": "JW Marriott Gold Coast Resort & Spa",
+        "hotel_address": "158 Ferny Avenue, Surfers Paradise, QLD, Australia, 4217",
+        "hotel_phone": "+61 7 5592 9800",
+        "star_rating": 5,
+        "price_range": {"min": 350, "max": 500},
+        "currency": "AUD",
+        "room_types": ["Deluxe Room", "Ocean View Room", "Executive Suite"]
+      },
+      {
+        "hotel_name": "Palazzo Versace Gold Coast",
+        "hotel_address": "94 Seaworld Drive, Main Beach, QLD, Australia, 4217",
+        "hotel_phone": "+61 7 5509 8000",
+        "star_rating": 5,
+        "price_range": {"min": 400, "max": 650},
+        "currency": "AUD",
+        "room_types": ["Deluxe Suite", "Lagoon Suite", "Imperial Suite"]
+      }
+    ],
+    "Brisbane": [
+      {
+        "hotel_name": "W Brisbane",
+        "hotel_address": "81 North Quay, Brisbane, QLD, Australia, 4000",
+        "hotel_phone": "+61 7 3556 8888",
+        "star_rating": 5,
+        "price_range": {"min": 320, "max": 480},
+        "currency": "AUD",
+        "room_types": ["Wonderful Room", "Spectacular Room", "WOW Suite"]
+      },
+      {
+        "hotel_name": "Sofitel Brisbane Central",
+        "hotel_address": "249 Turbot Street, Brisbane, QLD, Australia, 4000",
+        "hotel_phone": "+61 7 3835 3535",
+        "star_rating": 5,
+        "price_range": {"min": 280, "max": 400},
+        "currency": "AUD",
+        "room_types": ["Superior Room", "Luxury Room", "Prestige Suite"]
+      }
+    ]
+  },
+  "Japan": {
+    "Tokyo": [
+      {
+        "hotel_name": "The Peninsula Tokyo",
+        "hotel_address": "1-8-1 Yurakucho, Chiyoda-ku, Tokyo, Japan, 100-0006",
+        "hotel_phone": "+81 3 6270 2888",
+        "star_rating": 5,
+        "price_range": {"min": 65000, "max": 120000},
+        "currency": "JPY",
+        "room_types": ["Deluxe Room", "Grand Premier Suite", "Peninsula Suite"]
+      },
+      {
+        "hotel_name": "Aman Tokyo",
+        "hotel_address": "The Otemachi Tower, 1-5-6 Otemachi, Chiyoda-ku, Tokyo, Japan, 100-0004",
+        "hotel_phone": "+81 3 5224 3333",
+        "star_rating": 5,
+        "price_range": {"min": 85000, "max": 200000},
+        "currency": "JPY",
+        "room_types": ["Deluxe Room", "Premier Room", "Aman Suite"]
+      },
+      {
+        "hotel_name": "Park Hyatt Tokyo",
+        "hotel_address": "3-7-1-2 Nishi Shinjuku, Shinjuku-ku, Tokyo, Japan, 163-1055",
+        "hotel_phone": "+81 3 5322 1234",
+        "star_rating": 5,
+        "price_range": {"min": 55000, "max": 95000},
+        "currency": "JPY",
+        "room_types": ["Park Room", "Park Deluxe Room", "Park Suite"]
+      },
+      {
+        "hotel_name": "The Ritz-Carlton Tokyo",
+        "hotel_address": "9-7-1 Akasaka, Minato-ku, Tokyo, Japan, 107-6245",
+        "hotel_phone": "+81 3 3423 8000",
+        "star_rating": 5,
+        "price_range": {"min": 60000, "max": 110000},
+        "currency": "JPY",
+        "room_types": ["Deluxe Room", "Club Deluxe Room", "Ritz-Carlton Suite"]
+      }
+    ],
+    "Osaka": [
+      {
+        "hotel_name": "The Ritz-Carlton Osaka",
+        "hotel_address": "2-5-25 Umeda, Kita-ku, Osaka, Japan, 530-0001",
+        "hotel_phone": "+81 6 6343 7000",
+        "star_rating": 5,
+        "price_range": {"min": 45000, "max": 85000},
+        "currency": "JPY",
+        "room_types": ["Deluxe Room", "Club Room", "Ritz-Carlton Suite"]
+      },
+      {
+        "hotel_name": "Conrad Osaka",
+        "hotel_address": "3-2-4 Nakanoshima, Kita-ku, Osaka, Japan, 530-0005",
+        "hotel_phone": "+81 6 6222 0111",
+        "star_rating": 5,
+        "price_range": {"min": 40000, "max": 75000},
+        "currency": "JPY",
+        "room_types": ["King Room", "Executive Room", "Conrad Suite"]
+      },
+      {
+        "hotel_name": "InterContinental Osaka",
+        "hotel_address": "3-60 Ofuka-cho, Kita-ku, Osaka, Japan, 530-0011",
+        "hotel_phone": "+81 6 6374 5700",
+        "star_rating": 5,
+        "price_range": {"min": 35000, "max": 65000},
+        "currency": "JPY",
+        "room_types": ["Classic Room", "Club Room", "Ambassador Suite"]
+      }
+    ],
+    "Kyoto": [
+      {
+        "hotel_name": "The Ritz-Carlton Kyoto",
+        "hotel_address": "Kamogawa Nijo-Ohashi Hotori, Nakagyo-ku, Kyoto, Japan, 604-0902",
+        "hotel_phone": "+81 75 746 5555",
+        "star_rating": 5,
+        "price_range": {"min": 70000, "max": 150000},
+        "currency": "JPY",
+        "room_types": ["Deluxe Kamogawa Room", "Suite Minami", "Ritz-Carlton Suite"]
+      },
+      {
+        "hotel_name": "Four Seasons Hotel Kyoto",
+        "hotel_address": "445-3 Myohoin Maekawa-cho, Higashiyama-ku, Kyoto, Japan, 605-0932",
+        "hotel_phone": "+81 75 541 8288",
+        "star_rating": 5,
+        "price_range": {"min": 80000, "max": 180000},
+        "currency": "JPY",
+        "room_types": ["Deluxe Room", "Premier Room", "Ikenobo Suite"]
+      },
+      {
+        "hotel_name": "Park Hyatt Kyoto",
+        "hotel_address": "360 Kodaiji Masuyacho, Higashiyama-ku, Kyoto, Japan, 605-0824",
+        "hotel_phone": "+81 75 531 1234",
+        "star_rating": 5,
+        "price_range": {"min": 65000, "max": 130000},
+        "currency": "JPY",
+        "room_types": ["Park King", "Park View Suite", "Kyoto Suite"]
+      }
+    ],
+    "Hokkaido": [
+      {
+        "hotel_name": "JR Tower Hotel Nikko Sapporo",
+        "hotel_address": "2-5 Kita 5 Jonishi, Chuo-ku, Sapporo, Hokkaido, Japan, 060-0005",
+        "hotel_phone": "+81 11 251 2222",
+        "star_rating": 5,
+        "price_range": {"min": 25000, "max": 50000},
+        "currency": "JPY",
+        "room_types": ["Standard Room", "Deluxe Room", "Executive Suite"]
+      },
+      {
+        "hotel_name": "The Windsor Hotel Toya Resort & Spa",
+        "hotel_address": "Shimizu, Toyako-cho, Abuta-gun, Hokkaido, Japan, 049-5722",
+        "hotel_phone": "+81 142 73 1111",
+        "star_rating": 5,
+        "price_range": {"min": 40000, "max": 80000},
+        "currency": "JPY",
+        "room_types": ["Superior Room", "Deluxe Room", "Windsor Suite"]
+      }
+    ]
+  },
+  "South Korea": {
+    "Seoul": [
+      {
+        "hotel_name": "The Shilla Seoul",
+        "hotel_address": "249 Dongho-ro, Jung-gu, Seoul, South Korea, 04605",
+        "hotel_phone": "+82 2 2233 3131",
+        "star_rating": 5,
+        "price_range": {"min": 350000, "max": 650000},
+        "currency": "KRW",
+        "room_types": ["Deluxe Room", "Executive Room", "Presidential Suite"]
+      },
+      {
+        "hotel_name": "Four Seasons Hotel Seoul",
+        "hotel_address": "97 Saemunan-ro, Jongno-gu, Seoul, South Korea, 03183",
+        "hotel_phone": "+82 2 6388 5000",
+        "star_rating": 5,
+        "price_range": {"min": 400000, "max": 750000},
+        "currency": "KRW",
+        "room_types": ["Deluxe Room", "Premier Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "Park Hyatt Seoul",
+        "hotel_address": "606 Teheran-ro, Gangnam-gu, Seoul, South Korea, 06174",
+        "hotel_phone": "+82 2 2016 1234",
+        "star_rating": 5,
+        "price_range": {"min": 320000, "max": 580000},
+        "currency": "KRW",
+        "room_types": ["Park King", "Park Suite", "Diplomatic Suite"]
+      },
+      {
+        "hotel_name": "Conrad Seoul",
+        "hotel_address": "10 Gukjegeumyung-ro, Yeongdeungpo-gu, Seoul, South Korea, 07326",
+        "hotel_phone": "+82 2 6137 7000",
+        "star_rating": 5,
+        "price_range": {"min": 280000, "max": 500000},
+        "currency": "KRW",
+        "room_types": ["King Room", "Executive Room", "Conrad Suite"]
+      }
+    ],
+    "Busan": [
+      {
+        "hotel_name": "Park Hyatt Busan",
+        "hotel_address": "51 Marine City 1-ro, Haeundae-gu, Busan, South Korea, 48119",
+        "hotel_phone": "+82 51 990 1234",
+        "star_rating": 5,
+        "price_range": {"min": 300000, "max": 550000},
+        "currency": "KRW",
+        "room_types": ["Park King", "Park Suite", "Ambassador Suite"]
+      },
+      {
+        "hotel_name": "Lotte Hotel Busan",
+        "hotel_address": "772 Gaya-daero, Busanjin-gu, Busan, South Korea, 47285",
+        "hotel_phone": "+82 51 810 1000",
+        "star_rating": 5,
+        "price_range": {"min": 200000, "max": 400000},
+        "currency": "KRW",
+        "room_types": ["Deluxe Room", "Club Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "Signiel Busan",
+        "hotel_address": "30 Dalbit-ro, Haeundae-gu, Busan, South Korea, 48100",
+        "hotel_phone": "+82 51 922 1000",
+        "star_rating": 5,
+        "price_range": {"min": 350000, "max": 600000},
+        "currency": "KRW",
+        "room_types": ["Deluxe Room", "Premier Room", "Signiel Suite"]
+      }
+    ],
+    "Jeju": [
+      {
+        "hotel_name": "The Shilla Jeju",
+        "hotel_address": "75 Jungmungwangwang-ro 72beon-gil, Seogwipo, Jeju, South Korea, 63535",
+        "hotel_phone": "+82 64 735 5114",
+        "star_rating": 5,
+        "price_range": {"min": 280000, "max": 520000},
+        "currency": "KRW",
+        "room_types": ["Deluxe Room", "Ocean View Room", "Presidential Suite"]
+      },
+      {
+        "hotel_name": "Lotte Hotel Jeju",
+        "hotel_address": "35 Jungmungwangwang-ro 72beon-gil, Seogwipo, Jeju, South Korea, 63535",
+        "hotel_phone": "+82 64 731 1000",
+        "star_rating": 5,
+        "price_range": {"min": 220000, "max": 450000},
+        "currency": "KRW",
+        "room_types": ["Standard Room", "Deluxe Room", "Suite Room"]
+      }
+    ]
+  },
+  "Singapore": {
+    "Singapore": [
+      {
+        "hotel_name": "Marina Bay Sands",
+        "hotel_address": "10 Bayfront Avenue, Singapore, 018956",
+        "hotel_phone": "+65 6688 8868",
+        "star_rating": 5,
+        "price_range": {"min": 500, "max": 900},
+        "currency": "SGD",
+        "room_types": ["Deluxe Room", "Premier Room", "Chairman Suite"]
+      },
+      {
+        "hotel_name": "The Fullerton Hotel Singapore",
+        "hotel_address": "1 Fullerton Square, Singapore, 049178",
+        "hotel_phone": "+65 6733 8388",
+        "star_rating": 5,
+        "price_range": {"min": 400, "max": 700},
+        "currency": "SGD",
+        "room_types": ["Courtyard Room", "Quay Room", "Presidential Suite"]
+      },
+      {
+        "hotel_name": "Raffles Singapore",
+        "hotel_address": "1 Beach Road, Singapore, 189673",
+        "hotel_phone": "+65 6337 1886",
+        "star_rating": 5,
+        "price_range": {"min": 600, "max": 1200},
+        "currency": "SGD",
+        "room_types": ["Courtyard Suite", "State Room", "Presidential Suite"]
+      },
+      {
+        "hotel_name": "The Ritz-Carlton Millenia Singapore",
+        "hotel_address": "7 Raffles Avenue, Singapore, 039799",
+        "hotel_phone": "+65 6337 8888",
+        "star_rating": 5,
+        "price_range": {"min": 450, "max": 800},
+        "currency": "SGD",
+        "room_types": ["Deluxe Room", "Marina Bay View Room", "Ritz-Carlton Suite"]
+      },
+      {
+        "hotel_name": "Mandarin Oriental Singapore",
+        "hotel_address": "5 Raffles Avenue, Marina Square, Singapore, 039797",
+        "hotel_phone": "+65 6338 0066",
+        "star_rating": 5,
+        "price_range": {"min": 380, "max": 650},
+        "currency": "SGD",
+        "room_types": ["Deluxe Room", "Harbour View Room", "Oriental Suite"]
+      }
+    ]
+  },
+  "Thailand": {
+    "Bangkok": [
+      {
+        "hotel_name": "Mandarin Oriental Bangkok",
+        "hotel_address": "48 Oriental Avenue, Bangkok, Thailand, 10500",
+        "hotel_phone": "+66 2 659 9000",
+        "star_rating": 5,
+        "price_range": {"min": 12000, "max": 25000},
+        "currency": "THB",
+        "room_types": ["Superior Room", "Deluxe Room", "Author's Suite"]
+      },
+      {
+        "hotel_name": "The Peninsula Bangkok",
+        "hotel_address": "333 Charoennakorn Road, Klongsan, Bangkok, Thailand, 10600",
+        "hotel_phone": "+66 2 020 2888",
+        "star_rating": 5,
+        "price_range": {"min": 10000, "max": 22000},
+        "currency": "THB",
+        "room_types": ["Deluxe Room", "Grand Deluxe Suite", "Peninsula Suite"]
+      },
+      {
+        "hotel_name": "Four Seasons Hotel Bangkok at Chao Phraya River",
+        "hotel_address": "300/1 Charoenkrung Road, Sathorn, Bangkok, Thailand, 10120",
+        "hotel_phone": "+66 2 032 0888",
+        "star_rating": 5,
+        "price_range": {"min": 15000, "max": 35000},
+        "currency": "THB",
+        "room_types": ["Deluxe Room", "Premier Room", "Royal Suite"]
+      }
+    ],
+    "Phuket": [
+      {
+        "hotel_name": "Amanpuri",
+        "hotel_address": "118 Moo 3, Srissunthorn Road, Cherngtalay, Phuket, Thailand, 83110",
+        "hotel_phone": "+66 76 324 333",
+        "star_rating": 5,
+        "price_range": {"min": 35000, "max": 80000},
+        "currency": "THB",
+        "room_types": ["Pavilion", "Ocean Pavilion", "Villa"]
+      },
+      {
+        "hotel_name": "Banyan Tree Phuket",
+        "hotel_address": "33 Moo 4, Srisoonthorn Road, Cherngtalay, Phuket, Thailand, 83110",
+        "hotel_phone": "+66 76 372 400",
+        "star_rating": 5,
+        "price_range": {"min": 18000, "max": 45000},
+        "currency": "THB",
+        "room_types": ["Pool Villa", "Garden Pool Villa", "Grand Pool Villa"]
+      },
+      {
+        "hotel_name": "The Surin Phuket",
+        "hotel_address": "118 Moo 3, Srissunthorn Road, Cherngtalay, Phuket, Thailand, 83110",
+        "hotel_phone": "+66 76 621 580",
+        "star_rating": 5,
+        "price_range": {"min": 12000, "max": 28000},
+        "currency": "THB",
+        "room_types": ["Beach Deluxe Cottage", "Hill Cottage", "Two Bedroom Cottage"]
+      }
+    ],
+    "Chiang Mai": [
+      {
+        "hotel_name": "Four Seasons Resort Chiang Mai",
+        "hotel_address": "502 Moo 1, Mae Rim-Samoeng Old Road, Chiang Mai, Thailand, 50180",
+        "hotel_phone": "+66 53 298 181",
+        "star_rating": 5,
+        "price_range": {"min": 20000, "max": 50000},
+        "currency": "THB",
+        "room_types": ["Pavilion", "Residence Pavilion", "Royal Villa"]
+      },
+      {
+        "hotel_name": "Anantara Chiang Mai Resort",
+        "hotel_address": "123 Charoen Prathet Road, Chiang Mai, Thailand, 50100",
+        "hotel_phone": "+66 53 253 333",
+        "star_rating": 5,
+        "price_range": {"min": 8000, "max": 18000},
+        "currency": "THB",
+        "room_types": ["Deluxe Room", "Studio Suite", "Anantara Suite"]
+      }
+    ]
+  },
+  "France": {
+    "Paris": [
+      {
+        "hotel_name": "The Ritz Paris",
+        "hotel_address": "15 Place Vendôme, 75001 Paris, France",
+        "hotel_phone": "+33 1 43 16 30 30",
+        "star_rating": 5,
+        "price_range": {"min": 1200, "max": 3500},
+        "currency": "EUR",
+        "room_types": ["Superior Room", "Deluxe Room", "Coco Chanel Suite"]
+      },
+      {
+        "hotel_name": "Four Seasons Hotel George V Paris",
+        "hotel_address": "31 Avenue George V, 75008 Paris, France",
+        "hotel_phone": "+33 1 49 52 70 00",
+        "star_rating": 5,
+        "price_range": {"min": 1000, "max": 2800},
+        "currency": "EUR",
+        "room_types": ["Superior Room", "Deluxe Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "Le Meurice",
+        "hotel_address": "228 Rue de Rivoli, 75001 Paris, France",
+        "hotel_phone": "+33 1 44 58 10 10",
+        "star_rating": 5,
+        "price_range": {"min": 900, "max": 2500},
+        "currency": "EUR",
+        "room_types": ["Superior Room", "Deluxe Room", "Belle Etoile Suite"]
+      }
+    ],
+    "Nice": [
+      {
+        "hotel_name": "Hotel Negresco",
+        "hotel_address": "37 Promenade des Anglais, 06000 Nice, France",
+        "hotel_phone": "+33 4 93 16 64 00",
+        "star_rating": 5,
+        "price_range": {"min": 400, "max": 900},
+        "currency": "EUR",
+        "room_types": ["Classic Room", "Superior Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "Hyatt Regency Nice Palais de la Méditerranée",
+        "hotel_address": "13 Promenade des Anglais, 06000 Nice, France",
+        "hotel_phone": "+33 4 93 27 12 34",
+        "star_rating": 5,
+        "price_range": {"min": 300, "max": 650},
+        "currency": "EUR",
+        "room_types": ["King Room", "Regency Club Room", "Presidential Suite"]
+      }
+    ],
+    "Lyon": [
+      {
+        "hotel_name": "InterContinental Lyon - Hôtel Dieu",
+        "hotel_address": "20 Quai Jules Courmont, 69002 Lyon, France",
+        "hotel_phone": "+33 4 26 99 23 23",
+        "star_rating": 5,
+        "price_range": {"min": 280, "max": 550},
+        "currency": "EUR",
+        "room_types": ["Classic Room", "Deluxe Room", "Grand Suite"]
+      },
+      {
+        "hotel_name": "Sofitel Lyon Bellecour",
+        "hotel_address": "20 Quai Gailleton, 69002 Lyon, France",
+        "hotel_phone": "+33 4 72 41 20 20",
+        "star_rating": 5,
+        "price_range": {"min": 220, "max": 450},
+        "currency": "EUR",
+        "room_types": ["Superior Room", "Luxury Room", "Prestige Suite"]
+      }
+    ]
+  },
+  "United Kingdom": {
+    "London": [
+      {
+        "hotel_name": "The Savoy",
+        "hotel_address": "Strand, London, WC2R 0EZ, United Kingdom",
+        "hotel_phone": "+44 20 7836 4343",
+        "star_rating": 5,
+        "price_range": {"min": 600, "max": 1500},
+        "currency": "GBP",
+        "room_types": ["Superior Room", "Deluxe Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "The Ritz London",
+        "hotel_address": "150 Piccadilly, London, W1J 9BR, United Kingdom",
+        "hotel_phone": "+44 20 7493 8181",
+        "star_rating": 5,
+        "price_range": {"min": 700, "max": 1800},
+        "currency": "GBP",
+        "room_types": ["Superior Room", "Deluxe Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "Claridge's",
+        "hotel_address": "Brook Street, Mayfair, London, W1K 4HR, United Kingdom",
+        "hotel_phone": "+44 20 7629 8860",
+        "star_rating": 5,
+        "price_range": {"min": 650, "max": 1600},
+        "currency": "GBP",
+        "room_types": ["Superior Room", "Deluxe Room", "Grand Piano Suite"]
+      }
+    ],
+    "Edinburgh": [
+      {
+        "hotel_name": "The Balmoral",
+        "hotel_address": "1 Princes Street, Edinburgh, EH2 2EQ, United Kingdom",
+        "hotel_phone": "+44 131 556 2414",
+        "star_rating": 5,
+        "price_range": {"min": 350, "max": 800},
+        "currency": "GBP",
+        "room_types": ["Classic Room", "Deluxe Room", "Scone & Crombie Suite"]
+      },
+      {
+        "hotel_name": "Waldorf Astoria Edinburgh - The Caledonian",
+        "hotel_address": "Princes Street, Edinburgh, EH1 2AB, United Kingdom",
+        "hotel_phone": "+44 131 222 8888",
+        "star_rating": 5,
+        "price_range": {"min": 280, "max": 650},
+        "currency": "GBP",
+        "room_types": ["King Room", "Castle View Room", "Caledonian Suite"]
+      }
+    ]
+  },
+  "USA": {
+    "New York": [
+      {
+        "hotel_name": "The Plaza",
+        "hotel_address": "768 5th Avenue, New York, NY 10019, USA",
+        "hotel_phone": "+1 212 759 3000",
+        "star_rating": 5,
+        "price_range": {"min": 800, "max": 2000},
+        "currency": "USD",
+        "room_types": ["Deluxe Room", "Grand Deluxe Room", "Royal Plaza Suite"]
+      },
+      {
+        "hotel_name": "The St. Regis New York",
+        "hotel_address": "2 East 55th Street, New York, NY 10022, USA",
+        "hotel_phone": "+1 212 753 4500",
+        "star_rating": 5,
+        "price_range": {"min": 900, "max": 2500},
+        "currency": "USD",
+        "room_types": ["Superior Room", "Deluxe Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "Four Seasons Hotel New York",
+        "hotel_address": "57 East 57th Street, New York, NY 10022, USA",
+        "hotel_phone": "+1 212 758 5700",
+        "star_rating": 5,
+        "price_range": {"min": 750, "max": 1800},
+        "currency": "USD",
+        "room_types": ["Superior Room", "Deluxe Room", "Ty Warner Penthouse"]
+      }
+    ],
+    "Los Angeles": [
+      {
+        "hotel_name": "The Beverly Hills Hotel",
+        "hotel_address": "9641 Sunset Boulevard, Beverly Hills, CA 90210, USA",
+        "hotel_phone": "+1 310 276 2251",
+        "star_rating": 5,
+        "price_range": {"min": 700, "max": 1500},
+        "currency": "USD",
+        "room_types": ["Superior Room", "Deluxe Room", "Presidential Bungalow"]
+      },
+      {
+        "hotel_name": "Four Seasons Hotel Los Angeles at Beverly Hills",
+        "hotel_address": "300 South Doheny Drive, Los Angeles, CA 90048, USA",
+        "hotel_phone": "+1 310 273 2222",
+        "star_rating": 5,
+        "price_range": {"min": 600, "max": 1400},
+        "currency": "USD",
+        "room_types": ["Superior Room", "Deluxe Room", "Presidential Suite"]
+      }
+    ],
+    "San Francisco": [
+      {
+        "hotel_name": "The Ritz-Carlton San Francisco",
+        "hotel_address": "600 Stockton Street, San Francisco, CA 94108, USA",
+        "hotel_phone": "+1 415 296 7465",
+        "star_rating": 5,
+        "price_range": {"min": 500, "max": 1200},
+        "currency": "USD",
+        "room_types": ["Deluxe Room", "Club Room", "Ritz-Carlton Suite"]
+      },
+      {
+        "hotel_name": "Four Seasons Hotel San Francisco",
+        "hotel_address": "757 Market Street, San Francisco, CA 94103, USA",
+        "hotel_phone": "+1 415 633 3000",
+        "star_rating": 5,
+        "price_range": {"min": 450, "max": 1000},
+        "currency": "USD",
+        "room_types": ["Deluxe Room", "Premier Room", "Presidential Suite"]
+      }
+    ]
+  },
+  "Italy": {
+    "Rome": [
+      {
+        "hotel_name": "Hotel Hassler Roma",
+        "hotel_address": "Piazza della Trinità dei Monti 6, 00187 Roma, Italy",
+        "hotel_phone": "+39 06 699 340",
+        "star_rating": 5,
+        "price_range": {"min": 500, "max": 1200},
+        "currency": "EUR",
+        "room_types": ["Deluxe Room", "Grand Deluxe Room", "Penthouse Suite"]
+      },
+      {
+        "hotel_name": "Hotel de Russie",
+        "hotel_address": "Via del Babuino 9, 00187 Roma, Italy",
+        "hotel_phone": "+39 06 328 881",
+        "star_rating": 5,
+        "price_range": {"min": 450, "max": 1000},
+        "currency": "EUR",
+        "room_types": ["Classic Room", "Deluxe Room", "Nijinsky Suite"]
+      }
+    ],
+    "Milan": [
+      {
+        "hotel_name": "Four Seasons Hotel Milano",
+        "hotel_address": "Via Gesù 6/8, 20121 Milano, Italy",
+        "hotel_phone": "+39 02 77 088",
+        "star_rating": 5,
+        "price_range": {"min": 600, "max": 1400},
+        "currency": "EUR",
+        "room_types": ["Superior Room", "Deluxe Room", "Presidential Suite"]
+      },
+      {
+        "hotel_name": "Armani Hotel Milano",
+        "hotel_address": "Via Manzoni 31, 20121 Milano, Italy",
+        "hotel_phone": "+39 02 8883 8888",
+        "star_rating": 5,
+        "price_range": {"min": 550, "max": 1200},
+        "currency": "EUR",
+        "room_types": ["Deluxe Room", "Premier Room", "Armani Suite"]
+      }
+    ],
+    "Venice": [
+      {
+        "hotel_name": "The Gritti Palace",
+        "hotel_address": "Campo Santa Maria del Giglio, 2467, 30124 Venezia, Italy",
+        "hotel_phone": "+39 041 794 611",
+        "star_rating": 5,
+        "price_range": {"min": 700, "max": 1800},
+        "currency": "EUR",
+        "room_types": ["Landmark Room", "Grand Canal Room", "Patron Grand Canal Suite"]
+      },
+      {
+        "hotel_name": "Aman Venice",
+        "hotel_address": "Palazzo Papadopoli, Calle Tiepolo 1364, 30125 Venezia, Italy",
+        "hotel_phone": "+39 041 270 7333",
+        "star_rating": 5,
+        "price_range": {"min": 900, "max": 2500},
+        "currency": "EUR",
+        "room_types": ["Stanza", "Piano Nobile Chamber", "Alcova Tiepolo Suite"]
+      }
+    ]
+  },
+  "Germany": {
+    "Berlin": [
+      {
+        "hotel_name": "Hotel Adlon Kempinski",
+        "hotel_address": "Unter den Linden 77, 10117 Berlin, Germany",
+        "hotel_phone": "+49 30 2261 0",
+        "star_rating": 5,
+        "price_range": {"min": 350, "max": 800},
+        "currency": "EUR",
+        "room_types": ["Deluxe Room", "Executive Room", "Royal Suite"]
+      },
+      {
+        "hotel_name": "The Ritz-Carlton Berlin",
+        "hotel_address": "Potsdamer Platz 3, 10785 Berlin, Germany",
+        "hotel_phone": "+49 30 337 777",
+        "star_rating": 5,
+        "price_range": {"min": 300, "max": 700},
+        "currency": "EUR",
+        "room_types": ["Deluxe Room", "Club Room", "Ritz-Carlton Suite"]
+      }
+    ],
+    "Munich": [
+      {
+        "hotel_name": "Hotel Vier Jahreszeiten Kempinski",
+        "hotel_address": "Maximilianstrasse 17, 80539 München, Germany",
+        "hotel_phone": "+49 89 2125 0",
+        "star_rating": 5,
+        "price_range": {"min": 400, "max": 900},
+        "currency": "EUR",
+        "room_types": ["Deluxe Room", "Grand Deluxe Room", "Presidential Suite"]
+      },
+      {
+        "hotel_name": "Mandarin Oriental Munich",
+        "hotel_address": "Neuturmstrasse 1, 80331 München, Germany",
+        "hotel_phone": "+49 89 290 980",
+        "star_rating": 5,
+        "price_range": {"min": 380, "max": 850},
+        "currency": "EUR",
+        "room_types": ["Deluxe Room", "Premium Room", "Oriental Suite"]
+      }
+    ]
+  },
+  "Canada": {
+    "Toronto": [
+      {"hotel_name": "Four Seasons Hotel Toronto", "hotel_address": "60 Yorkville Avenue, Toronto, ON M4W 0A4, Canada", "hotel_phone": "+1 416 964 0411", "star_rating": 5, "price_range": {"min": 500, "max": 900}, "currency": "CAD", "room_types": ["Deluxe Room", "Premier Room", "Royal Suite"]},
+      {"hotel_name": "The Ritz-Carlton Toronto", "hotel_address": "181 Wellington Street West, Toronto, ON M5V 3G7, Canada", "hotel_phone": "+1 416 585 2500", "star_rating": 5, "price_range": {"min": 450, "max": 800}, "currency": "CAD", "room_types": ["Deluxe Room", "Club Room", "Ritz-Carlton Suite"]}
+    ],
+    "Vancouver": [
+      {"hotel_name": "Fairmont Pacific Rim", "hotel_address": "1038 Canada Place, Vancouver, BC V6C 0B9, Canada", "hotel_phone": "+1 604 695 5300", "star_rating": 5, "price_range": {"min": 480, "max": 850}, "currency": "CAD", "room_types": ["Fairmont Room", "Deluxe Room", "Owner's Suite"]},
+      {"hotel_name": "Rosewood Hotel Georgia", "hotel_address": "801 West Georgia Street, Vancouver, BC V6C 1P7, Canada", "hotel_phone": "+1 604 682 5566", "star_rating": 5, "price_range": {"min": 400, "max": 750}, "currency": "CAD", "room_types": ["Deluxe Room", "Premier Room", "Rosewood Suite"]}
+    ],
+    "Montreal": [
+      {"hotel_name": "Four Seasons Hotel Montreal", "hotel_address": "1440 Rue de la Montagne, Montreal, QC H3G 1Z5, Canada", "hotel_phone": "+1 514 843 2500", "star_rating": 5, "price_range": {"min": 420, "max": 780}, "currency": "CAD", "room_types": ["Superior Room", "Deluxe Room", "Premier Suite"]}
+    ]
+  },
+  "New Zealand": {
+    "Auckland": [
+      {"hotel_name": "Park Hyatt Auckland", "hotel_address": "99 Halsey Street, Wynyard Quarter, Auckland 1010, New Zealand", "hotel_phone": "+64 9 366 1234", "star_rating": 5, "price_range": {"min": 450, "max": 800}, "currency": "NZD", "room_types": ["Park King", "Harbour View Room", "Presidential Suite"]},
+      {"hotel_name": "Sofitel Auckland Viaduct Harbour", "hotel_address": "21 Viaduct Harbour Avenue, Auckland 1010, New Zealand", "hotel_phone": "+64 9 909 9000", "star_rating": 5, "price_range": {"min": 350, "max": 600}, "currency": "NZD", "room_types": ["Superior Room", "Luxury Room", "Prestige Suite"]}
+    ],
+    "Queenstown": [
+      {"hotel_name": "Eichardt's Private Hotel", "hotel_address": "Marine Parade, Queenstown 9300, New Zealand", "hotel_phone": "+64 3 441 0450", "star_rating": 5, "price_range": {"min": 600, "max": 1200}, "currency": "NZD", "room_types": ["Lake Suite", "Penthouse Suite", "Residence"]}
+    ]
+  },
+  "Malaysia": {
+    "Kuala Lumpur": [
+      {"hotel_name": "Mandarin Oriental Kuala Lumpur", "hotel_address": "Kuala Lumpur City Centre, 50088 Kuala Lumpur, Malaysia", "hotel_phone": "+60 3 2380 8888", "star_rating": 5, "price_range": {"min": 600, "max": 1200}, "currency": "MYR", "room_types": ["Deluxe Room", "Club Room", "Oriental Suite"]},
+      {"hotel_name": "Four Seasons Hotel Kuala Lumpur", "hotel_address": "145 Jalan Ampang, 50450 Kuala Lumpur, Malaysia", "hotel_phone": "+60 3 2382 8888", "star_rating": 5, "price_range": {"min": 700, "max": 1400}, "currency": "MYR", "room_types": ["Deluxe Room", "Premier Room", "Royal Suite"]}
+    ],
+    "Penang": [
+      {"hotel_name": "Eastern & Oriental Hotel", "hotel_address": "10 Lebuh Farquhar, 10200 George Town, Penang, Malaysia", "hotel_phone": "+60 4 222 2000", "star_rating": 5, "price_range": {"min": 500, "max": 900}, "currency": "MYR", "room_types": ["Studio Suite", "Heritage Suite", "Victory Annexe Suite"]}
+    ]
+  },
+  "Taiwan": {
+    "Taipei": [
+      {"hotel_name": "Mandarin Oriental Taipei", "hotel_address": "158 Dunhua North Road, Taipei 10548, Taiwan", "hotel_phone": "+886 2 2715 6888", "star_rating": 5, "price_range": {"min": 12000, "max": 25000}, "currency": "TWD", "room_types": ["Deluxe Room", "Premier Room", "Oriental Suite"]},
+      {"hotel_name": "The Regent Taipei", "hotel_address": "3 Lane 39, Section 2, Zhongshan North Road, Taipei 104, Taiwan", "hotel_phone": "+886 2 2523 8000", "star_rating": 5, "price_range": {"min": 8000, "max": 18000}, "currency": "TWD", "room_types": ["Deluxe Room", "Premier Room", "Presidential Suite"]}
+    ],
+    "Kaohsiung": [
+      {"hotel_name": "Silks Club", "hotel_address": "1 Zhongzheng 4th Road, Qianzhen District, Kaohsiung 806, Taiwan", "hotel_phone": "+886 7 213 1188", "star_rating": 5, "price_range": {"min": 6000, "max": 12000}, "currency": "TWD", "room_types": ["Deluxe Room", "Club Suite", "Presidential Suite"]}
+    ]
+  },
+  "UAE": {
+    "Dubai": [
+      {"hotel_name": "Burj Al Arab Jumeirah", "hotel_address": "Jumeirah Street, Dubai, UAE", "hotel_phone": "+971 4 301 7777", "star_rating": 5, "price_range": {"min": 5000, "max": 15000}, "currency": "AED", "room_types": ["Deluxe Suite", "Panoramic Suite", "Royal Suite"]},
+      {"hotel_name": "Atlantis The Palm", "hotel_address": "Crescent Road, The Palm, Dubai, UAE", "hotel_phone": "+971 4 426 2000", "star_rating": 5, "price_range": {"min": 1500, "max": 4000}, "currency": "AED", "room_types": ["Ocean Room", "Palm Room", "Underwater Suite"]}
+    ],
+    "Abu Dhabi": [
+      {"hotel_name": "Emirates Palace Mandarin Oriental", "hotel_address": "West Corniche Road, Abu Dhabi, UAE", "hotel_phone": "+971 2 690 9000", "star_rating": 5, "price_range": {"min": 2000, "max": 6000}, "currency": "AED", "room_types": ["Coral Room", "Pearl Room", "Palace Suite"]}
+    ]
+  },
+  "Netherlands": {
+    "Amsterdam": [
+      {"hotel_name": "Waldorf Astoria Amsterdam", "hotel_address": "Herengracht 542-556, 1017 CG Amsterdam, Netherlands", "hotel_phone": "+31 20 718 4600", "star_rating": 5, "price_range": {"min": 500, "max": 1200}, "currency": "EUR", "room_types": ["Deluxe Room", "Canal View Room", "Royal Suite"]},
+      {"hotel_name": "Hotel TwentySeven", "hotel_address": "Dam 27, 1012 JS Amsterdam, Netherlands", "hotel_phone": "+31 20 217 2727", "star_rating": 5, "price_range": {"min": 600, "max": 1500}, "currency": "EUR", "room_types": ["Signature Suite", "Royal Suite", "Royal Dam Suite"]}
+    ]
+  },
+  "Spain": {
+    "Barcelona": [
+      {"hotel_name": "Hotel Arts Barcelona", "hotel_address": "Carrer de la Marina 19-21, 08005 Barcelona, Spain", "hotel_phone": "+34 93 221 1000", "star_rating": 5, "price_range": {"min": 400, "max": 900}, "currency": "EUR", "room_types": ["Deluxe Room", "Club Room", "Arts Suite"]},
+      {"hotel_name": "Mandarin Oriental Barcelona", "hotel_address": "Passeig de Gràcia 38-40, 08007 Barcelona, Spain", "hotel_phone": "+34 93 151 8888", "star_rating": 5, "price_range": {"min": 500, "max": 1100}, "currency": "EUR", "room_types": ["Deluxe Room", "Premier Room", "Oriental Suite"]}
+    ],
+    "Madrid": [
+      {"hotel_name": "Four Seasons Hotel Madrid", "hotel_address": "Calle de Sevilla 3, 28014 Madrid, Spain", "hotel_phone": "+34 91 761 6700", "star_rating": 5, "price_range": {"min": 550, "max": 1200}, "currency": "EUR", "room_types": ["Superior Room", "Deluxe Room", "Royal Suite"]}
+    ]
+  },
+  "China": {
+    "Beijing": [
+      {"hotel_name": "The Peninsula Beijing", "hotel_address": "8 Goldfish Lane, Wangfujing, Beijing 100006, China", "hotel_phone": "+86 10 8516 2888", "star_rating": 5, "price_range": {"min": 2500, "max": 6000}, "currency": "CNY", "room_types": ["Deluxe Room", "Grand Deluxe Room", "Peninsula Suite"]},
+      {"hotel_name": "Aman at Summer Palace", "hotel_address": "1 Gongmenqian Street, Summer Palace, Beijing 100091, China", "hotel_phone": "+86 10 5987 9999", "star_rating": 5, "price_range": {"min": 4000, "max": 10000}, "currency": "CNY", "room_types": ["Deluxe Suite", "Imperial Suite", "Aman Suite"]}
+    ],
+    "Shanghai": [
+      {"hotel_name": "The Peninsula Shanghai", "hotel_address": "32 The Bund, Zhongshan Dong Yi Road, Shanghai 200002, China", "hotel_phone": "+86 21 2327 2888", "star_rating": 5, "price_range": {"min": 3000, "max": 7000}, "currency": "CNY", "room_types": ["Deluxe Room", "Grand Deluxe Room", "Peninsula Suite"]}
+    ]
+  },
+  "Switzerland": {
+    "Zurich": [
+      {"hotel_name": "The Dolder Grand", "hotel_address": "Kurhausstrasse 65, 8032 Zürich, Switzerland", "hotel_phone": "+41 44 456 6000", "star_rating": 5, "price_range": {"min": 700, "max": 1500}, "currency": "CHF", "room_types": ["Deluxe Room", "Grand Deluxe Room", "Dolder Suite"]},
+      {"hotel_name": "Baur au Lac", "hotel_address": "Talstrasse 1, 8001 Zürich, Switzerland", "hotel_phone": "+41 44 220 5020", "star_rating": 5, "price_range": {"min": 600, "max": 1400}, "currency": "CHF", "room_types": ["Deluxe Room", "Junior Suite", "Royal Suite"]}
+    ],
+    "Geneva": [
+      {"hotel_name": "Four Seasons Hotel des Bergues Geneva", "hotel_address": "33 Quai des Bergues, 1201 Geneva, Switzerland", "hotel_phone": "+41 22 908 7000", "star_rating": 5, "price_range": {"min": 650, "max": 1300}, "currency": "CHF", "room_types": ["Superior Room", "Deluxe Room", "Presidential Suite"]}
+    ]
+  },
+  "Indonesia": {
+    "Bali": [
+      {"hotel_name": "Four Seasons Resort Bali at Sayan", "hotel_address": "Sayan, Ubud, Gianyar 80571, Bali, Indonesia", "hotel_phone": "+62 361 977 577", "star_rating": 5, "price_range": {"min": 8000000, "max": 20000000}, "currency": "IDR", "room_types": ["Valley Villa", "Riverfront Villa", "Royal Villa"]},
+      {"hotel_name": "Ayana Resort Bali", "hotel_address": "Jimbaran, Kuta Selatan, Badung 80364, Bali, Indonesia", "hotel_phone": "+62 361 702 222", "star_rating": 5, "price_range": {"min": 3500000, "max": 8000000}, "currency": "IDR", "room_types": ["Resort View Room", "Ocean View Room", "Villa"]}
+    ],
+    "Jakarta": [
+      {"hotel_name": "Four Seasons Hotel Jakarta", "hotel_address": "Jalan Gatot Subroto, Kav. 18, Jakarta 12710, Indonesia", "hotel_phone": "+62 21 2277 1888", "star_rating": 5, "price_range": {"min": 4000000, "max": 10000000}, "currency": "IDR", "room_types": ["Deluxe Room", "Premier Room", "Presidential Suite"]}
+    ]
+  },
+  "flights": {
+    "Vietnam_Australia": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "SYD", "flight_numbers": ["VN 773", "VN 787"], "duration": "9h 45m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "HAN", "to": "MEL", "flight_numbers": ["VN 781", "VN 783"], "duration": "9h 20m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 2"},
+          {"from": "SGN", "to": "SYD", "flight_numbers": ["VN 771", "VN 775"], "duration": "8h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "SGN", "to": "MEL", "flight_numbers": ["VN 777", "VN 779"], "duration": "8h 15m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 2"},
+          {"from": "SYD", "to": "HAN", "flight_numbers": ["VN 774", "VN 788"], "duration": "9h 30m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"},
+          {"from": "MEL", "to": "HAN", "flight_numbers": ["VN 782", "VN 784"], "duration": "9h 10m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 1 piece 23KG, 1 piece 23KG"
+      }
+    ],
+    "Vietnam_Japan": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "NRT", "flight_numbers": ["VN 310", "VN 312"], "duration": "5h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "HAN", "to": "KIX", "flight_numbers": ["VN 320", "VN 322"], "duration": "5h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "SGN", "to": "NRT", "flight_numbers": ["VN 300", "VN 302"], "duration": "6h 15m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "NRT", "to": "HAN", "flight_numbers": ["VN 311", "VN 313"], "duration": "6h 00m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"},
+          {"from": "KIX", "to": "HAN", "flight_numbers": ["VN 321", "VN 323"], "duration": "5h 30m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_South Korea": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "ICN", "flight_numbers": ["VN 408", "VN 416"], "duration": "4h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "SGN", "to": "ICN", "flight_numbers": ["VN 400", "VN 402"], "duration": "5h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "HAN", "to": "PUS", "flight_numbers": ["VN 438", "VN 440"], "duration": "4h 40m", "departure_terminal": "Terminal 2", "arrival_terminal": "International"},
+          {"from": "ICN", "to": "HAN", "flight_numbers": ["VN 409", "VN 417"], "duration": "5h 00m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"},
+          {"from": "PUS", "to": "HAN", "flight_numbers": ["VN 439", "VN 441"], "duration": "5h 10m", "departure_terminal": "International", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_Singapore": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "SIN", "flight_numbers": ["VN 660", "VN 662"], "duration": "3h 45m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "SGN", "to": "SIN", "flight_numbers": ["VN 650", "VN 652"], "duration": "2h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "SIN", "to": "HAN", "flight_numbers": ["VN 661", "VN 663"], "duration": "4h 00m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"},
+          {"from": "SIN", "to": "SGN", "flight_numbers": ["VN 651", "VN 653"], "duration": "2h 15m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_Thailand": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "BKK", "flight_numbers": ["VN 610", "VN 612"], "duration": "2h 15m", "departure_terminal": "Terminal 2", "arrival_terminal": "Suvarnabhumi"},
+          {"from": "SGN", "to": "BKK", "flight_numbers": ["VN 600", "VN 602"], "duration": "1h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Suvarnabhumi"},
+          {"from": "BKK", "to": "HAN", "flight_numbers": ["VN 611", "VN 613"], "duration": "2h 30m", "departure_terminal": "Suvarnabhumi", "arrival_terminal": "Terminal 2"},
+          {"from": "BKK", "to": "SGN", "flight_numbers": ["VN 601", "VN 603"], "duration": "1h 45m", "departure_terminal": "Suvarnabhumi", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_France": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "CDG", "flight_numbers": ["VN 18", "VN 20"], "duration": "12h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 2E"},
+          {"from": "SGN", "to": "CDG", "flight_numbers": ["VN 10", "VN 12"], "duration": "13h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 2E"},
+          {"from": "CDG", "to": "HAN", "flight_numbers": ["VN 19", "VN 21"], "duration": "11h 30m", "departure_terminal": "Terminal 2E", "arrival_terminal": "Terminal 2"},
+          {"from": "CDG", "to": "SGN", "flight_numbers": ["VN 11", "VN 13"], "duration": "12h 00m", "departure_terminal": "Terminal 2E", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_United Kingdom": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "LHR", "flight_numbers": ["VN 58", "VN 60"], "duration": "13h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 4"},
+          {"from": "SGN", "to": "LHR", "flight_numbers": ["VN 50", "VN 52"], "duration": "13h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 4"},
+          {"from": "LHR", "to": "HAN", "flight_numbers": ["VN 59", "VN 61"], "duration": "11h 30m", "departure_terminal": "Terminal 4", "arrival_terminal": "Terminal 2"},
+          {"from": "LHR", "to": "SGN", "flight_numbers": ["VN 51", "VN 53"], "duration": "12h 00m", "departure_terminal": "Terminal 4", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_USA": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "SGN", "to": "SFO", "flight_numbers": ["VN 98", "VN 100"], "duration": "14h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "International Terminal"},
+          {"from": "SGN", "to": "LAX", "flight_numbers": ["VN 104", "VN 106"], "duration": "15h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Tom Bradley International"},
+          {"from": "SFO", "to": "SGN", "flight_numbers": ["VN 99", "VN 101"], "duration": "16h 00m", "departure_terminal": "International Terminal", "arrival_terminal": "Terminal 2"},
+          {"from": "LAX", "to": "SGN", "flight_numbers": ["VN 105", "VN 107"], "duration": "16h 30m", "departure_terminal": "Tom Bradley International", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_Italy": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "FCO", "flight_numbers": ["VN 38", "VN 40"], "duration": "12h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 3"},
+          {"from": "SGN", "to": "FCO", "flight_numbers": ["VN 30", "VN 32"], "duration": "12h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 3"},
+          {"from": "FCO", "to": "HAN", "flight_numbers": ["VN 39", "VN 41"], "duration": "11h 00m", "departure_terminal": "Terminal 3", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_Germany": [
+      {
+        "airline": "Vietnam Airlines",
+        "airline_code": "VN",
+        "routes": [
+          {"from": "HAN", "to": "FRA", "flight_numbers": ["VN 28", "VN 30"], "duration": "12h 15m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "SGN", "to": "FRA", "flight_numbers": ["VN 20", "VN 22"], "duration": "12h 45m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+          {"from": "FRA", "to": "HAN", "flight_numbers": ["VN 29", "VN 31"], "duration": "10h 45m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"}
+        ],
+        "baggage": "Free baggage: 2 pieces 23KG each"
+      }
+    ],
+    "Vietnam_Canada": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "YVR", "flight_numbers": ["VN 88", "VN 90"], "duration": "14h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "International"},
+        {"from": "SGN", "to": "YVR", "flight_numbers": ["VN 80", "VN 82"], "duration": "14h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "International"},
+        {"from": "YVR", "to": "HAN", "flight_numbers": ["VN 89", "VN 91"], "duration": "15h 00m", "departure_terminal": "International", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_New Zealand": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "AKL", "flight_numbers": ["VN 792", "VN 794"], "duration": "12h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "International"},
+        {"from": "SGN", "to": "AKL", "flight_numbers": ["VN 790", "VN 795"], "duration": "11h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "International"},
+        {"from": "AKL", "to": "HAN", "flight_numbers": ["VN 793", "VN 796"], "duration": "12h 30m", "departure_terminal": "International", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_Malaysia": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "KUL", "flight_numbers": ["VN 680", "VN 682"], "duration": "3h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "KLIA"},
+        {"from": "SGN", "to": "KUL", "flight_numbers": ["VN 670", "VN 672"], "duration": "2h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "KLIA"},
+        {"from": "KUL", "to": "HAN", "flight_numbers": ["VN 681", "VN 683"], "duration": "3h 45m", "departure_terminal": "KLIA", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_Taiwan": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "TPE", "flight_numbers": ["VN 580", "VN 582"], "duration": "3h 15m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+        {"from": "SGN", "to": "TPE", "flight_numbers": ["VN 570", "VN 572"], "duration": "3h 45m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+        {"from": "TPE", "to": "HAN", "flight_numbers": ["VN 581", "VN 583"], "duration": "3h 30m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_UAE": [
+      {"airline": "Emirates", "airline_code": "EK", "routes": [
+        {"from": "HAN", "to": "DXB", "flight_numbers": ["EK 395", "EK 397"], "duration": "8h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 3"},
+        {"from": "SGN", "to": "DXB", "flight_numbers": ["EK 393", "EK 399"], "duration": "7h 45m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 3"},
+        {"from": "DXB", "to": "HAN", "flight_numbers": ["EK 396", "EK 398"], "duration": "7h 00m", "departure_terminal": "Terminal 3", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_Netherlands": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "AMS", "flight_numbers": ["VN 48", "VN 50"], "duration": "12h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Schiphol"},
+        {"from": "SGN", "to": "AMS", "flight_numbers": ["VN 40", "VN 42"], "duration": "12h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Schiphol"},
+        {"from": "AMS", "to": "HAN", "flight_numbers": ["VN 49", "VN 51"], "duration": "10h 30m", "departure_terminal": "Schiphol", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_Spain": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "MAD", "flight_numbers": ["VN 68", "VN 70"], "duration": "13h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 4"},
+        {"from": "SGN", "to": "MAD", "flight_numbers": ["VN 64", "VN 66"], "duration": "14h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 4"},
+        {"from": "MAD", "to": "HAN", "flight_numbers": ["VN 69", "VN 71"], "duration": "12h 00m", "departure_terminal": "Terminal 4", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_China": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "PEK", "flight_numbers": ["VN 510", "VN 512"], "duration": "3h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 2"},
+        {"from": "SGN", "to": "PVG", "flight_numbers": ["VN 520", "VN 522"], "duration": "4h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+        {"from": "PEK", "to": "HAN", "flight_numbers": ["VN 511", "VN 513"], "duration": "4h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_Switzerland": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "ZRH", "flight_numbers": ["VN 78", "VN 80"], "duration": "12h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+        {"from": "SGN", "to": "ZRH", "flight_numbers": ["VN 74", "VN 76"], "duration": "13h 00m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 1"},
+        {"from": "ZRH", "to": "HAN", "flight_numbers": ["VN 79", "VN 81"], "duration": "11h 00m", "departure_terminal": "Terminal 1", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ],
+    "Vietnam_Indonesia": [
+      {"airline": "Vietnam Airlines", "airline_code": "VN", "routes": [
+        {"from": "HAN", "to": "CGK", "flight_numbers": ["VN 630", "VN 632"], "duration": "4h 30m", "departure_terminal": "Terminal 2", "arrival_terminal": "Terminal 3"},
+        {"from": "SGN", "to": "DPS", "flight_numbers": ["VN 640", "VN 642"], "duration": "3h 45m", "departure_terminal": "Terminal 2", "arrival_terminal": "International"},
+        {"from": "CGK", "to": "HAN", "flight_numbers": ["VN 631", "VN 633"], "duration": "5h 00m", "departure_terminal": "Terminal 3", "arrival_terminal": "Terminal 2"}
+      ], "baggage": "Free baggage: 2 pieces 23KG each"}
+    ]
+  }
+}

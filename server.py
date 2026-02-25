@@ -283,8 +283,6 @@ def run_step():
     response: Dict[str, Any] = {"status": "done", "step": step}
     if step == "summary":
         response["summary_profile"] = state.get("summary_profile", "")
-    if step == "risk":
-        response["risk_points"] = state.get("risk_points", [])
     if step == "writer":
         response["letter"] = state.get("letter_full", "")
         response["output_path"] = output_path
@@ -364,5 +362,280 @@ def run_itinerary():
     return jsonify({"itinerary": itinerary, "output_path": output_path})
 
 
+# ==================== BOOKING GENERATOR ENDPOINTS ====================
+
+from datetime import datetime, timedelta
+from booking_generator import (
+    generate_all_bookings,
+    fill_hotel_template,
+    fill_flight_template,
+    generate_bookings_from_ai,
+)
+from ai_booking_agent import (
+    extract_trip_info,
+    ai_select_bookings,
+    generate_ai_booking,
+)
+
+
+@app.post("/api/booking/generate")
+def generate_booking():
+    """Generate hotel and flight booking confirmations."""
+    payload = request.get_json(force=True) or {}
+    
+    destination = payload.get("destination", "Australia")
+    num_days = int(payload.get("num_days", 10))
+    guest_name = payload.get("guest_name", "")
+    origin_airport = payload.get("origin_airport", "HAN")
+    output_dir = payload.get("output_dir", "output")
+    
+    # Get guest name from summary if not provided
+    if not guest_name:
+        cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+        state_cache = _load_state(cache_dir)
+        extracted = state_cache.get("extracted", {})
+        
+        # Try to extract name from personal info
+        personal = extracted.get("personal", {})
+        if personal:
+            # Get first file's data
+            for _, data in personal.items():
+                if isinstance(data, dict):
+                    guest_name = data.get("ho_ten", data.get("name", "NGUYEN VAN A"))
+                    break
+                elif isinstance(data, str):
+                    # Try to parse name from text
+                    guest_name = "NGUYEN VAN A"
+        
+        if not guest_name:
+            guest_name = "NGUYEN VAN A"
+    
+    # Calculate start date (3 months from now by default)
+    start_date_str = payload.get("start_date")
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+    else:
+        start_date = datetime.now() + timedelta(days=90)
+    
+    # Generate bookings
+    hotel_bookings, flight_booking = generate_all_bookings(
+        destination=destination,
+        num_days=num_days,
+        guest_name=guest_name,
+        origin_airport=origin_airport,
+        start_date=start_date
+    )
+    
+    # Fill templates and save
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Hotel template path
+    hotel_template_path = os.path.join(
+        os.path.dirname(__file__), 
+        "Booking", 
+        "Confirmation_for_Booking_ID_#_1696039455.html"
+    )
+    
+    # Flight template path
+    flight_template_path = os.path.join(
+        os.path.dirname(__file__),
+        "Booking",
+        "flight.html"
+    )
+    
+    # Generate hotel HTMLs
+    hotel_htmls = []
+    for i, booking in enumerate(hotel_bookings, 1):
+        if os.path.exists(hotel_template_path):
+            html = fill_hotel_template(hotel_template_path, booking)
+        else:
+            # Fallback: return JSON as HTML
+            html = f"<pre>{json.dumps(booking, indent=2, ensure_ascii=False)}</pre>"
+        
+        output_path = os.path.join(output_dir, f"booking_hotel_{i}.html")
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        hotel_htmls.append({"path": output_path, "html": html, "data": booking})
+    
+    # Generate flight HTML
+    if os.path.exists(flight_template_path):
+        flight_html = fill_flight_template(flight_template_path, flight_booking)
+    else:
+        flight_html = f"<pre>{json.dumps(flight_booking, indent=2, ensure_ascii=False)}</pre>"
+    
+    flight_output_path = os.path.join(output_dir, "booking_flight.html")
+    with open(flight_output_path, "w", encoding="utf-8") as f:
+        f.write(flight_html)
+    
+    return jsonify({
+        "status": "success",
+        "hotel_bookings": [h["data"] for h in hotel_htmls],
+        "hotel_htmls": [h["html"] for h in hotel_htmls],
+        "hotel_paths": [h["path"] for h in hotel_htmls],
+        "flight_booking": flight_booking,
+        "flight_html": flight_html,
+        "flight_path": flight_output_path,
+        "guest_name": guest_name,
+        "destination": destination,
+        "num_days": num_days,
+        "start_date": start_date.strftime("%Y-%m-%d")
+    })
+
+
+@app.get("/api/booking/latest")
+def get_booking_latest():
+    """Get the latest generated booking files."""
+    output_dir = request.args.get("output_dir", "output")
+    
+    result = {
+        "hotel_htmls": [],
+        "flight_html": ""
+    }
+    
+    # Find hotel booking files
+    i = 1
+    while True:
+        hotel_path = os.path.join(output_dir, f"booking_hotel_{i}.html")
+        if os.path.exists(hotel_path):
+            with open(hotel_path, "r", encoding="utf-8") as f:
+                result["hotel_htmls"].append(f.read())
+            i += 1
+        else:
+            break
+    
+    # Get flight booking
+    flight_path = os.path.join(output_dir, "booking_flight.html")
+    if os.path.exists(flight_path):
+        with open(flight_path, "r", encoding="utf-8") as f:
+            result["flight_html"] = f.read()
+    
+    return jsonify(result)
+
+
+@app.get("/api/booking/destinations")
+def get_destinations():
+    """Get available destinations from the hotels database."""
+    from booking_generator import load_hotels_database
+    
+    db = load_hotels_database()
+    destinations = [key for key in db.keys() if key != "flights"]
+    
+    return jsonify({"destinations": destinations})
+
+
+# ==================== AI BOOKING ENDPOINTS ====================
+
+@app.post("/api/booking/extract_trip")
+def extract_trip():
+    """Extract trip information from input files - independent from Letter tab."""
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", "input")
+    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
+    llm = ChatOpenAI(model=model, temperature=0)
+
+    try:
+        trip_info = extract_trip_info(llm, input_dir)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    if not trip_info:
+        return jsonify({"error": "Không trích xuất được thông tin chuyến đi."}), 400
+
+    # Cache trip info + clear old booking cache (force fresh AI gen next time)
+    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(os.path.join(cache_dir, "booking_trip_info.json"), "w", encoding="utf-8") as f:
+        json.dump(trip_info, f, ensure_ascii=False, indent=2)
+    # Clear booking cache so AI will regenerate
+    booking_cache = os.path.join(cache_dir, "ai_booking_data.json")
+    if os.path.exists(booking_cache):
+        os.remove(booking_cache)
+
+    return jsonify({"status": "success", "trip_info": trip_info})
+
+
+@app.post("/api/booking/ai_generate")
+def ai_generate_booking():
+    """Generate bookings using AI. Uses cached booking data if available to save tokens."""
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", "input")
+    output_dir = payload.get("output_dir", "output")
+    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    force_new = payload.get("force_new", False)
+
+    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    booking_cache_path = os.path.join(cache_dir, "ai_booking_data.json")
+    trip_cache_path = os.path.join(cache_dir, "booking_trip_info.json")
+
+    # --- Check for cached booking data first (skip AI to save tokens) ---
+    booking_data = None
+    trip_info = None
+    used_cache = False
+
+    if not force_new and os.path.exists(booking_cache_path):
+        with open(booking_cache_path, "r", encoding="utf-8") as f:
+            booking_data = json.load(f)
+        if os.path.exists(trip_cache_path):
+            with open(trip_cache_path, "r", encoding="utf-8") as f:
+                trip_info = json.load(f)
+        used_cache = True
+
+    # --- If no cache, call AI ---
+    if not booking_data:
+        if os.path.exists(trip_cache_path):
+            with open(trip_cache_path, "r", encoding="utf-8") as f:
+                trip_info = json.load(f)
+
+        llm = ChatOpenAI(model=model, temperature=0)
+
+        try:
+            trip_info, booking_data = generate_ai_booking(llm, input_dir, trip_info)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": f"Lỗi AI: {str(e)}"}), 500
+
+        # Cache booking data for next time
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(booking_cache_path, "w", encoding="utf-8") as f:
+            json.dump(booking_data, f, ensure_ascii=False, indent=2)
+
+    # Template paths
+    hotel_template_path = os.path.join(
+        os.path.dirname(__file__),
+        "Booking",
+        "Confirmation_for_Booking_ID_#_1696039455.html"
+    )
+    flight_template_path = os.path.join(
+        os.path.dirname(__file__),
+        "Booking",
+        "flight.html"
+    )
+
+    # Generate HTML files from AI decisions
+    result = generate_bookings_from_ai(
+        ai_booking_data=booking_data,
+        hotel_template_path=hotel_template_path,
+        flight_template_path=flight_template_path,
+        output_dir=output_dir,
+    )
+
+    return jsonify({
+        "status": "success",
+        "used_cache": used_cache,
+        "trip_info": trip_info,
+        "booking_data": {
+            "hotels": result["hotel_data"],
+            "reasoning": booking_data.get("reasoning", ""),
+        },
+        "hotel_htmls": result["hotel_htmls"],
+        "hotel_paths": result["hotel_paths"],
+        "flight_html": result["flight_html"],
+        "flight_path": result["flight_path"],
+    })
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=False)
+

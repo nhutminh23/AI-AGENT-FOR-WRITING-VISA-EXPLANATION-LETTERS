@@ -14,6 +14,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="letter">Thư giải trình</button>
         <button class="tab-btn" data-tab="itinerary">Lịch trình</button>
+        <button class="tab-btn" data-tab="booking">Booking</button>
       </div>
 
       <div id="letterSection" class="section">
@@ -60,11 +61,6 @@
         </section>
 
         <section class="card">
-          <h2>Điểm cần giải trình</h2>
-          <pre id="riskPoints" class="summary">Chưa có dữ liệu.</pre>
-        </section>
-
-        <section class="card">
           <h2>Kết quả thư giải trình</h2>
           <pre id="result" class="result">Chưa chạy.</pre>
         </section>
@@ -104,8 +100,103 @@
           <iframe id="itineraryResult" class="itinerary-frame" title="Itinerary Preview"></iframe>
         </section>
       </div>
+
+      <!-- NEW: AI Booking Section -->
+      <div id="bookingSection" class="section hidden">
+        <section class="card">
+          <h2>🤖 AI Tạo Booking (Khách sạn + Máy bay)</h2>
+          <div class="hint">
+            AI tự đọc hồ sơ từ thư mục input → trích xuất thông tin chuyến đi → chọn khách sạn & chuyến bay THẬT cho mọi quốc gia.
+          </div>
+        </section>
+
+        <!-- Step 1: Extract Trip Info -->
+        <section class="card">
+          <h2>📋 Bước 1: Trích xuất thông tin chuyến đi</h2>
+          <div class="row">
+            <button id="extractTripBtn">Trích xuất từ input</button>
+          </div>
+          <div id="tripInfoPanel" class="summary" style="white-space:pre-wrap; margin-top:8px;">Chưa trích xuất.</div>
+        </section>
+
+        <!-- Step 2: AI Generate Booking -->
+        <section class="card">
+          <h2>✈️ Bước 2: AI Tạo Booking</h2>
+          <div class="row">
+            <div>
+              <label for="bookingOutputAI">Thư mục output</label>
+              <input id="bookingOutputAI" type="text" value="output" />
+            </div>
+            <button id="runAIBookingBtn">🤖 AI Tạo Booking</button>
+          </div>
+          <div id="aiBookingStatus" class="step-progress" style="margin-top:8px;">Chưa chạy.</div>
+        </section>
+
+        <!-- AI Reasoning -->
+        <section class="card" id="aiReasoningSection" style="display:none;">
+          <details class="collapsible" open>
+            <summary>💡 Lý do AI chọn</summary>
+            <pre id="aiReasoning" class="summary" style="white-space:pre-wrap;"></pre>
+          </details>
+        </section>
+
+        <!-- Hotel Results -->
+        <section class="card">
+          <h2>Kết quả Booking Khách sạn</h2>
+          <div id="hotelBookingTabs" class="booking-tabs"></div>
+          <iframe id="hotelBookingResult" class="booking-frame" title="Hotel Booking Preview"></iframe>
+        </section>
+
+        <!-- Flight Results -->
+        <section class="card">
+          <h2>Kết quả Booking Máy bay</h2>
+          <iframe id="flightBookingResult" class="booking-frame" title="Flight Booking Preview"></iframe>
+        </section>
+
+        <!-- Manual Override (collapsible) -->
+        <section class="card">
+          <details class="collapsible">
+            <summary>⚙️ Chỉnh sửa thủ công (tạo booking bằng database)</summary>
+            <div class="row" style="margin-top:12px;">
+              <div>
+                <label for="guestName">Tên khách (theo hộ chiếu)</label>
+                <input type="text" id="guestName" placeholder="VD: NGUYEN VAN A" value="" />
+              </div>
+              <div>
+                <label for="startDate">Ngày khởi hành</label>
+                <input type="date" id="startDate" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="destination">Điểm đến</label>
+                <input type="text" id="destination" list="destinationList" placeholder="Nhập tên nước..." value="Australia" />
+                <datalist id="destinationList"></datalist>
+              </div>
+              <div>
+                <label for="numDays">Số ngày</label>
+                <input id="numDays" type="number" value="10" min="1" max="30" />
+              </div>
+              <div>
+                <label for="originAirport">Sân bay đi</label>
+                <select id="originAirport">
+                  <option value="HAN">Hà Nội (HAN)</option>
+                  <option value="SGN">TP.HCM (SGN)</option>
+                </select>
+              </div>
+              <div>
+                <label for="bookingOutput">Thư mục output</label>
+                <input id="bookingOutput" type="text" value="output" />
+              </div>
+              <button id="runBookingBtn">Tạo Booking (thủ công)</button>
+            </div>
+          </details>
+        </section>
+      </div>
+
     </div>
 
     <script src="app.js"></script>
   </body>
 </html>
+

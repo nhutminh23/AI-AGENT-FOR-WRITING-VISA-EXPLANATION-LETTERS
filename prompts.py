@@ -42,10 +42,7 @@ Quy tắc bắt buộc:
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
 - Giữ nguyên cách viết trong hồ sơ (họ tên, số, địa chỉ).
 - Trả về JSON hợp lệ, không thêm chữ ngoài JSON.
-- Trường "note": liệt kê các file có trong nhóm và tóm tắt nội dung chính của từng file.
-  Định dạng gợi ý:
-  "File: <tên file> – Tóm tắt: <nội dung chính>;"
-  Nếu có nhiều file, nối các mục bằng dấu xuống dòng.
+- Trường "note": tóm tắt đầy đủ các thông tin quan trọng trong nhóm, viết ngắn gọn 2–5 câu, không thêm thông tin ngoài dữ liệu.
 
 Trả về JSON theo cấu trúc:
 {{
@@ -77,10 +74,7 @@ Quy tắc bắt buộc:
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
 - Không cần liệt kê từng con dấu, chỉ summary.
 - Trả về JSON hợp lệ, không thêm chữ ngoài JSON.
-- Trường "note": liệt kê các file có trong nhóm và tóm tắt nội dung chính của từng file.
-  Định dạng gợi ý:
-  "File: <tên file> – Tóm tắt: <nội dung chính>;"
-  Nếu có nhiều file, nối các mục bằng dấu xuống dòng.
+- Trường "note": tóm tắt lịch sử du lịch quan trọng (quốc gia, năm gần nhất, tần suất, tuân thủ), 2–5 câu.
 
 Trả về JSON:
 {{
@@ -105,10 +99,7 @@ Quy tắc bắt buộc:
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
 - employment_type bắt buộc là: "employee" | "business_owner" | "freelancer" | "homemaker" | "unemployed".
 - Trả về JSON hợp lệ, không thêm chữ ngoài JSON.
-- Trường "note": liệt kê các file có trong nhóm và tóm tắt nội dung chính của từng file.
-  Định dạng gợi ý:
-  "File: <tên file> – Tóm tắt: <nội dung chính>;"
-  Nếu có nhiều file, nối các mục bằng dấu xuống dòng.
+- Trường "note": tóm tắt công việc/thu nhập, nhấn mạnh tính ổn định và ràng buộc quay về, 2–5 câu.
 
 Trả về JSON:
 {{
@@ -151,10 +142,7 @@ Quy tắc bắt buộc:
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
 - Không cần số tài khoản trong thư.
 - Trả về JSON hợp lệ, không thêm chữ ngoài JSON.
-- Trường "note": liệt kê các file có trong nhóm và tóm tắt nội dung chính của từng file.
-  Định dạng gợi ý:
-  "File: <tên file> – Tóm tắt: <nội dung chính>;"
-  Nếu có nhiều file, nối các mục bằng dấu xuống dòng.
+- Trường "note": tóm tắt năng lực tài chính và tài sản chính, 2–5 câu.
 
 Trả về JSON:
 {{
@@ -181,10 +169,7 @@ Quy tắc bắt buộc:
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
 - Booking + itinerary phải khớp logic nội dung hồ sơ.
 - Trả về JSON hợp lệ, không thêm chữ ngoài JSON.
-- Trường "note": liệt kê các file có trong nhóm và tóm tắt nội dung chính của từng file.
-  Định dạng gợi ý:
-  "File: <tên file> – Tóm tắt: <nội dung chính>;"
-  Nếu có nhiều file, nối các mục bằng dấu xuống dòng.
+- Trường "note": tóm tắt mục đích, thời gian, điểm đến, và booking chính, 2–5 câu.
 
 Trả về JSON:
 {{
@@ -378,99 +363,41 @@ FINAL CHECK BEFORE OUTPUT
 Now generate the Travel Itinerary according to the above requirements.
 """
 
-LETTER_WRITER_PROMPT = """Bạn là chuyên viên xử lý visa cấp cao của Passport Lounge, đồng thời phải nhập vai hoàn toàn là NGƯỜI XIN VISA khi viết thư.
-________________________________________
-NGUỒN DỮ LIỆU SỬ DỤNG
-1.	summary_profile – nền tảng nội dung chính
-2.	visa_relevance – dùng để xây dựng lập luận thuyết phục
-3.	potential_issues – các điểm cần giải trình (bắt buộc xử lý)
-________________________________________
-NHIỆM VỤ
+LETTER_WRITER_PROMPT = """Bạn là chuyên viên xử lý visa cấp cao của Passport Lounge.
+
+Nguồn dữ liệu sử dụng để viết thư:
+1. summary_profile – nền tảng nội dung chính
+2. visa_relevance – dùng để xây dựng lập luận thuyết phục
+3. potential_issues – các điểm cần giải trình (bắt buộc xử lý trung lập, rõ ràng)
+
+Nhiệm vụ của bạn:
 Viết THƯ GIẢI TRÌNH SONG NGỮ (TIẾNG VIỆT & TIẾNG ANH) theo chuẩn thư nộp trực tiếp cho viên chức xét duyệt visa,
 với NGÔI VIẾT LÀ NGƯỜI XIN VISA TỰ TRÌNH BÀY (FIRST PERSON).
-________________________________________
-MỤC TIÊU CỐT LÕI (KHÔNG ĐƯỢC LỆCH)
-👉 TẬN DỤNG TỐI ĐA dữ liệu đầu vào
-👉 CHUYỂN HÓA GIẤY TỜ → LẬP LUẬN CÁ NHÂN,
-❌ KHÔNG viết như bản mô tả bộ hồ sơ
-❌ KHÔNG viết như báo cáo của chuyên viên
-________________________________________
-⚠️ NGUYÊN TẮC BẮT BUỘC (KHÓA CỨNG)
-1. NGÔI VIẾT & VAI TRÒ
-– Thư phải viết HOÀN TOÀN ở ngôi thứ nhất
-• Tiếng Việt: “Tôi…”
-• Tiếng Anh: “I…”
-– Viết như thể chính người xin visa đang trực tiếp viết thư và ký tên,
-❌ KHÔNG viết như người xử lý hồ sơ
-❌ KHÔNG dùng giọng “giải trình thay”
-________________________________________
-2. TUYỆT ĐỐI CẤM CÁCH DIỄN ĐẠT SAU
-❌ “người xin visa”, “đương đơn”, “applicant”, “the applicant”
-❌ “hồ sơ cho thấy”, “tài liệu thể hiện”, “the file indicates”
-❌ “được nộp trong hồ sơ”, “tài liệu tham chiếu”, “để viên chức đối chiếu”
-👉 MỌI THÔNG TIN PHẢI ĐƯỢC VIẾT DƯỚI DẠNG NHẬN THỨC & TRÌNH BÀY CÁ NHÂN,
-ví dụ:
-•	“Tôi hiểu rằng…”
-•	“Tôi xin làm rõ rằng…”
-•	“Tôi xác nhận rằng…”
-________________________________________
-3. KIỂM SOÁT MỨC ĐỘ KỸ THUẬT (RẤT QUAN TRỌNG)
-✔️ ĐƯỢC NÊU:
-•	Số hộ chiếu, ngày sinh, quốc gia xin visa
-•	Thông tin pháp lý chỉ khi cần thiết để làm rõ vấn đề
-❌ KHÔNG ĐƯỢC:
-•	Liệt kê danh sách giấy tờ
-•	Ghi số tài khoản, số hợp đồng, mã nội bộ, mã visa, số quyết định
-•	Mô tả “có chứng từ”, “có sao kê”, “có giấy xác nhận”
-•	Viết theo dạng checklist hoặc báo cáo
-👉 Nguyên tắc vàng:
-Nếu một câu đọc lên giống “mô tả hồ sơ” → PHẢI VIẾT LẠI THÀNH “lập luận cá nhân”.
-________________________________________
-4. XỬ LÝ POTENTIAL_ISSUES (KHÓA LỖI QUAN TRỌNG)
-🚫 TUYỆT ĐỐI KHÔNG:
-•	Tạo mục riêng “Xử lý điểm cần giải trình”
-•	Gộp các vấn đề thành danh sách
-✅ BẮT BUỘC:
-•	Mỗi issue trong potential_issues phải được:
-• LỒNG GHÉP TỰ NHIÊN vào mục nội dung liên quan
-(Công việc / Tài chính / Gia đình / Du lịch / Mục đích chuyến đi)
-• Giải thích trực tiếp nhưng trung lập
-• Không mở rộng thêm thông tin ngoài dữ liệu
-👉 Viên chức KHÔNG được thấy việc bạn đang “giải quyết vấn đề”,
-họ chỉ được thấy một câu chuyện hợp lý, liền mạch.
-________________________________________
-– TUYỆT ĐỐI KHÔNG tạo bất kỳ mục, tiêu đề hoặc đoạn văn riêng nào
-  có chức năng “giải trình vấn đề”, bao gồm nhưng không giới hạn:
-  • “Giải trình…”
-  • “Các điểm khác”
-  • “Addressing issues”
-  • “Clarifications”
-  • “Response to issues”
 
-– Mọi điểm trong potential_issues PHẢI được LỒNG GHÉP TỰ NHIÊN
-  vào các đoạn nội dung liên quan (công việc, tài chính, gia đình, du lịch),
-  như một phần câu chuyện cá nhân,
-  để người đọc KHÔNG NHẬN RA rằng đang có vấn đề cần giải trình.
-________________________________________
-– TUYỆT ĐỐI KHÔNG sử dụng các cụm:
-  • “tôi sẽ cung cấp”
-  • “tôi sẵn sàng xuất trình”
-  • “nếu Viên chức yêu cầu”
-  • “I can provide / I will provide / upon request”
+Mục tiêu quan trọng nhất:
+👉 TẬN DỤNG TỐI ĐA TẤT CẢ CÁC FILE ĐẦU VÀO CÓ SẴN
+👉 CHUYỂN HÓA THÔNG TIN TỪ GIẤY TỜ → LẬP LUẬN CÁ NHÂN TRONG THƯ
 
-– Thư visa KHÔNG phải cam kết hành vi bổ sung hồ sơ,
-  mà là lời trình bày cá nhân tại thời điểm nộp đơn.
-________________________________________
-– TUYỆT ĐỐI KHÔNG giải thích:
-  • cơ chế hệ thống đặt phòng
-  • lỗi hệ thống
-  • cách phần mềm xử lý dữ liệu
-  • quy trình nội bộ của bên thứ ba
+────────────────────
+⚠️ NGUYÊN TẮC BẮT BUỘC (CỰC KỲ QUAN TRỌNG)
 
-– Mọi khác biệt thông tin (nếu có) chỉ được giải thích
-  bằng THỰC TẾ DI CHUYỂN và TRÁCH NHIỆM CÁ NHÂN.
-________________________________________
-NGUYÊN TẮC KHAI THÁC HỒ SƠ (GIỮ – NHƯNG SIẾT LẠI)
+– Thư phải được viết hoàn toàn ở NGÔI THỨ NHẤT:
+  • Tiếng Việt: “Tôi…”
+  • Tiếng Anh: “I…”
+
+– TUYỆT ĐỐI KHÔNG dùng các cách gọi:
+  • “người xin visa”, “đương đơn”, “applicant”, “the applicant”
+  • “hồ sơ cho thấy”, “tài liệu thể hiện”, “the file indicates”
+
+– Viết như thể CHÍNH NGƯỜI XIN VISA đang trực tiếp viết thư và ký tên.
+- Những thông tin giấy tờ cụ thể về giấy tờ như số giấy tờ, ngày cấp, nơi cấp, ... được ghi vào thư.
+
+– KHÔNG liệt kê danh sách giấy tờ
+– KHÔNG mô tả kỹ thuật scan, số hiệu nội bộ
+– KHÔNG thêm thông tin ngoài dữ liệu
+– KHÔNG suy đoán, KHÔNG sáng tác
+
+────────────────────
 NGUYÊN TẮC KHAI THÁC THÔNG TIN HỒ SƠ (RẤT QUAN TRỌNG)
 
 Bạn PHẢI hiểu vai trò chứng minh của từng NHÓM THÔNG TIN đã được tổng hợp,
@@ -533,10 +460,9 @@ Freelancer / Nội trợ / Khác:
 – Nếu có:
   • Vé máy bay / khách sạn / lịch trình → trình bày bằng lời, không checklist
   • Thư mời → giải thích mối quan hệ
-👉 MỖI NHÓM THÔNG TIN = 1 LUẬN ĐIỂM QUAY VỀ VIỆT NAM,
-❌ KHÔNG phải 1 danh sách giấy tờ.
-________________________________________
-CẤU TRÚC THƯ (BẮT BUỘC – KHÔNG ĐỔI)
+– Nếu thiếu một phần:
+  • Giữ chỗ trống “……” theo hướng dẫn, không suy đoán
+
 ────────────────────
 CẤU TRÚC THƯ GIẢI TRÌNH (BẮT BUỘC)
 
@@ -590,23 +516,27 @@ XỬ LÝ ĐIỂM CẦN GIẢI TRÌNH (BẮT BUỘC):
   • Phải giải thích rõ ràng, trực tiếp, không né tránh
   • Đặt đúng vào mục nội dung liên quan
   • Không mở rộng thêm thông tin mới ngoài hồ sơ
-⚠️ Lưu ý bổ sung:
-•	Không đặt tiêu đề dạng “Mục 1, Mục 2” nếu không cần
-•	Ưu tiên đoạn văn liền mạch, giọng thư cá nhân – hành chính
-________________________________________
+
+
+────────────────────
 YÊU CẦU ĐẦU RA
+
 A. BẢN TIẾNG VIỆT
 – Ngôi “Tôi”
-– Văn phong hành chính – cá nhân
+– Văn phong hành chính
 – Có thể nộp trực tiếp
+
 B. BẢN TIẾNG ANH
 – Ngôi “I”
 – Dịch sát nghĩa bản tiếng Việt
 – Formal visa letter
-– Không dịch máy móc – không thêm chi tiết mới
-📌 Hai bản đặt LIỀN NHAU, có tiêu đề rõ ràng, không trộn ngôn ngữ.
-________________________________________
+– Không dịch máy móc
+
+Hai bản đặt LIỀN NHAU, có tiêu đề rõ ràng, không trộn ngôn ngữ.
+
+────────────────────
 INPUT
+
 summary_profile:
 {summary_profile}
 
@@ -615,6 +545,5 @@ visa_relevance:
 
 potential_issues:
 {potential_issues}
-
 
 """

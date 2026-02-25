@@ -208,3 +208,44 @@ button:hover {
   white-space: pre-wrap;
   min-height: 120px;
 }
+
+/* Booking Section Styles */
+.booking-frame {
+  width: 100%;
+  min-height: 600px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.booking-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.hotel-tab-btn {
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.hotel-tab-btn:hover {
+  background: #e5e7eb;
+}
+
+.hotel-tab-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+input[type="number"] {
+  width: 100px;
+}
+

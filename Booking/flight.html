@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Itinerary - Vietnam Airlines</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-blue: #005670;
+            --light-blue-bg: #f4f8fa;
+            --text-color: #333;
+            --gray-text: #666;
+            --gold-color: #d4af37;
+            --border-color: #e0e0e0;
+            --teal-header: #006076; /* Màu nền header hành khách trong ảnh mới */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: #fff;
+            color: var(--text-color);
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1140px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            margin-top: 20px;
+        }
+        
+        .section-title:first-child {
+            margin-top: 0;
+        }
+
+        /* --- STYLES CŨ CỦA ROUTE (GIỮ NGUYÊN) --- */
+        .card {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            background: #fff;
+        }
+
+        .flight-timeline {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .flight-point {
+            width: 30%;
+        }
+
+        .date { font-size: 11px; color: var(--gray-text); margin-bottom: 4px; }
+        .time { font-size: 28px; font-weight: 600; line-height: 1.2; }
+        .airport-code { font-size: 16px; font-weight: 700; margin-top: 5px; }
+        .terminal { font-size: 13px; color: var(--gray-text); }
+
+        .flight-duration {
+            flex-grow: 1;
+            text-align: center;
+            position: relative;
+            margin: 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .line {
+            height: 1px;
+            background-color: #ccc;
+            width: 100%;
+            position: absolute;
+            top: 50%;
+            z-index: 1;
+        }
+        
+        .line::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -3px;
+            width: 6px;
+            height: 6px;
+            border-top: 1px solid #ccc;
+            border-right: 1px solid #ccc;
+            transform: rotate(45deg);
+        }
+
+        .pill {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 2px 12px;
+            font-size: 11px;
+            color: #555;
+            position: relative;
+            z-index: 2;
+        }
+
+        .flight-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 15px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .airline-info { display: flex; align-items: center; font-size: 13px; color: var(--gray-text); }
+        .lotus-icon { color: var(--gold-color); font-size: 18px; margin-right: 8px; }
+        .flight-number { color: var(--primary-blue); font-weight: 700; margin-right: 5px; }
+        .baggage-info { display: flex; align-items: center; font-size: 13px; color: var(--primary-blue); font-weight: 600; }
+        .baggage-icon { margin-right: 6px; font-size: 16px; }
+
+        /* --- STYLES MỚI CHO PASSENGER --- */
+        .passenger-container {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden; /* Bo tròn góc header */
+            background: #fff;
+        }
+
+        .passenger-header {
+            background-color: var(--teal-header);
+            color: #fff;
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-start; /* Căn icon lên trên một chút */
+        }
+
+        .p-icon {
+            margin-right: 15px;
+            font-size: 14px;
+            margin-top: 5px; /* Căn chỉnh icon mũi tên */
+        }
+
+        .p-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .p-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 2px;
+        }
+
+        .p-name {
+            font-size: 16px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .passenger-body {
+            padding: 20px;
+        }
+
+        .route-row {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .route-row:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .route-title {
+            color: var(--teal-header);
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .route-title i {
+            margin-right: 8px;
+            transform: rotate(-45deg); /* Nghiêng máy bay lên */
+            font-size: 14px;
+        }
+
+        .route-detail {
+            font-size: 15px;
+            color: #222;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .separator-icon {
+            margin: 0 10px;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .flight-services-link {
+            font-size: 11px;
+            color: var(--gray-text);
+            text-decoration: none;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="section-title">Route 1</h2>
+        <div class="card">
+            <div class="flight-timeline">
+                <div class="flight-point">
+                    <div class="date">10/03/2026</div>
+                    <div class="time">23:30</div>
+                    <div class="airport-code">HAN</div>
+                    <div class="terminal">Terminal 2</div>
+                </div>
+                <div class="flight-duration">
+                    <div class="line"></div>
+                    <div class="pill">9h 45m</div>
+                </div>
+                <div class="flight-point arrival">
+                    <div class="date">11/03/2026</div>
+                    <div class="time">13:15</div>
+                    <div class="airport-code">SYD</div>
+                    <div class="terminal">Terminal 1</div>
+                </div>
+            </div>
+            <div class="flight-footer">
+                <div class="airline-info">
+                    <i class="fa-solid fa-spa lotus-icon"></i> 
+                    <span class="flight-number">VN 787</span>
+                    <span>operated by Vietnam Airlines</span>
+                </div>
+                <div class="baggage-info">
+                    <i class="fa-solid fa-suitcase baggage-icon"></i>
+                    <span>Free baggage: 1 piece 23KG , 1 piece 23KG</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">Route 2</h2>
+        <div class="card">
+            <div class="flight-timeline">
+                <div class="flight-point">
+                    <div class="date">19/03/2026</div>
+                    <div class="time">00:50</div>
+                    <div class="airport-code">MEL</div>
+                    <div class="terminal">Terminal 2</div>
+                </div>
+                <div class="flight-duration">
+                    <div class="line"></div>
+                    <div class="pill">9h 20m</div>
+                </div>
+                <div class="flight-point arrival">
+                    <div class="date">19/03/2026</div>
+                    <div class="time">06:10</div>
+                    <div class="airport-code">HAN</div>
+                    <div class="terminal">Terminal 2</div>
+                </div>
+            </div>
+            <div class="flight-footer">
+                <div class="airline-info">
+                    <i class="fa-solid fa-spa lotus-icon"></i>
+                    <span class="flight-number">VN 778</span>
+                    <span>operated by Vietnam Airlines</span>
+                </div>
+                <div class="baggage-info">
+                    <i class="fa-solid fa-suitcase baggage-icon"></i>
+                    <span>Free baggage:</span>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="section-title">Passenger information</h2>
+        
+        <div class="passenger-container">
+            <div class="passenger-header">
+                <i class="fa-solid fa-chevron-up p-icon"></i>
+                <div class="p-info">
+                    <span class="p-label">Passenger 1</span>
+                    <span class="p-name">THI THANH HIEN DO</span>
+                </div>
+            </div>
+            <div class="passenger-body">
+                <div class="route-row">
+                    <div class="route-title">
+                        <i class="fa-solid fa-plane"></i> Route 1
+                    </div>
+                    <div class="route-detail">
+                        Hanoi (HAN), Vietnam 
+                        <i class="fa-solid fa-plane-departure separator-icon"></i>
+                        Sydney (SYD), Australia
+                    </div>
+                    <div class="flight-services-link">Flight services</div>
+                </div>
+
+                <div class="route-row">
+                    <div class="route-title">
+                        <i class="fa-solid fa-plane"></i> Route 2
+                    </div>
+                    <div class="route-detail">
+                        Melbourne (MEL), Australia 
+                        <i class="fa-solid fa-plane-departure separator-icon"></i>
+                        Hanoi (HAN), Vietnam
+                    </div>
+                    <div class="flight-services-link">Flight services</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="passenger-container">
+            <div class="passenger-header">
+                <i class="fa-solid fa-chevron-up p-icon"></i>
+                <div class="p-info">
+                    <span class="p-label">Passenger 2</span>
+                    <span class="p-name">NGOC KHUE VU</span>
+                </div>
+            </div>
+            <div class="passenger-body">
+                <div class="route-row">
+                    <div class="route-title">
+                        <i class="fa-solid fa-plane"></i> Route 1
+                    </div>
+                    <div class="route-detail">
+                        Hanoi (HAN), Vietnam 
+                        <i class="fa-solid fa-plane-departure separator-icon"></i>
+                        Sydney (SYD), Australia
+                    </div>
+                    <div class="flight-services-link">Flight services</div>
+                </div>
+
+                <div class="route-row">
+                    <div class="route-title">
+                        <i class="fa-solid fa-plane"></i> Route 2
+                    </div>
+                    <div class="route-detail">
+                        Melbourne (MEL), Australia 
+                        <i class="fa-solid fa-plane-departure separator-icon"></i>
+                        Hanoi (HAN), Vietnam
+                    </div>
+                    <div class="flight-services-link">Flight services</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
