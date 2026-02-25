@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Visa Explanation Letter</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+      </header>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="letter">Thư giải trình</button>
+        <button class="tab-btn" data-tab="itinerary">Lịch trình</button>
+      </div>
+
+      <div id="letterSection" class="section">
+        <section class="card">
+          <details class="collapsible" open>
+            <summary>Thư mục input</summary>
+            <div class="row">
+              <div>
+                <label for="inputDir">Đường dẫn</label>
+                <input id="inputDir" type="text" value="input" />
+              </div>
+              <button id="refreshBtn">Tải danh sách file</button>
+            </div>
+
+            <div id="fileList" class="file-list empty">
+              Chưa có dữ liệu. Bấm "Tải danh sách file".
+            </div>
+          </details>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <div>
+              <label for="outputPath">File output</label>
+              <input id="outputPath" type="text" value="output/letter.txt" />
+            </div>
+            <button id="loadStepsBtn">Tải trạng thái</button>
+            <button id="runAllBtn">Chạy tất cả</button>
+          </div>
+          <div class="hint">
+            Agent chỉ chạy khi bạn bấm nút từng bước.
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Các bước xử lý</h2>
+          <div id="stepsList" class="steps-list">Chưa tải trạng thái.</div>
+          <div id="stepProgress" class="step-progress">Chưa chạy.</div>
+        </section>
+
+        <section class="card">
+          <h2>Tổng hợp thông tin (5 output)</h2>
+          <pre id="summary" class="summary">Chưa có dữ liệu.</pre>
+        </section>
+
+        <section class="card">
+          <h2>Điểm cần giải trình</h2>
+          <pre id="riskPoints" class="summary">Chưa có dữ liệu.</pre>
+        </section>
+
+        <section class="card">
+          <h2>Kết quả thư giải trình</h2>
+          <pre id="result" class="result">Chưa chạy.</pre>
+        </section>
+
+      </div>
+
+      <div id="itinerarySection" class="section hidden">
+        <section class="card">
+          <h2>Tổng hợp thông tin (từ 5 output)</h2>
+          <pre id="summaryItinerary" class="summary">Chưa có dữ liệu.</pre>
+          <button id="summaryItineraryBtn">Tổng hợp thông tin</button>
+        </section>
+
+        <section class="card">
+          <div class="row">
+            <div>
+              <label for="flightFile">File vé máy bay</label>
+              <select id="flightFile"></select>
+            </div>
+            <div>
+              <label for="hotelFile">File booking khách sạn</label>
+              <select id="hotelFile"></select>
+            </div>
+            <div>
+              <label for="itineraryOutput">File output</label>
+              <input id="itineraryOutput" type="text" value="output/itinerary.html" />
+            </div>
+            <button id="runItineraryBtn">Tạo lịch trình</button>
+          </div>
+          <div class="hint">
+            Lịch trình được tạo từ file vé máy bay + booking khách sạn + summary 5 nhóm.
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Kết quả lịch trình</h2>
+          <iframe id="itineraryResult" class="itinerary-frame" title="Itinerary Preview"></iframe>
+        </section>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
