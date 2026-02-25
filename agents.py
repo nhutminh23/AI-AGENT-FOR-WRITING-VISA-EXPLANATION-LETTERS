@@ -533,29 +533,40 @@ def letter_writer(state: GraphState) -> GraphState:
     summary_profile = _build_summary_profile(extracted)
     state["summary_profile"] = summary_profile
     visa_relevance: List[str] = _build_visa_relevance(extracted)
-    potential_issues: List[str] = []
 
-    risk_points = state.get("risk_points", [])
-    for item in risk_points:
-        if not isinstance(item, dict):
-            continue
-        risk_type = item.get("risk_type", "")
-        description = item.get("description", "")
-        severity = item.get("severity", "")
-        direction = item.get("suggested_explanation_direction", "")
-        line_parts = [p for p in [risk_type, description, severity] if p]
-        line = " | ".join(line_parts)
-        if direction:
-            line = f"{line} -> {direction}"
-        if line:
-            potential_issues.append(line)
+    def _format_risk_report(risk_points: Any) -> str:
+        if not isinstance(risk_points, list) or len(risk_points) == 0:
+            return "Chưa có dữ liệu rủi ro (risk_points trống)."
 
-    contradictions = {"critical": [], "minor": []}
+        lines: List[str] = []
+        lines.append("BÁO CÁO RỦI RO (ĐIỂM CẦN GIẢI TRÌNH)")
+        lines.append("(Tự động tạo từ bước 'Điểm cần giải trình')")
+        lines.append("")
+
+        for i, item in enumerate(risk_points, 1):
+            if not isinstance(item, dict):
+                continue
+            risk_type = (item.get("risk_type") or "").strip()
+            severity = (item.get("severity") or "").strip()
+            description = (item.get("description") or "").strip()
+            direction = (item.get("suggested_explanation_direction") or "").strip()
+
+            title_parts = [p for p in [risk_type, severity] if p]
+            title = " | ".join(title_parts) if title_parts else f"Risk #{i}"
+            lines.append(f"{i}. {title}")
+            if description:
+                lines.append(f"   - Mô tả: {description}")
+            if direction:
+                lines.append(f"   - Hướng giải trình gợi ý: {direction}")
+            lines.append("")
+
+        return "\n".join(lines).strip()
+
+    state["risk_report"] = _format_risk_report(state.get("risk_points", []))
+
     prompt = LETTER_WRITER_PROMPT.format(
         summary_profile=summary_profile,
         visa_relevance=visa_relevance,
-        potential_issues=potential_issues,
-        contradictions=contradictions,
     )
     result = llm.invoke([SystemMessage(content=SYSTEM_BASE), HumanMessage(content=prompt)])
     state["letter_full"] = result.content

@@ -79,12 +79,28 @@ input {
   border-radius: 6px;
 }
 
+textarea {
+  width: 580px;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-family: inherit;
+  resize: vertical;
+}
+
 select {
   width: 280px;
   padding: 8px 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   background: #fff;
+}
+
+select[multiple] {
+  width: 580px;
+  max-width: 100%;
+  min-height: 140px;
 }
 
 button {

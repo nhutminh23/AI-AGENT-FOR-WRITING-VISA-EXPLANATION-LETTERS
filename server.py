@@ -32,9 +32,11 @@ def _list_input_files(input_dir: str) -> List[Dict[str, str]]:
     for root, _, filenames in os.walk(input_dir):
         for fname in filenames:
             path = os.path.join(root, fname)
+            rel_path = os.path.relpath(path, input_dir).replace("\\", "/")
             items.append(
                 {
                     "name": fname,
+                    "rel_path": rel_path,
                     "path": path,
                     "domain": detect_domain(fname),
                 }
@@ -81,6 +83,7 @@ def _save_state(cache_dir: str, state: GraphState) -> None:
         "grouped": state.get("grouped", {}),
         "extracted": state.get("extracted", {}),
         "risk_points": state.get("risk_points", []),
+        "risk_report": state.get("risk_report", ""),
         "summary_profile": state.get("summary_profile", ""),
         "letter_full": state.get("letter_full", ""),
     }
@@ -116,6 +119,13 @@ def _save_step_output(cache_dir: str, step: str, state: GraphState) -> None:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(state.get("letter_full", ""))
+        risk_report = state.get("risk_report", "")
+        if risk_report:
+            risk_path = os.path.join(os.path.dirname(output_path), "risk_report.txt")
+            with open(risk_path, "w", encoding="utf-8") as f:
+                f.write(risk_report)
+            with open(os.path.join(cache_dir, "risk_report.txt"), "w", encoding="utf-8") as f:
+                f.write(risk_report)
 
     with open(_step_marker_path(cache_dir, step), "w", encoding="utf-8") as f:
         json.dump({"done": True}, f)
@@ -123,6 +133,36 @@ def _save_step_output(cache_dir: str, step: str, state: GraphState) -> None:
 
 def _is_step_done(cache_dir: str, step: str) -> bool:
     return os.path.exists(_step_marker_path(cache_dir, step))
+
+
+def _resolve_input_file_path(input_dir: str, file_ref: str) -> Optional[str]:
+    if not file_ref:
+        return None
+
+    input_root = os.path.abspath(input_dir)
+    candidate = os.path.abspath(os.path.normpath(os.path.join(input_dir, file_ref)))
+    if candidate.startswith(input_root) and os.path.exists(candidate):
+        return candidate
+
+    for root, _, filenames in os.walk(input_dir):
+        for fname in filenames:
+            if fname == file_ref:
+                return os.path.join(root, fname)
+    return None
+
+
+def _upsert_file_record(files: List[Dict[str, Any]], new_file: Dict[str, Any]) -> List[Dict[str, Any]]:
+    updated: List[Dict[str, Any]] = []
+    replaced = False
+    for item in files:
+        if item.get("path") == new_file.get("path"):
+            updated.append(new_file)
+            replaced = True
+        else:
+            updated.append(item)
+    if not replaced:
+        updated.append(new_file)
+    return updated
 
 
 def _missing_prereq_step(cache_dir: str, step: str) -> Optional[str]:
@@ -189,6 +229,35 @@ def get_summary():
     return jsonify({"summary_profile": summary})
 
 
+@app.get("/api/risk_report")
+def get_risk_report():
+    output_path = request.args.get("output", os.path.join("output", "letter.txt"))
+    cache_dir = _cache_dir(output_path)
+    report_path = os.path.join(cache_dir, "risk_report.txt")
+    if os.path.exists(report_path):
+        with open(report_path, "r", encoding="utf-8") as f:
+            return jsonify({"risk_report": f.read()})
+
+    state_cache = _load_state(cache_dir)
+    risk_report = state_cache.get("risk_report", "")
+    if risk_report:
+        return jsonify({"risk_report": risk_report})
+
+    risk_points_path = os.path.join(cache_dir, "risk_points.json")
+    if os.path.exists(risk_points_path):
+        with open(risk_points_path, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
+        return jsonify(
+            {
+                "risk_report": json.dumps(
+                    data.get("risk_points", []), ensure_ascii=False, indent=2
+                )
+            }
+        )
+
+    return jsonify({"risk_report": ""})
+
+
 @app.get("/api/ingest_stream")
 def ingest_stream():
     input_dir = request.args.get("input_dir", "input")
@@ -241,6 +310,98 @@ def get_itinerary_latest():
         return jsonify({"itinerary": f.read()})
 
 
+@app.get("/api/itinerary/context/latest")
+def get_itinerary_context_latest():
+    output_path = request.args.get("output", os.path.join("output", "itinerary.html"))
+    cache_dir = _cache_dir(output_path)
+    summary_path = os.path.join(cache_dir, "itinerary_summary.txt")
+    meta_path = os.path.join(cache_dir, "itinerary_summary_meta.json")
+
+    summary = ""
+    if os.path.exists(summary_path):
+        with open(summary_path, "r", encoding="utf-8") as f:
+            summary = f.read()
+
+    meta: Dict[str, Any] = {"form_data": {}}
+    if os.path.exists(meta_path):
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+
+    return jsonify(
+        {
+            "summary_profile": summary,
+            "form_data": meta.get("form_data", {}),
+        }
+    )
+
+
+def _build_itinerary_summary_from_form(form_data: Dict[str, Any]) -> str:
+    participants = (form_data.get("participants") or "").strip()
+    travel_purpose = (form_data.get("travel_purpose") or "").strip()
+    start_date = (form_data.get("travel_start_date") or "").strip()
+    end_date = (form_data.get("travel_end_date") or "").strip()
+    has_any_value = any(
+        [
+            participants,
+            travel_purpose,
+            start_date,
+            end_date,
+        ]
+    )
+    if not has_any_value:
+        return ""
+
+    lines: List[str] = ["Core itinerary inputs:"]
+    if participants:
+        lines.append(f"- Participant(s): {participants}")
+    if start_date and end_date:
+        lines.append(f"- Travel period: From {start_date} to {end_date}")
+    elif start_date:
+        lines.append(f"- travel_start_date: {start_date}")
+    elif end_date:
+        lines.append(f"- travel_end_date: {end_date}")
+    if travel_purpose:
+        lines.append(f"- Purpose of travel: {travel_purpose}")
+
+    return "\n".join(lines).strip()
+
+
+@app.route("/api/itinerary/context/save", methods=["POST"])
+def save_itinerary_context():
+    payload = request.get_json(force=True) or {}
+    output_path = payload.get("output", os.path.join("output", "itinerary.html"))
+    form_data = payload.get("form_data") or {}
+
+    if not isinstance(form_data, dict):
+        return jsonify({"error": "invalid_form_data"}), 400
+
+    summary_profile = _build_itinerary_summary_from_form(form_data)
+    if not summary_profile:
+        return jsonify({"error": "missing_context"}), 400
+
+    cache_dir = _cache_dir(output_path)
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(os.path.join(cache_dir, "itinerary_summary.txt"), "w", encoding="utf-8") as f:
+        f.write(summary_profile)
+    with open(os.path.join(cache_dir, "itinerary_summary_meta.json"), "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "form_data": form_data,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    return jsonify(
+        {
+            "status": "done",
+            "summary_profile": summary_profile,
+            "form_data": form_data,
+        }
+    )
+
+
 @app.post("/api/run_step")
 def run_step():
     payload = request.get_json(force=True) or {}
@@ -272,6 +433,7 @@ def run_step():
         "grouped": state_cache.get("grouped", {}),
         "extracted": state_cache.get("extracted", {}),
         "risk_points": state_cache.get("risk_points", []),
+        "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
         "letter_full": state_cache.get("letter_full", ""),
     }
@@ -310,6 +472,7 @@ def run_all():
         "grouped": state_cache.get("grouped", {}),
         "extracted": state_cache.get("extracted", {}),
         "risk_points": state_cache.get("risk_points", []),
+        "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
         "letter_full": state_cache.get("letter_full", ""),
     }
@@ -322,6 +485,66 @@ def run_all():
         _save_step_output(cache_dir, step, state)
 
     return jsonify({"letter": state.get("letter_full", ""), "output_path": output_path})
+
+
+@app.post("/api/run_add_file")
+def run_add_file():
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", "input")
+    output_path = payload.get("output", os.path.join("output", "letter.txt"))
+    file_ref = payload.get("file")
+    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
+    if not file_ref:
+        return jsonify({"error": "missing_file"}), 400
+
+    resolved_path = _resolve_input_file_path(input_dir, str(file_ref))
+    if not resolved_path:
+        return jsonify({"error": "file_not_found"}), 404
+
+    cache_dir = _cache_dir(output_path)
+    state_cache = _load_state(cache_dir)
+    llm = ChatOpenAI(model=model, temperature=0)
+    state: GraphState = {
+        "input_dir": input_dir,
+        "output_path": output_path,
+        "model": model,
+        "llm": llm,
+        "files": state_cache.get("files", []),
+        "grouped": state_cache.get("grouped", {}),
+        "extracted": state_cache.get("extracted", {}),
+        "risk_points": state_cache.get("risk_points", []),
+        "risk_report": state_cache.get("risk_report", ""),
+        "summary_profile": state_cache.get("summary_profile", ""),
+        "letter_full": state_cache.get("letter_full", ""),
+    }
+
+    filename = os.path.basename(resolved_path)
+    text = extract_text_with_openai(llm, resolved_path)
+    new_file = {
+        "path": resolved_path,
+        "name": filename,
+        "text": text,
+        "domain": detect_domain(filename),
+    }
+    state["files"] = _upsert_file_record(state.get("files", []), new_file)
+    _save_state(cache_dir, state)
+    _save_step_output(cache_dir, "ingest", state)
+
+    for step in ["extract", "summary", "risk", "writer"]:
+        state = _run_single_step(step, state)
+        _save_state(cache_dir, state)
+        _save_step_output(cache_dir, step, state)
+
+    return jsonify(
+        {
+            "status": "done",
+            "added_file": os.path.relpath(resolved_path, input_dir).replace("\\", "/"),
+            "summary_profile": state.get("summary_profile", ""),
+            "letter": state.get("letter_full", ""),
+            "output_path": output_path,
+        }
+    )
 
 
 @app.post("/api/itinerary/run")
@@ -337,15 +560,20 @@ def run_itinerary():
         return jsonify({"error": "missing_files"}), 400
 
     cache_dir = _cache_dir(output_path)
-    state_cache = _load_state(cache_dir)
-    extracted = state_cache.get("extracted", {})
-    summary_profile = _build_summary_profile(extracted)
+    summary_profile = (payload.get("summary_profile") or "").strip()
     if not summary_profile:
-        return jsonify({"error": "missing_summary"}), 400
+        summary_path = os.path.join(cache_dir, "itinerary_summary.txt")
+        if os.path.exists(summary_path):
+            with open(summary_path, "r", encoding="utf-8") as f:
+                summary_profile = f.read().strip()
+    if not summary_profile:
+        return jsonify({"error": "missing_itinerary_summary"}), 400
 
     llm = ChatOpenAI(model=model, temperature=0)
-    flight_path = os.path.join(input_dir, flight_file)
-    hotel_path = os.path.join(input_dir, hotel_file)
+    flight_path = _resolve_input_file_path(input_dir, str(flight_file))
+    hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
+    if not flight_path or not hotel_path:
+        return jsonify({"error": "missing_files"}), 400
 
     flight_text = extract_text_with_openai(llm, flight_path)
     hotel_text = extract_text_with_openai(llm, hotel_path)

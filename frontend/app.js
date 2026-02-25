@@ -2,16 +2,22 @@ const fileListEl = document.getElementById("fileList");
 const resultEl = document.getElementById("result");
 const stepProgressEl = document.getElementById("stepProgress");
 const summaryEl = document.getElementById("summary");
+const riskReportEl = document.getElementById("riskReport");
 const summaryItineraryEl = document.getElementById("summaryItinerary");
 const stepsListEl = document.getElementById("stepsList");
 const inputDirEl = document.getElementById("inputDir");
 const outputPathEl = document.getElementById("outputPath");
 const itineraryOutputEl = document.getElementById("itineraryOutput");
+const itParticipantsEl = document.getElementById("itParticipants");
+const itTravelPurposeEl = document.getElementById("itTravelPurpose");
+const itTravelStartDateEl = document.getElementById("itTravelStartDate");
+const itTravelEndDateEl = document.getElementById("itTravelEndDate");
+const saveItineraryContextBtn = document.getElementById("saveItineraryContextBtn");
 const refreshBtn = document.getElementById("refreshBtn");
 const loadStepsBtn = document.getElementById("loadStepsBtn");
 const runAllBtn = document.getElementById("runAllBtn");
 const runItineraryBtn = document.getElementById("runItineraryBtn");
-const summaryItineraryBtn = document.getElementById("summaryItineraryBtn");
+const exportItineraryPdfBtn = document.getElementById("exportItineraryPdfBtn");
 const flightFileEl = document.getElementById("flightFile");
 const hotelFileEl = document.getElementById("hotelFile");
 const itineraryResultEl = document.getElementById("itineraryResult");
@@ -130,6 +136,7 @@ async function loadSteps() {
   const data = await res.json();
   renderSteps(data.steps || []);
   await fetchSummary();
+  await fetchRiskReport();
 }
 
 async function fetchSummary() {
@@ -137,7 +144,15 @@ async function fetchSummary() {
   const res = await fetch(`/api/summary?output=${encodeURIComponent(outputPath)}`);
   const data = await res.json();
   summaryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
-  summaryItineraryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
+}
+
+async function fetchRiskReport() {
+  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
+  const res = await fetch(
+    `/api/risk_report?output=${encodeURIComponent(outputPath)}`
+  );
+  const data = await res.json();
+  riskReportEl.textContent = data.risk_report || "Chưa có dữ liệu.";
 }
 
 async function runIngestStream(force = false) {
@@ -216,18 +231,58 @@ async function runStep(step, force = false) {
   }
 
   await fetchSummary();
+  await fetchRiskReport();
   await loadSteps();
 }
 
 function renderFileOptions() {
+  const fileValue = (f) => f.rel_path || f.name;
+  const fileLabel = (f) => f.rel_path || f.name;
   const makeOptions = (files) =>
     [
       '<option value="">-- Chọn file --</option>',
-      ...files.map((f) => `<option value="${f.name}">${f.name}</option>`),
+      ...files.map((f) => `<option value="${fileValue(f)}">${fileLabel(f)}</option>`),
     ].join("");
 
   flightFileEl.innerHTML = makeOptions(cachedFiles);
   hotelFileEl.innerHTML = makeOptions(cachedFiles);
+}
+
+function collectItineraryFormData() {
+  return {
+    participants: itParticipantsEl.value.trim(),
+    travel_purpose: itTravelPurposeEl.value.trim(),
+    travel_start_date: itTravelStartDateEl.value.trim(),
+    travel_end_date: itTravelEndDateEl.value.trim(),
+  };
+}
+
+function applyItineraryFormData(formData = {}) {
+  itParticipantsEl.value = formData.participants || "";
+  itTravelPurposeEl.value = formData.travel_purpose || "";
+  itTravelStartDateEl.value = formData.travel_start_date || "";
+  itTravelEndDateEl.value = formData.travel_end_date || "";
+}
+
+function buildItinerarySummaryFromForm(formData) {
+  const hasAnyValue = Object.values(formData).some((value) => Boolean(value));
+  if (!hasAnyValue) return "";
+
+  const sections = [
+    "Core itinerary inputs:",
+    formData.participants ? `- Participant(s): ${formData.participants}` : "",
+    formData.travel_start_date && formData.travel_end_date
+      ? `- Travel period: From ${formData.travel_start_date} to ${formData.travel_end_date}`
+      : "",
+    formData.travel_purpose ? `- travel_purpose: ${formData.travel_purpose}` : "",
+    formData.travel_start_date && !formData.travel_end_date
+      ? `- travel_start_date: ${formData.travel_start_date}`
+      : "",
+    !formData.travel_start_date && formData.travel_end_date
+      ? `- travel_end_date: ${formData.travel_end_date}`
+      : "",
+  ];
+  return sections.filter(Boolean).join("\n").trim();
 }
 
 async function runItinerary() {
@@ -235,10 +290,17 @@ async function runItinerary() {
   const outputPath = itineraryOutputEl.value.trim() || "output/itinerary.html";
   const flightFile = flightFileEl.value;
   const hotelFile = hotelFileEl.value;
+  const formData = collectItineraryFormData();
+  const summaryProfile = buildItinerarySummaryFromForm(formData);
 
   if (!flightFile || !hotelFile) {
     itineraryResultEl.srcdoc =
       "<p>Vui lòng chọn đủ file vé máy bay và khách sạn.</p>";
+    return;
+  }
+  if (!summaryProfile) {
+    itineraryResultEl.srcdoc =
+      "<p>Vui lòng nhập thông tin đầu vào lịch trình trước khi tạo.</p>";
     return;
   }
 
@@ -251,13 +313,16 @@ async function runItinerary() {
       output: outputPath,
       flight_file: flightFile,
       hotel_file: hotelFile,
+      summary_profile: summaryProfile,
     }),
   });
   const data = await res.json();
   if (!res.ok) {
-    if (data.error === "missing_summary") {
+    if (data.error === "missing_itinerary_summary") {
       itineraryResultEl.srcdoc =
-        "<p>Chưa có summary 5 nhóm. Vui lòng chạy các bước hồ sơ trước.</p>";
+        "<p>Chưa có dữ liệu lịch trình. Vui lòng nhập form và bấm lưu trước.</p>";
+    } else if (data.error === "missing_files") {
+      itineraryResultEl.srcdoc = "<p>Không tìm thấy file vé máy bay hoặc khách sạn đã chọn.</p>";
     } else {
       itineraryResultEl.srcdoc = "<p>Lỗi khi tạo lịch trình.</p>";
     }
@@ -275,6 +340,66 @@ async function loadLatestItinerary() {
   itineraryResultEl.srcdoc = data.itinerary || "<p>Chưa chạy.</p>";
 }
 
+async function loadItineraryContext() {
+  const outputPath = itineraryOutputEl.value.trim() || "output/itinerary.html";
+  const res = await fetch(
+    `/api/itinerary/context/latest?output=${encodeURIComponent(outputPath)}`
+  );
+  const data = await res.json();
+  summaryItineraryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
+  applyItineraryFormData(data.form_data || {});
+}
+
+async function saveItineraryContext() {
+  const outputPath = itineraryOutputEl.value.trim() || "output/itinerary.html";
+  const formData = collectItineraryFormData();
+  const previewSummary = buildItinerarySummaryFromForm(formData);
+
+  if (!previewSummary) {
+    summaryItineraryEl.textContent =
+      "Vui lòng nhập ít nhất một trường thông tin cần thiết.";
+    return;
+  }
+
+  const originalText = saveItineraryContextBtn.textContent;
+  saveItineraryContextBtn.disabled = true;
+  saveItineraryContextBtn.textContent = "Đang lưu...";
+
+  try {
+    summaryItineraryEl.textContent = "Đang lưu thông tin lịch trình...";
+    const res = await fetch("/api/itinerary/context/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        output: outputPath,
+        form_data: formData,
+      }),
+    });
+
+    let data;
+    try {
+      const text = await res.text();
+      data = JSON.parse(text);
+    } catch (e) {
+      summaryItineraryEl.textContent =
+        "Lỗi lưu thông tin: Server không trả JSON (có thể bạn chưa restart server).";
+      return;
+    }
+
+    if (!res.ok) {
+      summaryItineraryEl.textContent = `Lỗi lưu thông tin: ${data.error || "không xác định"}`;
+      return;
+    }
+
+    summaryItineraryEl.textContent = data.summary_profile || "Không có dữ liệu.";
+  } catch (error) {
+    summaryItineraryEl.textContent = `Lỗi lưu thông tin: ${error.message}`;
+  } finally {
+    saveItineraryContextBtn.disabled = false;
+    saveItineraryContextBtn.textContent = originalText;
+  }
+}
+
 function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -287,6 +412,8 @@ function setActiveTab(tab) {
     letterSection.classList.add("hidden");
     itinerarySection.classList.remove("hidden");
     bookingSection.classList.add("hidden");
+    loadLatestItinerary();
+    loadItineraryContext();
   } else if (tab === "booking") {
     letterSection.classList.add("hidden");
     itinerarySection.classList.add("hidden");
@@ -319,20 +446,8 @@ async function runAll() {
   }
   appendStepProgress("Hoàn thành: Chạy tất cả");
   await fetchSummary();
+  await fetchRiskReport();
   await loadSteps();
-}
-
-async function ensureSummaryForItinerary() {
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
-  const res = await fetch(`/api/summary?output=${encodeURIComponent(outputPath)}`);
-  const data = await res.json();
-  if (data.summary_profile) {
-    summaryItineraryEl.textContent = data.summary_profile;
-    return;
-  }
-  await runStep("ingest", true);
-  await runStep("extract", true);
-  await runStep("summary", true);
 }
 
 // ==================== BOOKING FUNCTIONS ====================
@@ -600,7 +715,7 @@ refreshBtn.addEventListener("click", fetchFiles);
 loadStepsBtn.addEventListener("click", loadSteps);
 runItineraryBtn.addEventListener("click", runItinerary);
 runAllBtn.addEventListener("click", runAll);
-summaryItineraryBtn.addEventListener("click", ensureSummaryForItinerary);
+saveItineraryContextBtn.addEventListener("click", saveItineraryContext);
 runBookingBtn.addEventListener("click", runBookingGeneration);
 extractTripBtn.addEventListener("click", extractTripInfo);
 runAIBookingBtn.addEventListener("click", runAIBooking);
@@ -654,6 +769,10 @@ exportHotelPdfBtn.addEventListener("click", () => {
 
 exportFlightPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(flightBookingResultEl, "Flight Booking");
+});
+
+exportItineraryPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(itineraryResultEl, "Travel Itinerary");
 });
 
 // Export ALL hotel bookings as one PDF with page breaks
@@ -734,10 +853,12 @@ tabButtons.forEach((btn) => {
   btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
 });
 
-window.addEventListener("load", () => {
-  fetchFiles();
-  loadSteps();
-  loadLatestItinerary();
-  loadDestinations();
+window.addEventListener("load", async () => {
+  setActiveTab("booking");
+  await fetchFiles();
+  await loadSteps();
+  await loadLatestItinerary();
+  await loadItineraryContext();
+  await loadDestinations();
 });
 
