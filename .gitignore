@@ -8,3 +8,6 @@ output/
 .pytest_cache/
 .coverage
 htmlcov/
+myenv/
+venv/
+input/

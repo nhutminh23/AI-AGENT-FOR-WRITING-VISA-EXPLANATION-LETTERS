@@ -613,27 +613,31 @@ def ai_generate_booking():
         "flight.html"
     )
 
-    # Generate HTML files from AI decisions
-    result = generate_bookings_from_ai(
-        ai_booking_data=booking_data,
-        hotel_template_path=hotel_template_path,
-        flight_template_path=flight_template_path,
-        output_dir=output_dir,
-    )
+    try:
+        # Generate HTML files from AI decisions
+        result = generate_bookings_from_ai(
+            ai_booking_data=booking_data,
+            hotel_template_path=hotel_template_path,
+            flight_template_path=flight_template_path,
+            output_dir=output_dir,
+        )
 
-    return jsonify({
-        "status": "success",
-        "used_cache": used_cache,
-        "trip_info": trip_info,
-        "booking_data": {
-            "hotels": result["hotel_data"],
-            "reasoning": booking_data.get("reasoning", ""),
-        },
-        "hotel_htmls": result["hotel_htmls"],
-        "hotel_paths": result["hotel_paths"],
-        "flight_html": result["flight_html"],
-        "flight_path": result["flight_path"],
-    })
+        return jsonify({
+            "status": "success",
+            "used_cache": used_cache,
+            "trip_info": trip_info,
+            "booking_data": {
+                "hotels": result["hotel_data"],
+                "reasoning": booking_data.get("reasoning", ""),
+            },
+            "hotel_htmls": result["hotel_htmls"],
+            "hotel_paths": result["hotel_paths"],
+            "flight_html": result["flight_html"],
+            "flight_path": result["flight_path"],
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({"error": "Lỗi khi tạo HTML: " + str(e), "traceback": traceback.format_exc()}), 500
 
 
 if __name__ == "__main__":

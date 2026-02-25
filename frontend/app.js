@@ -42,6 +42,11 @@ const aiBookingStatusEl = document.getElementById("aiBookingStatus");
 const aiReasoningSectionEl = document.getElementById("aiReasoningSection");
 const aiReasoningEl = document.getElementById("aiReasoning");
 
+// PDF Export buttons
+const exportHotelPdfBtn = document.getElementById("exportHotelPdfBtn");
+const exportFlightPdfBtn = document.getElementById("exportFlightPdfBtn");
+const exportAllHotelPdfBtn = document.getElementById("exportAllHotelPdfBtn");
+
 let cachedFiles = [];
 let hotelHtmls = [];
 
@@ -347,6 +352,15 @@ function renderHotelTabs(htmls) {
   
   // Show first hotel
   hotelBookingResultEl.srcdoc = htmls[0];
+
+  // Show export button
+  exportHotelPdfBtn.style.display = "inline-block";
+  // Show "export all" only when there are 2+ hotels
+  if (htmls.length >= 2) {
+    exportAllHotelPdfBtn.style.display = "inline-block";
+  } else {
+    exportAllHotelPdfBtn.style.display = "none";
+  }
 }
 
 function showHotelTab(index) {
@@ -389,7 +403,13 @@ async function runBookingGeneration() {
       }),
     });
 
-    const data = await res.json();
+    let data;
+    try {
+      const responseText = await res.text();
+      data = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error("❌ Có lỗi Server Nội bộ. Vui lòng mở bảng Terminal đen lên xem nó báo lỗi gì nhé!");
+    }
     
     if (!res.ok) {
       hotelBookingResultEl.srcdoc = `<p>Lỗi: ${data.error || "Không thể tạo booking"}</p>`;
@@ -402,6 +422,9 @@ async function runBookingGeneration() {
 
     // Display flight booking
     flightBookingResultEl.srcdoc = data.flight_html || "<p>Không có kết quả.</p>";
+    if (data.flight_html) {
+      exportFlightPdfBtn.style.display = "inline-block";
+    }
 
   } catch (error) {
     hotelBookingResultEl.srcdoc = `<p>Lỗi: ${error.message}</p>`;
@@ -418,6 +441,9 @@ async function loadLatestBooking() {
     
     renderHotelTabs(data.hotel_htmls || []);
     flightBookingResultEl.srcdoc = data.flight_html || "<p>Chưa có booking.</p>";
+    if (data.flight_html) {
+      exportFlightPdfBtn.style.display = "inline-block";
+    }
   } catch (error) {
     console.error("Error loading booking:", error);
   }
@@ -519,7 +545,13 @@ async function runAIBooking() {
       }),
     });
 
-    const data = await res.json();
+    let data;
+    try {
+      const responseText = await res.text();
+      data = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error("❌ Có lỗi Server Nội bộ (như thiếu API Key, gõ sai thư mục...). Vui lòng mở cái bảng Terminal đen lên xem nó báo lỗi chữ gì nha!");
+    }
 
     if (!res.ok) {
       aiBookingStatusEl.textContent = `❌ Lỗi: ${data.error || "Không thể tạo booking"}`;
@@ -545,6 +577,9 @@ async function runAIBooking() {
 
     // Display flight booking
     flightBookingResultEl.srcdoc = data.flight_html || "<p>Không có kết quả.</p>";
+    if (data.flight_html) {
+      exportFlightPdfBtn.style.display = "inline-block";
+    }
 
     aiBookingStatusEl.textContent = data.used_cache
       ? "✅ Hoàn thành! (dùng dữ liệu đã cache - không tốn token). Bấm 'Trích xuất từ input' để tạo mới."
@@ -569,6 +604,116 @@ summaryItineraryBtn.addEventListener("click", ensureSummaryForItinerary);
 runBookingBtn.addEventListener("click", runBookingGeneration);
 extractTripBtn.addEventListener("click", extractTripInfo);
 runAIBookingBtn.addEventListener("click", runAIBooking);
+
+// PDF Export helpers
+function printIframeAsPdf(iframeEl, title) {
+  const iframeDoc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
+  if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === "") {
+    alert("Chưa có nội dung để xuất PDF.");
+    return;
+  }
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
+    return;
+  }
+
+  // Clone iframe HTML content and add print-optimized styles
+  const htmlContent = iframeDoc.documentElement.outerHTML;
+  printWin.document.open();
+  printWin.document.write(htmlContent);
+  printWin.document.close();
+
+  // Add print-friendly CSS
+  const style = printWin.document.createElement("style");
+  style.textContent = `
+    @media print {
+      body { margin: 0; }
+      @page { size: A4; margin: 10mm; }
+    }
+  `;
+  printWin.document.head.appendChild(style);
+
+  // Wait for content to load, then trigger print
+  printWin.onload = () => {
+    setTimeout(() => {
+      printWin.print();
+    }, 300);
+  };
+
+  // Fallback if onload doesn't fire
+  setTimeout(() => {
+    printWin.print();
+  }, 800);
+}
+
+exportHotelPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(hotelBookingResultEl, "Hotel Booking");
+});
+
+exportFlightPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(flightBookingResultEl, "Flight Booking");
+});
+
+// Export ALL hotel bookings as one PDF with page breaks
+function printAllHotelsAsPdf() {
+  if (!hotelHtmls || hotelHtmls.length === 0) {
+    alert("Chưa có booking khách sạn để xuất.");
+    return;
+  }
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
+    return;
+  }
+
+  // Extract <body> content from each hotel HTML and combine with page breaks
+  const pages = hotelHtmls.map((html, i) => {
+    // Extract content between <body> tags
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const bodyContent = bodyMatch ? bodyMatch[1] : html;
+    const pageBreak = i < hotelHtmls.length - 1 ? 'style="page-break-after: always;"' : '';
+    return `<div ${pageBreak}>${bodyContent}</div>`;
+  });
+
+  // Extract <style> from the first hotel HTML (they share the same template styles)
+  const styleMatch = hotelHtmls[0].match(/<style[^>]*>[\s\S]*?<\/style>/gi);
+  const styles = styleMatch ? styleMatch.join("\n") : "";
+
+  // Extract <head> content (for embedded fonts etc.)
+  const headMatch = hotelHtmls[0].match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+  const headContent = headMatch ? headMatch[1] : styles;
+
+  const combinedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  ${headContent}
+  <style>
+    @media print {
+      body { margin: 0; }
+      @page { size: A4; margin: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  ${pages.join("\n")}
+</body>
+</html>`;
+
+  printWin.document.open();
+  printWin.document.write(combinedHtml);
+  printWin.document.close();
+
+  printWin.onload = () => {
+    setTimeout(() => { printWin.print(); }, 300);
+  };
+  setTimeout(() => { printWin.print(); }, 800);
+}
+
+exportAllHotelPdfBtn.addEventListener("click", printAllHotelsAsPdf);
 
 stepsListEl.addEventListener("click", (event) => {
   const btn = event.target.closest(".step-btn");

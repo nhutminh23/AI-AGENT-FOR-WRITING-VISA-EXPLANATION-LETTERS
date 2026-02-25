@@ -142,14 +142,23 @@
 
         <!-- Hotel Results -->
         <section class="card">
-          <h2>Kết quả Booking Khách sạn</h2>
+          <div class="card-header-row">
+            <h2>Kết quả Booking Khách sạn</h2>
+            <div class="export-btn-group">
+              <button id="exportHotelPdfBtn" class="export-pdf-btn" style="display:none;">📄 Xuất PDF</button>
+              <button id="exportAllHotelPdfBtn" class="export-pdf-btn export-all" style="display:none;">📄 Xuất tất cả PDF</button>
+            </div>
+          </div>
           <div id="hotelBookingTabs" class="booking-tabs"></div>
           <iframe id="hotelBookingResult" class="booking-frame" title="Hotel Booking Preview"></iframe>
         </section>
 
         <!-- Flight Results -->
         <section class="card">
-          <h2>Kết quả Booking Máy bay</h2>
+          <div class="card-header-row">
+            <h2>Kết quả Booking Máy bay</h2>
+            <button id="exportFlightPdfBtn" class="export-pdf-btn" style="display:none;">📄 Xuất PDF</button>
+          </div>
           <iframe id="flightBookingResult" class="booking-frame" title="Flight Booking Preview"></iframe>
         </section>
 
