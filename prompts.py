@@ -97,7 +97,9 @@ Quy tắc bắt buộc:
 - Chỉ dùng thông tin có trong dữ liệu.
 - Không suy đoán, không thêm.
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
-- employment_type bắt buộc là: "employee" | "business_owner" | "freelancer" | "homemaker" | "unemployed".
+- employment_type bắt buộc là: "employee" | "business_owner" | "freelancer" | "homemaker" | "unemployed" | "student".
+- Nếu nghề nghiệp là học sinh/sinh viên thì phải điền rõ vào employment_type/job_title/note.
+- Nếu hồ sơ có nhiều người, phải ghi rõ từng người và nghề nghiệp của họ vào "persons_employment".
 - Trả về JSON hợp lệ, không thêm chữ ngoài JSON.
 - Trường "note": tóm tắt công việc/thu nhập, nhấn mạnh tính ổn định và ràng buộc quay về, 2–5 câu.
 
@@ -124,6 +126,15 @@ Trả về JSON:
   "business_operation_status": "",
 
   "main_income_sources": [],
+  "persons_employment": [
+    {{
+      "person_name": "",
+      "occupation": "",
+      "employment_type": "",
+      "organization_or_school": "",
+      "note": ""
+    }}
+  ],
   "average_monthly_income": "",
   "income_stability_level": "",
   "personal_explanation_present": "",
@@ -141,6 +152,7 @@ Quy tắc bắt buộc:
 - Không suy đoán, không thêm.
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
 - Không cần số tài khoản trong thư.
+- Cần ghi rõ khoản tiền/số dư thuộc về ai vào "balances_by_person".
 - Trả về JSON hợp lệ, không thêm chữ ngoài JSON.
 - Trường "note": tóm tắt năng lực tài chính và tài sản chính, 2–5 câu.
 
@@ -150,6 +162,15 @@ Trả về JSON:
   "average_monthly_balance": "",
   "current_account_balance": "",
   "savings_balance": "",
+  "balances_by_person": [
+    {{
+      "person_name": "",
+      "balance_type": "",
+      "amount": "",
+      "period_or_as_of": "",
+      "source": ""
+    }}
+  ],
   "asset_list": [],
   "total_estimated_assets_value": "",
   "financial_sponsor": "",
@@ -175,6 +196,7 @@ Trả về JSON:
 {{
   "travel_purpose": "",
   "destination_country": "",
+  "return_country": "",
   "cities_to_visit": [],
   "travel_start_date": "",
   "travel_end_date": "",
@@ -538,13 +560,14 @@ Nội dung cần thể hiện (theo thứ tự logic):
 2. Nêu thời gian dự kiến của chuyến đi (from ... to ...)
 3. Nêu các điểm đến chính (thành phố/quốc gia)
 4. Xác nhận đã có kế hoạch di chuyển và lưu trú phù hợp với lịch trình
-5. Cam kết sẽ rời khỏi Úc đúng thời hạn và quay về Việt Nam
+5. Cam kết sẽ rời khỏi quốc gia đến đúng thời hạn và quay về quốc gia đích đúng hạn
 
 
 6. Công việc & thu nhập (CHI TIẾT)
 – Tôi mô tả CỤ THỂ công việc hiện tại:
   • Chức danh/vai trò
   • Lĩnh vực hoạt động
+  • Nơi làm việc
   • Công việc hàng ngày tôi trực tiếp đảm nhiệm
 – Tôi nêu nguồn thu nhập chính/phụ (ở mức tổng quát)
 – Tôi giải thích:
@@ -553,7 +576,7 @@ Nội dung cần thể hiện (theo thứ tự logic):
   • Vì sao tôi bắt buộc phải quay về Việt Nam để tiếp tục công việc
 
 7. Tài sản & ràng buộc kinh tế
-– Tôi trình bày các tài sản hoặc nguồn tài chính đang sở hữu (nếu tài sản là tiền thì quy đổi thành khoảng bao nhiêu USD)
+– Tôi trình bày các tài sản hoặc nguồn tài chính đang sở hữu
 – Không sử dụng số liệu chi tiết không cần thiết (ví dụ: số tài khoản, nhiều số dư rời rạc), Chỉ nêu tổng quan tài chính 
 – Tôi giải thích vai trò của các yếu tố này trong cuộc sống hiện tại
 – Tôi làm rõ vì sao các ràng buộc kinh tế này khiến tôi không có ý định lưu trú quá hạn

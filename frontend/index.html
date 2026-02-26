@@ -15,6 +15,7 @@
         <button class="tab-btn active" data-tab="booking">Booking</button>
         <button class="tab-btn" data-tab="itinerary">Lịch trình</button>
         <button class="tab-btn" data-tab="letter">Thư giải trình</button>
+        <button class="tab-btn" data-tab="outputs">Kết quả</button>
       </div>
 
       <!-- NEW: AI Booking Section -->
@@ -31,8 +32,73 @@
           <h2>📋 Bước 1: Trích xuất thông tin chuyến đi</h2>
           <div class="row">
             <button id="extractTripBtn">Trích xuất từ input</button>
+            <button id="saveTripInfoBtn">💾 Lưu thông tin đã chỉnh</button>
           </div>
-          <div id="tripInfoPanel" class="summary" style="white-space:pre-wrap; margin-top:8px;">Chưa trích xuất.</div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="tripGuestNames">Hành khách (mỗi dòng 1 người)</label>
+              <textarea id="tripGuestNames" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="tripDestinationCountry">Nước đến du lịch</label>
+              <input id="tripDestinationCountry" type="text" />
+            </div>
+            <div>
+              <label for="tripTravelPurpose">Mục đích chuyến đi</label>
+              <input id="tripTravelPurpose" type="text" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="tripCitiesPlan">Thành phố du lịch & số đêm (mỗi dòng 1 mục)</label>
+              <textarea id="tripCitiesPlan" rows="4"></textarea>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="tripTravelStartDate">Ngày đi (YYYY-MM-DD)</label>
+              <input id="tripTravelStartDate" type="text" />
+            </div>
+            <div>
+              <label for="tripTravelEndDate">Ngày về (YYYY-MM-DD)</label>
+              <input id="tripTravelEndDate" type="text" />
+            </div>
+            <div>
+              <label for="tripNumNights">Tổng số đêm</label>
+              <input id="tripNumNights" type="number" min="0" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="tripOriginCity">Điểm xuất phát (city/country)</label>
+              <input id="tripOriginCity" type="text" />
+            </div>
+            <div>
+              <label for="tripOriginAirport">Sân bay xuất phát (IATA)</label>
+              <input id="tripOriginAirport" type="text" />
+            </div>
+            <div>
+              <label for="tripReturnPoint">Điểm quay về (city/country)</label>
+              <input id="tripReturnPoint" type="text" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="tripDestinationAirportHint">Sân bay gợi ý điểm đến</label>
+              <input id="tripDestinationAirportHint" type="text" />
+            </div>
+            <div>
+              <label for="tripReturnAirportHint">Sân bay gợi ý điểm về</label>
+              <input id="tripReturnAirportHint" type="text" />
+            </div>
+            <div>
+              <label for="tripTravelerProfile">Traveler profile (optional)</label>
+              <input id="tripTravelerProfile" type="text" />
+            </div>
+          </div>
+          <div id="tripInfoPanel" class="hint" style="white-space:pre-wrap; margin-top:8px;">Chưa trích xuất.</div>
         </section>
 
         <!-- Step 2: AI Generate Booking -->
@@ -85,7 +151,7 @@
             <div class="row" style="margin-top:12px;">
               <div>
                 <label for="guestName">Tên khách (theo hộ chiếu)</label>
-                <input type="text" id="guestName" placeholder="VD: NGUYEN VAN A" value="" />
+                <input type="text" id="guestName" value="" />
               </div>
               <div>
                 <label for="startDate">Ngày khởi hành</label>
@@ -95,7 +161,7 @@
             <div class="row">
               <div>
                 <label for="destination">Điểm đến</label>
-                <input type="text" id="destination" list="destinationList" placeholder="Nhập tên nước..." value="Australia" />
+                <input type="text" id="destination" list="destinationList" value="Australia" />
                 <datalist id="destinationList"></datalist>
               </div>
               <div>
@@ -126,22 +192,24 @@
           <div class="row" style="margin-top: 10px;">
             <div>
               <label for="itParticipants">Participant(s)</label>
-              <textarea id="itParticipants" rows="3" placeholder="I, Nguyễn Thị Bảo Châu (applicant), travelling with my daughter Nguyễn Thị Bảo Tâm."></textarea>
-            </div>
-            <div>
-              <label for="itTravelStartDate">Travel period - from</label>
-              <input id="itTravelStartDate" type="text" placeholder="01 June 2026" />
-            </div>
-            <div>
-              <label for="itTravelEndDate">Travel period - to</label>
-              <input id="itTravelEndDate" type="text" placeholder="12 June 2026" />
+              <textarea id="itParticipants" rows="3"></textarea>
             </div>
           </div>
           <div class="row" style="margin-top: 10px;">
             <div>
-              <label for="itTravelPurpose">Purpose of travel</label>
-              <input id="itTravelPurpose" type="text" placeholder="Tourism (short family holiday)" />
+              <label for="itTravelStartDate">Travel period - from</label>
+              <input id="itTravelStartDate" type="text" />
             </div>
+            <div>
+              <label for="itTravelEndDate">Travel period - to</label>
+              <input id="itTravelEndDate" type="text" />
+            </div>
+            <div>
+              <label for="itTravelPurpose">Purpose of travel</label>
+              <input id="itTravelPurpose" type="text" />
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
             <button id="saveItineraryContextBtn">Lưu thông tin lịch trình</button>
           </div>
         </section>
@@ -203,21 +271,11 @@
             <button id="loadStepsBtn">Tải trạng thái</button>
             <button id="runAllBtn">Chạy tất cả</button>
           </div>
-          <div class="hint">
-            Agent chỉ chạy khi bạn bấm nút từng bước.
-          </div>
         </section>
 
         <section class="card">
           <h2>Các bước xử lý</h2>
           <div id="stepsList" class="steps-list">Chưa tải trạng thái.</div>
-          <div id="stepProgress" class="step-progress">Chưa chạy.</div>
-          <div class="row" style="margin-top: 10px;">
-            <div>
-              <label for="writerContext">Thông tin bổ sung cho bước "Viết thư"</label>
-              <textarea id="writerContext" rows="4" placeholder="Nhập thông tin bổ sung bạn muốn AI ưu tiên khi viết thư giải trình..."></textarea>
-            </div>
-          </div>
         </section>
 
         <section class="card">
@@ -235,6 +293,42 @@
           <pre id="result" class="result">Chưa chạy.</pre>
         </section>
 
+      </div>
+
+      <div id="outputsSection" class="section hidden">
+        <section class="card">
+          <div class="card-header-row">
+            <h2>Tổng hợp kết quả</h2>
+            <button id="exportCombinedAllPdfBtn" class="export-pdf-btn export-all">📄 Xuất 1 PDF tổng</button>
+          </div>
+          <div class="hint">
+            Thứ tự khi xuất PDF tổng: Lịch trình -> Booking máy bay -> Booking khách sạn.
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header-row">
+            <h2>Kết quả lịch trình</h2>
+            <button id="exportCombinedItineraryPdfBtn" class="export-pdf-btn">📄 Xuất PDF</button>
+          </div>
+          <iframe id="combinedItineraryResult" class="itinerary-frame" title="Combined Itinerary Preview"></iframe>
+        </section>
+
+        <section class="card">
+          <div class="card-header-row">
+            <h2>Kết quả booking máy bay</h2>
+            <button id="exportCombinedFlightPdfBtn" class="export-pdf-btn">📄 Xuất PDF</button>
+          </div>
+          <iframe id="combinedFlightBookingResult" class="booking-frame" title="Combined Flight Preview"></iframe>
+        </section>
+
+        <section class="card">
+          <div class="card-header-row">
+            <h2>Kết quả booking khách sạn</h2>
+            <button id="exportCombinedHotelPdfBtn" class="export-pdf-btn">📄 Xuất PDF</button>
+          </div>
+          <iframe id="combinedHotelBookingResult" class="booking-frame" title="Combined Hotel Preview"></iframe>
+        </section>
       </div>
 
     </div>

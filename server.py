@@ -65,6 +65,32 @@ def _step_marker_path(cache_dir: str, step: str) -> str:
     return os.path.join(cache_dir, f"step_{step}.json")
 
 
+def _reset_downstream_steps(cache_dir: str, step: str) -> None:
+    if step not in STEP_ORDER:
+        return
+    idx = STEP_ORDER.index(step)
+    downstream = STEP_ORDER[idx + 1 :]
+    for s in downstream:
+        marker = _step_marker_path(cache_dir, s)
+        if os.path.exists(marker):
+            os.remove(marker)
+
+    # Clear derived caches so downstream status/data stay consistent.
+    if "summary" in downstream:
+        path = os.path.join(cache_dir, "summary_profile.txt")
+        if os.path.exists(path):
+            os.remove(path)
+    if "risk" in downstream:
+        path = os.path.join(cache_dir, "risk_points.json")
+        if os.path.exists(path):
+            os.remove(path)
+    if "writer" in downstream:
+        for name in ["risk_report.txt"]:
+            path = os.path.join(cache_dir, name)
+            if os.path.exists(path):
+                os.remove(path)
+
+
 def _load_state(cache_dir: str) -> Dict[str, Any]:
     path = _state_path(cache_dir)
     if not os.path.exists(path):
@@ -272,10 +298,14 @@ def ingest_stream():
     input_dir = request.args.get("input_dir", "input")
     output_path = request.args.get("output", os.path.join("output", "letter.txt"))
     model = request.args.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    force = request.args.get("force", "0") == "1"
 
     llm = ChatOpenAI(model=model, temperature=0)
     cache_dir = _cache_dir(output_path)
     files: List[Dict[str, str]] = []
+
+    if force:
+        _reset_downstream_steps(cache_dir, "ingest")
 
     def sse(data: Dict) -> str:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
@@ -431,6 +461,9 @@ def run_step():
 
     if _is_step_done(cache_dir, step) and not force:
         return jsonify({"status": "cached", "step": step})
+
+    if force:
+        _reset_downstream_steps(cache_dir, step)
 
     state_cache = _load_state(cache_dir)
     llm = ChatOpenAI(model=model, temperature=0)
@@ -615,6 +648,7 @@ from booking_generator import (
     generate_bookings_from_ai,
 )
 from ai_booking_agent import (
+    DEFAULT_TRIP_INFO,
     extract_trip_info,
     ai_select_bookings,
     generate_ai_booking,
@@ -782,15 +816,8 @@ def extract_trip():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    if not trip_info:
-        return jsonify(
-            {
-                "error": (
-                    "Không trích xuất được thông tin chuyến đi. "
-                    "Vui lòng thêm file có tiền tố 'THONG TIN CHUYEN DI'."
-                )
-            }
-        ), 400
+    if not isinstance(trip_info, dict):
+        trip_info = dict(DEFAULT_TRIP_INFO)
 
     # Cache trip info + clear old booking cache (force fresh AI gen next time)
     cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
@@ -805,6 +832,45 @@ def extract_trip():
     return jsonify({"status": "success", "trip_info": trip_info})
 
 
+@app.get("/api/booking/trip/latest")
+def get_booking_trip_latest():
+    """Load cached trip info for editing in frontend."""
+    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    trip_path = os.path.join(cache_dir, "booking_trip_info.json")
+    if not os.path.exists(trip_path):
+        return jsonify({"trip_info": dict(DEFAULT_TRIP_INFO)})
+    with open(trip_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    merged = dict(DEFAULT_TRIP_INFO)
+    if isinstance(data, dict):
+        merged.update(data)
+    return jsonify({"trip_info": merged})
+
+
+@app.post("/api/booking/trip/save")
+def save_booking_trip():
+    """Save edited trip info from frontend."""
+    payload = request.get_json(force=True) or {}
+    trip_info = payload.get("trip_info") or {}
+    if not isinstance(trip_info, dict):
+        return jsonify({"error": "invalid_trip_info"}), 400
+
+    merged = dict(DEFAULT_TRIP_INFO)
+    merged.update(trip_info)
+
+    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(os.path.join(cache_dir, "booking_trip_info.json"), "w", encoding="utf-8") as f:
+        json.dump(merged, f, ensure_ascii=False, indent=2)
+
+    # Clear booking cache so AI regenerate from latest edited trip info
+    booking_cache = os.path.join(cache_dir, "ai_booking_data.json")
+    if os.path.exists(booking_cache):
+        os.remove(booking_cache)
+
+    return jsonify({"status": "success", "trip_info": merged})
+
+
 @app.post("/api/booking/ai_generate")
 def ai_generate_booking():
     """Generate bookings using AI. Uses cached booking data if available to save tokens."""
@@ -813,10 +879,22 @@ def ai_generate_booking():
     output_dir = payload.get("output_dir", "output")
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     force_new = payload.get("force_new", False)
+    trip_info_override = payload.get("trip_info")
 
     cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
     booking_cache_path = os.path.join(cache_dir, "ai_booking_data.json")
     trip_cache_path = os.path.join(cache_dir, "booking_trip_info.json")
+
+    # If user edited trip info on frontend, persist and force new booking.
+    if isinstance(trip_info_override, dict):
+        merged_trip = dict(DEFAULT_TRIP_INFO)
+        merged_trip.update(trip_info_override)
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(trip_cache_path, "w", encoding="utf-8") as f:
+            json.dump(merged_trip, f, ensure_ascii=False, indent=2)
+        force_new = True
+        if os.path.exists(booking_cache_path):
+            os.remove(booking_cache_path)
 
     # --- Check for cached booking data first (skip AI to save tokens) ---
     booking_data = None

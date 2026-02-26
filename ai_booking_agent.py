@@ -298,6 +298,29 @@ AIRPORT_BY_COUNTRY = {
     "new zealand": "AKL",
 }
 
+TRIP_FILE_PREFIXES = [
+    "THONG TIN CHUYEN DI",
+    "HO SO CA NHAN",
+    "MUC DICH CHUYEN DI",
+]
+
+DEFAULT_TRIP_INFO: Dict[str, Any] = {
+    "guest_names": [],
+    "destination_country": "",
+    "cities_to_visit": [],
+    "city_stays": [],
+    "travel_start_date": "",
+    "travel_end_date": "",
+    "num_nights": 0,
+    "origin_city": "",
+    "origin_airport": "",
+    "return_point": "",
+    "destination_airport_hint": "",
+    "return_airport_hint": "",
+    "travel_purpose": "",
+    "traveler_profile": "",
+}
+
 
 def _normalize_key(text: str) -> str:
     if not text:
@@ -312,7 +335,7 @@ def _normalize_key(text: str) -> str:
 def _is_trip_info_filename(filename: str) -> bool:
     stem = os.path.splitext(filename)[0]
     normalized = re.sub(r"[\s\-_]+", " ", stem.upper()).strip()
-    return normalized.startswith("THONG TIN CHUYEN DI")
+    return any(normalized.startswith(prefix) for prefix in TRIP_FILE_PREFIXES)
 
 
 def _clean_city_name(city: str) -> str:
@@ -538,7 +561,7 @@ def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
                 all_texts.append(f"--- FILE: {fname} ---\n{text}")
 
     if not all_texts:
-        return {}
+        return dict(DEFAULT_TRIP_INFO)
 
     combined_text = "\n\n".join(all_texts)
 
@@ -550,6 +573,12 @@ def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
     ])
 
     trip_info = _safe_json_loads(response.content)
+    if not isinstance(trip_info, dict):
+        trip_info = {}
+    # Always keep full schema so frontend can render all fields.
+    merged = dict(DEFAULT_TRIP_INFO)
+    merged.update(trip_info)
+    trip_info = merged
 
     # Post-process: normalize required fields
     if not trip_info.get("guest_names"):

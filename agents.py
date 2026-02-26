@@ -242,6 +242,7 @@ def _empty_domain_output(domain: str) -> Dict[str, Any]:
             "tax_compliance_status": "",
             "business_operation_status": "",
             "main_income_sources": [],
+            "persons_employment": [],
             "average_monthly_income": "",
             "income_stability_level": "",
             "personal_explanation_present": "",
@@ -253,6 +254,7 @@ def _empty_domain_output(domain: str) -> Dict[str, Any]:
             "average_monthly_balance": "",
             "current_account_balance": "",
             "savings_balance": "",
+            "balances_by_person": [],
             "asset_list": [],
             "total_estimated_assets_value": "",
             "financial_sponsor": "",
@@ -263,6 +265,7 @@ def _empty_domain_output(domain: str) -> Dict[str, Any]:
         return {
             "travel_purpose": "",
             "destination_country": "",
+            "return_country": "",
             "cities_to_visit": [],
             "travel_start_date": "",
             "travel_end_date": "",
@@ -311,6 +314,24 @@ def _build_summary_profile(extracted: Dict[str, Any]) -> str:
                 result.append(item)
             else:
                 result.append(json.dumps(item, ensure_ascii=False))
+        return result
+
+    def _stringify_people_records(values: Any, fields: List[str]) -> List[str]:
+        if not isinstance(values, list):
+            return []
+        result: List[str] = []
+        for item in values:
+            if not isinstance(item, dict):
+                if item is not None:
+                    result.append(str(item))
+                continue
+            parts: List[str] = []
+            for key in fields:
+                val = item.get(key, "")
+                if val:
+                    parts.append(f"{key}={val}")
+            if parts:
+                result.append("; ".join(parts))
         return result
 
     if personal:
@@ -368,6 +389,12 @@ def _build_summary_profile(extracted: Dict[str, Any]) -> str:
         sources = _stringify_list(employment.get("main_income_sources", []))
         if sources:
             lines.append(f"- main_income_sources: {', '.join(sources)}")
+        persons_employment = _stringify_people_records(
+            employment.get("persons_employment", []),
+            ["person_name", "occupation", "employment_type", "organization_or_school", "note"],
+        )
+        if persons_employment:
+            lines.append(f"- persons_employment: {' | '.join(persons_employment)}")
         note = employment.get("note", "")
         if note:
             lines.append(f"- note: {note}")
@@ -389,6 +416,12 @@ def _build_summary_profile(extracted: Dict[str, Any]) -> str:
         assets = _stringify_list(financial.get("asset_list", []))
         if assets:
             lines.append(f"- asset_list: {', '.join(assets)}")
+        balances_by_person = _stringify_people_records(
+            financial.get("balances_by_person", []),
+            ["person_name", "balance_type", "amount", "period_or_as_of", "source"],
+        )
+        if balances_by_person:
+            lines.append(f"- balances_by_person: {' | '.join(balances_by_person)}")
         note = financial.get("note", "")
         if note:
             lines.append(f"- note: {note}")
@@ -419,6 +452,7 @@ def _build_summary_profile(extracted: Dict[str, Any]) -> str:
         for key in [
             "travel_purpose",
             "destination_country",
+            "return_country",
             "travel_start_date",
             "travel_end_date",
             "total_trip_duration",
@@ -517,6 +551,8 @@ def _build_visa_relevance(extracted: Dict[str, Any]) -> List[str]:
             parts.append(f"travel_purpose={purpose.get('travel_purpose')}")
         if purpose.get("destination_country"):
             parts.append(f"destination_country={purpose.get('destination_country')}")
+        if purpose.get("return_country"):
+            parts.append(f"return_country={purpose.get('return_country')}")
         if purpose.get("travel_start_date"):
             parts.append(f"travel_start_date={purpose.get('travel_start_date')}")
         if purpose.get("travel_end_date"):

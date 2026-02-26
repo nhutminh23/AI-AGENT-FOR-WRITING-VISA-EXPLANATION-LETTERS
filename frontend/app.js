@@ -1,9 +1,7 @@
 const fileListEl = document.getElementById("fileList");
 const resultEl = document.getElementById("result");
-const stepProgressEl = document.getElementById("stepProgress");
 const summaryEl = document.getElementById("summary");
 const riskReportEl = document.getElementById("riskReport");
-const writerContextEl = document.getElementById("writerContext");
 const summaryItineraryEl = document.getElementById("summaryItinerary");
 const stepsListEl = document.getElementById("stepsList");
 const inputDirEl = document.getElementById("inputDir");
@@ -27,6 +25,7 @@ const tabButtons = document.querySelectorAll(".tab-btn");
 const letterSection = document.getElementById("letterSection");
 const itinerarySection = document.getElementById("itinerarySection");
 const bookingSection = document.getElementById("bookingSection");
+const outputsSection = document.getElementById("outputsSection");
 
 // Booking elements
 const guestNameEl = document.getElementById("guestName");
@@ -42,7 +41,21 @@ const flightBookingResultEl = document.getElementById("flightBookingResult");
 
 // AI Booking elements
 const extractTripBtn = document.getElementById("extractTripBtn");
+const saveTripInfoBtn = document.getElementById("saveTripInfoBtn");
 const tripInfoPanelEl = document.getElementById("tripInfoPanel");
+const tripGuestNamesEl = document.getElementById("tripGuestNames");
+const tripDestinationCountryEl = document.getElementById("tripDestinationCountry");
+const tripCitiesPlanEl = document.getElementById("tripCitiesPlan");
+const tripTravelStartDateEl = document.getElementById("tripTravelStartDate");
+const tripTravelEndDateEl = document.getElementById("tripTravelEndDate");
+const tripNumNightsEl = document.getElementById("tripNumNights");
+const tripOriginCityEl = document.getElementById("tripOriginCity");
+const tripOriginAirportEl = document.getElementById("tripOriginAirport");
+const tripReturnPointEl = document.getElementById("tripReturnPoint");
+const tripDestinationAirportHintEl = document.getElementById("tripDestinationAirportHint");
+const tripReturnAirportHintEl = document.getElementById("tripReturnAirportHint");
+const tripTravelPurposeEl = document.getElementById("tripTravelPurpose");
+const tripTravelerProfileEl = document.getElementById("tripTravelerProfile");
 const runAIBookingBtn = document.getElementById("runAIBookingBtn");
 const bookingOutputAIEl = document.getElementById("bookingOutputAI");
 const aiBookingStatusEl = document.getElementById("aiBookingStatus");
@@ -53,9 +66,42 @@ const aiReasoningEl = document.getElementById("aiReasoning");
 const exportHotelPdfBtn = document.getElementById("exportHotelPdfBtn");
 const exportFlightPdfBtn = document.getElementById("exportFlightPdfBtn");
 const exportAllHotelPdfBtn = document.getElementById("exportAllHotelPdfBtn");
+const exportCombinedItineraryPdfBtn = document.getElementById("exportCombinedItineraryPdfBtn");
+const exportCombinedFlightPdfBtn = document.getElementById("exportCombinedFlightPdfBtn");
+const exportCombinedHotelPdfBtn = document.getElementById("exportCombinedHotelPdfBtn");
+const exportCombinedAllPdfBtn = document.getElementById("exportCombinedAllPdfBtn");
+const combinedItineraryResultEl = document.getElementById("combinedItineraryResult");
+const combinedFlightBookingResultEl = document.getElementById("combinedFlightBookingResult");
+const combinedHotelBookingResultEl = document.getElementById("combinedHotelBookingResult");
 
 let cachedFiles = [];
 let hotelHtmls = [];
+let writerContextCache = "";
+let activeStepLog = null;
+const LETTER_STEP_ORDER = ["ingest", "extract", "summary", "risk", "writer"];
+const stepLogs = {
+  ingest: "Chưa chạy.",
+  extract: "Chưa chạy.",
+  summary: "Chưa chạy.",
+  risk: "Chưa chạy.",
+  writer: "Chưa chạy.",
+};
+const DEFAULT_TRIP_INFO = {
+  guest_names: [],
+  destination_country: "",
+  cities_to_visit: [],
+  city_stays: [],
+  travel_start_date: "",
+  travel_end_date: "",
+  num_nights: 0,
+  origin_city: "",
+  origin_airport: "",
+  return_point: "",
+  destination_airport_hint: "",
+  return_airport_hint: "",
+  travel_purpose: "",
+  traveler_profile: "",
+};
 
 function renderFiles(files) {
   if (!files || files.length === 0) {
@@ -98,36 +144,107 @@ function formatStage(stage) {
   return labelMap[stage] || stage;
 }
 
-function appendStepProgress(line) {
-  if (stepProgressEl.textContent === "Chưa chạy.") {
-    stepProgressEl.textContent = "";
+function getWriterContextValue() {
+  const el = document.getElementById("writerContext");
+  return el ? el.value.trim() : writerContextCache;
+}
+
+function setWriterContextValue(value) {
+  writerContextCache = value || "";
+  const el = document.getElementById("writerContext");
+  if (el) el.value = writerContextCache;
+}
+
+function setStepLog(step, content) {
+  stepLogs[step] = content || "";
+  const target = stepsListEl.querySelector(`[data-step-log="${step}"]`);
+  if (target) target.textContent = stepLogs[step] || "";
+}
+
+function appendStepLog(step, line) {
+  const prev = stepLogs[step];
+  if (!prev || prev === "Chưa chạy.") {
+    stepLogs[step] = `${line}`;
+  } else {
+    stepLogs[step] += `\n${line}`;
   }
-  stepProgressEl.textContent += `${line}\n`;
+  const target = stepsListEl.querySelector(`[data-step-log="${step}"]`);
+  if (target) target.textContent = stepLogs[step];
+}
+
+function showStepLog(step, forceOpen = true) {
+  const logs = stepsListEl.querySelectorAll(".step-log");
+  logs.forEach((el) => el.classList.add("hidden"));
+  if (!forceOpen) {
+    activeStepLog = null;
+    return;
+  }
+  const target = stepsListEl.querySelector(`[data-step-log="${step}"]`);
+  if (target) {
+    target.classList.remove("hidden");
+    activeStepLog = step;
+  }
+}
+
+function resetDownstreamLogs(step) {
+  const idx = LETTER_STEP_ORDER.indexOf(step);
+  if (idx === -1) return;
+  LETTER_STEP_ORDER.slice(idx + 1).forEach((s) => {
+    setStepLog(s, "Chưa chạy.");
+  });
 }
 
 function renderSteps(steps) {
-  const stepOrder = ["ingest", "extract", "summary", "risk", "writer"];
+  const stepOrder = LETTER_STEP_ORDER;
   const statusMap = {};
   (steps || []).forEach((s) => {
     statusMap[s.name] = s.done;
   });
   const rows = stepOrder
-    .map((name) => {
+    .map((name, index) => {
       const done = Boolean(statusMap[name]);
+      const prereqDone = stepOrder.slice(0, index).every((prev) => Boolean(statusMap[prev]));
+      const canRun = done || prereqDone;
+      const runLabel = done ? "Chạy lại" : "Chạy bước";
+      const logText = stepLogs[name] || "Chưa chạy.";
       return `
         <div class="step-row">
-          <div>
-            <div class="step-name">${formatStage(name)}</div>
-            <div class="step-status">${done ? "Đã hoàn thành" : "Chưa chạy"}</div>
+          <div class="step-main">
+            <div class="step-info">
+              <div class="step-name">${formatStage(name)}</div>
+              <div class="step-status">${done ? "Đã hoàn thành" : "Chưa chạy"}</div>
+            </div>
+            <div class="step-actions">
+              <button class="step-btn" data-step="${name}" data-done="${done}" ${
+                canRun ? "" : "disabled"
+              }>
+                ${runLabel}
+              </button>
+              <button class="step-log-toggle" data-step-log-toggle="${name}">Trạng thái</button>
+            </div>
           </div>
-          <button class="step-btn" data-step="${name}" data-done="${done}">
-            ${done ? "Chạy lại" : "Chạy bước"}
-          </button>
+          ${
+            name === "writer"
+              ? `<div class="writer-context-inline">
+                  <label for="writerContext">Thông tin bổ sung cho bước "Viết thư"</label>
+                  <textarea id="writerContext" rows="4"></textarea>
+                </div>`
+              : ""
+          }
+          <div class="step-log ${
+            activeStepLog === name ? "" : "hidden"
+          }" data-step-log="${name}">${logText}</div>
+          ${
+            !canRun
+              ? `<div class="hint">Cần hoàn thành bước trước để chạy bước này.</div>`
+              : ""
+          }
         </div>
       `;
     })
     .join("");
   stepsListEl.innerHTML = rows;
+  setWriterContextValue(writerContextCache);
 }
 
 async function loadSteps() {
@@ -163,13 +280,16 @@ async function fetchWriterContext() {
     `/api/writer_context?output=${encodeURIComponent(outputPath)}`
   );
   const data = await res.json();
-  writerContextEl.value = data.writer_context || "";
+  setWriterContextValue(data.writer_context || "");
 }
 
 async function runIngestStream(force = false) {
   const inputDir = inputDirEl.value.trim() || "input";
   const outputPath = outputPathEl.value.trim() || "output/letter.txt";
-  appendStepProgress("Bắt đầu: Trích xuất văn bản");
+  setStepLog("ingest", "");
+  if (force) resetDownstreamLogs("ingest");
+  showStepLog("ingest", true);
+  appendStepLog("ingest", "Bắt đầu: Trích xuất văn bản");
 
   return new Promise((resolve) => {
     const params = new URLSearchParams({
@@ -181,16 +301,16 @@ async function runIngestStream(force = false) {
     source.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "progress") {
-        appendStepProgress(data.message);
+        appendStepLog("ingest", data.message);
       }
       if (data.type === "done") {
-        appendStepProgress("Hoàn thành: Trích xuất văn bản");
+        appendStepLog("ingest", "Hoàn thành: Trích xuất văn bản");
         source.close();
         resolve();
       }
     };
     source.onerror = () => {
-      appendStepProgress("Lỗi khi trích xuất văn bản.");
+      appendStepLog("ingest", "Lỗi khi trích xuất văn bản.");
       source.close();
       resolve();
     };
@@ -206,7 +326,10 @@ async function runStep(step, force = false) {
     return;
   }
 
-  appendStepProgress(`Bắt đầu: ${formatStage(step)}`);
+  setStepLog(step, "");
+  if (force) resetDownstreamLogs(step);
+  showStepLog(step, true);
+  appendStepLog(step, `Bắt đầu: ${formatStage(step)}`);
 
   const res = await fetch("/api/run_step", {
     method: "POST",
@@ -216,26 +339,27 @@ async function runStep(step, force = false) {
       output: outputPath,
       step,
       force,
-      writer_context: writerContextEl.value.trim(),
+      writer_context: getWriterContextValue(),
     }),
   });
 
   const data = await res.json();
   if (!res.ok) {
     if (data.error === "missing_prerequisite") {
-      appendStepProgress(
+      appendStepLog(
+        step,
         `Thiếu bước trước: ${formatStage(data.missing)} (hãy chạy trước)`
       );
     } else {
-      appendStepProgress("Lỗi khi chạy bước.");
+      appendStepLog(step, "Lỗi khi chạy bước.");
     }
     return;
   }
 
   if (data.status === "cached") {
-    appendStepProgress(`Đã có cache: ${formatStage(step)}`);
+    appendStepLog(step, `Đã có cache: ${formatStage(step)}`);
   } else {
-    appendStepProgress(`Hoàn thành: ${formatStage(step)}`);
+    appendStepLog(step, `Hoàn thành: ${formatStage(step)}`);
   }
 
   if (data.letter) {
@@ -308,11 +432,13 @@ async function runItinerary() {
   if (!flightFile || !hotelFile) {
     itineraryResultEl.srcdoc =
       "<p>Vui lòng chọn đủ file vé máy bay và khách sạn.</p>";
+    syncCombinedPreviews();
     return;
   }
   if (!summaryProfile) {
     itineraryResultEl.srcdoc =
       "<p>Vui lòng nhập thông tin đầu vào lịch trình trước khi tạo.</p>";
+    syncCombinedPreviews();
     return;
   }
 
@@ -338,9 +464,11 @@ async function runItinerary() {
     } else {
       itineraryResultEl.srcdoc = "<p>Lỗi khi tạo lịch trình.</p>";
     }
+    syncCombinedPreviews();
     return;
   }
   itineraryResultEl.srcdoc = data.itinerary || "<p>Không có kết quả.</p>";
+  syncCombinedPreviews();
 }
 
 async function loadLatestItinerary() {
@@ -350,6 +478,7 @@ async function loadLatestItinerary() {
   );
   const data = await res.json();
   itineraryResultEl.srcdoc = data.itinerary || "<p>Chưa chạy.</p>";
+  syncCombinedPreviews();
 }
 
 async function loadItineraryContext() {
@@ -412,6 +541,25 @@ async function saveItineraryContext() {
   }
 }
 
+function syncCombinedPreviews() {
+  if (combinedItineraryResultEl) {
+    combinedItineraryResultEl.srcdoc =
+      itineraryResultEl?.srcdoc || "<p>Chưa có kết quả lịch trình.</p>";
+  }
+  if (combinedFlightBookingResultEl) {
+    combinedFlightBookingResultEl.srcdoc =
+      flightBookingResultEl?.srcdoc || "<p>Chưa có kết quả booking máy bay.</p>";
+  }
+  if (combinedHotelBookingResultEl) {
+    if (hotelHtmls && hotelHtmls.length > 0) {
+      combinedHotelBookingResultEl.srcdoc = buildCombinedHotelsHtml(hotelHtmls);
+    } else {
+      combinedHotelBookingResultEl.srcdoc =
+        hotelBookingResultEl?.srcdoc || "<p>Chưa có kết quả booking khách sạn.</p>";
+    }
+  }
+}
+
 function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -420,47 +568,36 @@ function setActiveTab(tab) {
     letterSection.classList.remove("hidden");
     itinerarySection.classList.add("hidden");
     bookingSection.classList.add("hidden");
+    outputsSection.classList.add("hidden");
   } else if (tab === "itinerary") {
     letterSection.classList.add("hidden");
     itinerarySection.classList.remove("hidden");
     bookingSection.classList.add("hidden");
+    outputsSection.classList.add("hidden");
     loadLatestItinerary();
     loadItineraryContext();
   } else if (tab === "booking") {
     letterSection.classList.add("hidden");
     itinerarySection.classList.add("hidden");
     bookingSection.classList.remove("hidden");
+    outputsSection.classList.add("hidden");
     loadLatestBooking();
+    loadLatestTripInfo();
+  } else if (tab === "outputs") {
+    letterSection.classList.add("hidden");
+    itinerarySection.classList.add("hidden");
+    bookingSection.classList.add("hidden");
+    outputsSection.classList.remove("hidden");
+    loadLatestItinerary().then(syncCombinedPreviews);
+    loadLatestBooking().then(syncCombinedPreviews);
+    syncCombinedPreviews();
   }
 }
 
 async function runAll() {
-  const inputDir = inputDirEl.value.trim() || "input";
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
-  appendStepProgress("Bắt đầu: Chạy tất cả");
-
-  const res = await fetch("/api/run_all", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      input_dir: inputDir,
-      output: outputPath,
-      force: true,
-      writer_context: writerContextEl.value.trim(),
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    appendStepProgress("Lỗi khi chạy tất cả.");
-    return;
+  for (const step of LETTER_STEP_ORDER) {
+    await runStep(step, true);
   }
-  if (data.letter) {
-    resultEl.textContent = data.letter || "Không có kết quả.";
-  }
-  appendStepProgress("Hoàn thành: Chạy tất cả");
-  await fetchSummary();
-  await fetchRiskReport();
-  await loadSteps();
 }
 
 // ==================== BOOKING FUNCTIONS ====================
@@ -470,6 +607,7 @@ function renderHotelTabs(htmls) {
   if (!htmls || htmls.length === 0) {
     hotelBookingTabsEl.innerHTML = "";
     hotelBookingResultEl.srcdoc = "<p>Chưa có booking.</p>";
+    syncCombinedPreviews();
     return;
   }
 
@@ -480,6 +618,7 @@ function renderHotelTabs(htmls) {
   
   // Show first hotel
   hotelBookingResultEl.srcdoc = htmls[0];
+  syncCombinedPreviews();
 
   // Show export button
   exportHotelPdfBtn.style.display = "inline-block";
@@ -494,6 +633,7 @@ function renderHotelTabs(htmls) {
 function showHotelTab(index) {
   if (hotelHtmls[index]) {
     hotelBookingResultEl.srcdoc = hotelHtmls[index];
+    syncCombinedPreviews();
     // Update active tab
     document.querySelectorAll('.hotel-tab-btn').forEach((btn, i) => {
       btn.classList.toggle('active', i === index);
@@ -542,6 +682,7 @@ async function runBookingGeneration() {
     if (!res.ok) {
       hotelBookingResultEl.srcdoc = `<p>Lỗi: ${data.error || "Không thể tạo booking"}</p>`;
       flightBookingResultEl.srcdoc = `<p>Lỗi: ${data.error || "Không thể tạo booking"}</p>`;
+      syncCombinedPreviews();
       return;
     }
 
@@ -553,10 +694,12 @@ async function runBookingGeneration() {
     if (data.flight_html) {
       exportFlightPdfBtn.style.display = "inline-block";
     }
+    syncCombinedPreviews();
 
   } catch (error) {
     hotelBookingResultEl.srcdoc = `<p>Lỗi: ${error.message}</p>`;
     flightBookingResultEl.srcdoc = `<p>Lỗi: ${error.message}</p>`;
+    syncCombinedPreviews();
   }
 }
 
@@ -572,8 +715,10 @@ async function loadLatestBooking() {
     if (data.flight_html) {
       exportFlightPdfBtn.style.display = "inline-block";
     }
+    syncCombinedPreviews();
   } catch (error) {
     console.error("Error loading booking:", error);
+    syncCombinedPreviews();
   }
 }
 
@@ -614,11 +759,95 @@ function formatTripInfo(info) {
     lines.push(`📍 Xuất phát: ${info.origin_city}`);
   if (info.origin_airport)
     lines.push(`✈️ Sân bay: ${info.origin_airport}`);
+  if (info.return_point)
+    lines.push(`↩️ Điểm về: ${info.return_point}`);
+  if (info.destination_airport_hint)
+    lines.push(`🛬 Sân bay gợi ý điểm đến: ${info.destination_airport_hint}`);
+  if (info.return_airport_hint)
+    lines.push(`🛫 Sân bay gợi ý điểm về: ${info.return_airport_hint}`);
   if (info.travel_purpose)
     lines.push(`🎯 Mục đích: ${info.travel_purpose}`);
   if (info.traveler_profile)
     lines.push(`💼 Profile: ${info.traveler_profile}`);
+  if (info.city_stays && info.city_stays.length > 0)
+    lines.push(
+      `🏨 Phân bổ đêm: ${info.city_stays
+        .map((c) => `${c.city} (${c.nights})`)
+        .join(", ")}`
+    );
   return lines.join("\n");
+}
+
+function normalizeTripInfo(info) {
+  return { ...DEFAULT_TRIP_INFO, ...(info || {}) };
+}
+
+function setTripInfoForm(info) {
+  const merged = normalizeTripInfo(info);
+  tripGuestNamesEl.value = (merged.guest_names || []).join("\n");
+  tripDestinationCountryEl.value = merged.destination_country || "";
+  const cityStays = Array.isArray(merged.city_stays) ? merged.city_stays : [];
+  if (cityStays.length > 0) {
+    tripCitiesPlanEl.value = cityStays
+      .map((item) =>
+        item && item.city
+          ? item.nights && Number(item.nights) > 0
+            ? `${item.city} ${item.nights}`
+            : `${item.city}`
+          : ""
+      )
+      .filter(Boolean)
+      .join("\n");
+  } else {
+    tripCitiesPlanEl.value = (merged.cities_to_visit || []).join("\n");
+  }
+  tripTravelStartDateEl.value = merged.travel_start_date || "";
+  tripTravelEndDateEl.value = merged.travel_end_date || "";
+  tripNumNightsEl.value = Number(merged.num_nights || 0);
+  tripOriginCityEl.value = merged.origin_city || "";
+  tripOriginAirportEl.value = merged.origin_airport || "";
+  tripReturnPointEl.value = merged.return_point || "";
+  tripDestinationAirportHintEl.value = merged.destination_airport_hint || "";
+  tripReturnAirportHintEl.value = merged.return_airport_hint || "";
+  tripTravelPurposeEl.value = merged.travel_purpose || "";
+  tripTravelerProfileEl.value = merged.traveler_profile || "";
+}
+
+function getTripInfoFromForm() {
+  const guest_names = tripGuestNamesEl.value
+    .split(/\r?\n|,/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const cityPlanLines = tripCitiesPlanEl.value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const city_stays = cityPlanLines
+    .map((line) => {
+      const m = line.match(/^(.*?)(?:\s+(\d+))?$/);
+      const city = (m?.[1] || "").trim();
+      const nights = parseInt((m?.[2] || "0").trim(), 10);
+      return { city, nights: Number.isFinite(nights) ? nights : 0 };
+    })
+    .filter((x) => x.city);
+  const cities_to_visit = city_stays.map((x) => x.city);
+
+  return normalizeTripInfo({
+    guest_names,
+    destination_country: tripDestinationCountryEl.value.trim(),
+    cities_to_visit,
+    city_stays,
+    travel_start_date: tripTravelStartDateEl.value.trim(),
+    travel_end_date: tripTravelEndDateEl.value.trim(),
+    num_nights: parseInt(tripNumNightsEl.value || "0", 10) || 0,
+    origin_city: tripOriginCityEl.value.trim(),
+    origin_airport: tripOriginAirportEl.value.trim().toUpperCase(),
+    return_point: tripReturnPointEl.value.trim(),
+    destination_airport_hint: tripDestinationAirportHintEl.value.trim().toUpperCase(),
+    return_airport_hint: tripReturnAirportHintEl.value.trim().toUpperCase(),
+    travel_purpose: tripTravelPurposeEl.value.trim(),
+    traveler_profile: tripTravelerProfileEl.value.trim(),
+  });
 }
 
 async function extractTripInfo() {
@@ -626,7 +855,7 @@ async function extractTripInfo() {
   const originalBtnText = extractTripBtn.textContent;
   extractTripBtn.textContent = "⏳ Đang trích xuất...";
   extractTripBtn.disabled = true;
-  tripInfoPanelEl.innerHTML = '<div style="color:#fbbf24;">⏳ Đang đọc và phân tích tất cả file trong thư mục input...<br><small>(Quá trình này có thể mất 1-2 phút tùy số lượng file)</small></div>';
+  tripInfoPanelEl.innerHTML = "⏳ Đang đọc và phân tích các file có tiền tố THONG TIN CHUYEN DI / HO SO CA NHAN / MUC DICH CHUYEN DI...";
 
   try {
     const res = await fetch("/api/booking/extract_trip", {
@@ -642,7 +871,8 @@ async function extractTripInfo() {
       return;
     }
 
-    tripInfoPanelEl.textContent = formatTripInfo(data.trip_info);
+    setTripInfoForm(data.trip_info);
+    tripInfoPanelEl.textContent = `✅ Trích xuất thành công.\n\n${formatTripInfo(data.trip_info)}`;
   } catch (error) {
     tripInfoPanelEl.textContent = `❌ Lỗi: ${error.message}`;
   } finally {
@@ -651,11 +881,49 @@ async function extractTripInfo() {
   }
 }
 
+async function saveTripInfo() {
+  const originalBtnText = saveTripInfoBtn.textContent;
+  saveTripInfoBtn.textContent = "⏳ Đang lưu...";
+  saveTripInfoBtn.disabled = true;
+  try {
+    const tripInfo = getTripInfoFromForm();
+    const res = await fetch("/api/booking/trip/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trip_info: tripInfo }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      tripInfoPanelEl.textContent = `❌ Lỗi lưu: ${data.error || "Không thể lưu"}`;
+      return;
+    }
+    setTripInfoForm(data.trip_info);
+    tripInfoPanelEl.textContent = "✅ Đã lưu thông tin chuyến đi.";
+  } catch (error) {
+    tripInfoPanelEl.textContent = `❌ Lỗi lưu: ${error.message}`;
+  } finally {
+    saveTripInfoBtn.textContent = originalBtnText;
+    saveTripInfoBtn.disabled = false;
+  }
+}
+
+async function loadLatestTripInfo() {
+  try {
+    const res = await fetch("/api/booking/trip/latest");
+    const data = await res.json();
+    setTripInfoForm(data.trip_info || {});
+  } catch (error) {
+    setTripInfoForm({});
+  }
+}
+
 async function runAIBooking() {
   const inputDir = inputDirEl.value.trim() || "input";
   const outputDir = bookingOutputAIEl.value.trim() || "output";
-
   const originalBtnText = runAIBookingBtn.textContent;
+
+  const editedTripInfo = getTripInfoFromForm();
+
   runAIBookingBtn.textContent = "⏳ AI đang xử lý...";
   runAIBookingBtn.disabled = true;
   aiBookingStatusEl.innerHTML = '<div style="color:#fbbf24;">⏳ AI đang phân tích hồ sơ và chọn khách sạn, chuyến bay...<br><small>(Quá trình này có thể mất 1-3 phút)</small></div>';
@@ -670,6 +938,7 @@ async function runAIBooking() {
       body: JSON.stringify({
         input_dir: inputDir,
         output_dir: outputDir,
+        trip_info: editedTripInfo,
       }),
     });
 
@@ -685,6 +954,7 @@ async function runAIBooking() {
       aiBookingStatusEl.textContent = `❌ Lỗi: ${data.error || "Không thể tạo booking"}`;
       hotelBookingResultEl.srcdoc = `<p>Lỗi: ${data.error || "Không thể tạo booking"}</p>`;
       flightBookingResultEl.srcdoc = "";
+      syncCombinedPreviews();
       return;
     }
 
@@ -708,6 +978,7 @@ async function runAIBooking() {
     if (data.flight_html) {
       exportFlightPdfBtn.style.display = "inline-block";
     }
+    syncCombinedPreviews();
 
     aiBookingStatusEl.textContent = data.used_cache
       ? "✅ Hoàn thành! (dùng dữ liệu đã cache - không tốn token). Bấm 'Trích xuất từ input' để tạo mới."
@@ -716,6 +987,7 @@ async function runAIBooking() {
     aiBookingStatusEl.textContent = `❌ Lỗi: ${error.message}`;
     hotelBookingResultEl.srcdoc = `<p>Lỗi: ${error.message}</p>`;
     flightBookingResultEl.srcdoc = "";
+    syncCombinedPreviews();
   } finally {
     runAIBookingBtn.textContent = originalBtnText;
     runAIBookingBtn.disabled = false;
@@ -731,6 +1003,7 @@ runAllBtn.addEventListener("click", runAll);
 saveItineraryContextBtn.addEventListener("click", saveItineraryContext);
 runBookingBtn.addEventListener("click", runBookingGeneration);
 extractTripBtn.addEventListener("click", extractTripInfo);
+saveTripInfoBtn.addEventListener("click", saveTripInfo);
 runAIBookingBtn.addEventListener("click", runAIBooking);
 
 // PDF Export helpers
@@ -788,37 +1061,30 @@ exportItineraryPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(itineraryResultEl, "Travel Itinerary");
 });
 
-// Export ALL hotel bookings as one PDF with page breaks
-function printAllHotelsAsPdf() {
-  if (!hotelHtmls || hotelHtmls.length === 0) {
-    alert("Chưa có booking khách sạn để xuất.");
-    return;
-  }
+exportCombinedItineraryPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(combinedItineraryResultEl, "Travel Itinerary");
+});
 
-  const printWin = window.open("", "_blank");
-  if (!printWin) {
-    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
-    return;
-  }
+exportCombinedFlightPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(combinedFlightBookingResultEl, "Flight Booking");
+});
 
-  // Extract <body> content from each hotel HTML and combine with page breaks
-  const pages = hotelHtmls.map((html, i) => {
-    // Extract content between <body> tags
+exportCombinedHotelPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(combinedHotelBookingResultEl, "Hotel Booking");
+});
+
+function buildCombinedHotelsHtml(htmls) {
+  const pages = (htmls || []).map((html, i) => {
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
     const bodyContent = bodyMatch ? bodyMatch[1] : html;
-    const pageBreak = i < hotelHtmls.length - 1 ? 'style="page-break-after: always;"' : '';
-    return `<div ${pageBreak}>${bodyContent}</div>`;
+    const pageBreak = i < htmls.length - 1 ? 'style="page-break-after: always;"' : "";
+    return `<section ${pageBreak}>${bodyContent}</section>`;
   });
 
-  // Extract <style> from the first hotel HTML (they share the same template styles)
-  const styleMatch = hotelHtmls[0].match(/<style[^>]*>[\s\S]*?<\/style>/gi);
-  const styles = styleMatch ? styleMatch.join("\n") : "";
+  const headMatch = htmls[0]?.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+  const headContent = headMatch ? headMatch[1] : "";
 
-  // Extract <head> content (for embedded fonts etc.)
-  const headMatch = hotelHtmls[0].match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-  const headContent = headMatch ? headMatch[1] : styles;
-
-  const combinedHtml = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -834,6 +1100,22 @@ function printAllHotelsAsPdf() {
   ${pages.join("\n")}
 </body>
 </html>`;
+}
+
+// Export ALL hotel bookings as one PDF with page breaks
+function printAllHotelsAsPdf() {
+  if (!hotelHtmls || hotelHtmls.length === 0) {
+    alert("Chưa có booking khách sạn để xuất.");
+    return;
+  }
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
+    return;
+  }
+
+  const combinedHtml = buildCombinedHotelsHtml(hotelHtmls);
 
   printWin.document.open();
   printWin.document.write(combinedHtml);
@@ -845,14 +1127,113 @@ function printAllHotelsAsPdf() {
   setTimeout(() => { printWin.print(); }, 800);
 }
 
+function printCombinedPackagePdf() {
+  const itineraryDoc =
+    combinedItineraryResultEl.contentDocument ||
+    combinedItineraryResultEl.contentWindow?.document;
+  const flightDoc =
+    combinedFlightBookingResultEl.contentDocument ||
+    combinedFlightBookingResultEl.contentWindow?.document;
+  const hotelDoc =
+    combinedHotelBookingResultEl.contentDocument ||
+    combinedHotelBookingResultEl.contentWindow?.document;
+
+  const hasItinerary = itineraryDoc?.body?.innerHTML?.trim();
+  const hasFlight = flightDoc?.body?.innerHTML?.trim();
+  const hasHotel = hotelDoc?.body?.innerHTML?.trim();
+
+  if (!hasItinerary || !hasFlight || !hasHotel) {
+    alert("Cần đủ 3 nội dung: lịch trình, booking máy bay, booking khách sạn.");
+    return;
+  }
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
+    return;
+  }
+
+  const extractBody = (doc) => {
+    const html = doc.documentElement?.outerHTML || "";
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    return bodyMatch ? bodyMatch[1] : doc.body.innerHTML;
+  };
+
+  const extractHead = (doc) => {
+    const html = doc.documentElement?.outerHTML || "";
+    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+    return headMatch ? headMatch[1] : "";
+  };
+
+  const itineraryBody = extractBody(itineraryDoc);
+  const flightBody = extractBody(flightDoc);
+  const hotelBody = extractBody(hotelDoc);
+  const mergedHead = [extractHead(itineraryDoc), extractHead(flightDoc), extractHead(hotelDoc)]
+    .filter(Boolean)
+    .join("\n");
+
+  const combinedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  ${mergedHead}
+  <style>
+    @media print {
+      body { margin: 0; }
+      @page { size: A4; margin: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <section style="page-break-after: always;">${itineraryBody}</section>
+  <section style="page-break-after: always;">${flightBody}</section>
+  <section>${hotelBody}</section>
+</body>
+</html>`;
+
+  printWin.document.open();
+  printWin.document.write(combinedHtml);
+  printWin.document.close();
+
+  printWin.onload = () => {
+    setTimeout(() => {
+      printWin.print();
+    }, 300);
+  };
+  setTimeout(() => {
+    printWin.print();
+  }, 900);
+}
+
 exportAllHotelPdfBtn.addEventListener("click", printAllHotelsAsPdf);
+exportCombinedAllPdfBtn.addEventListener("click", printCombinedPackagePdf);
 
 stepsListEl.addEventListener("click", (event) => {
   const btn = event.target.closest(".step-btn");
-  if (!btn) return;
-  const step = btn.dataset.step;
-  const done = btn.dataset.done === "true";
-  if (step) runStep(step, done);
+  if (btn) {
+    if (btn.disabled) return;
+    const step = btn.dataset.step;
+    const done = btn.dataset.done === "true";
+    if (step) runStep(step, done);
+    return;
+  }
+
+  const toggle = event.target.closest(".step-log-toggle");
+  if (!toggle) return;
+  const step = toggle.dataset.stepLogToggle;
+  if (!step) return;
+  if (activeStepLog === step) {
+    showStepLog(step, false);
+  } else {
+    showStepLog(step, true);
+  }
+});
+
+stepsListEl.addEventListener("input", (event) => {
+  const target = event.target;
+  if (target && target.id === "writerContext") {
+    writerContextCache = target.value || "";
+  }
 });
 
 hotelBookingTabsEl.addEventListener("click", (event) => {
@@ -871,7 +1252,10 @@ window.addEventListener("load", async () => {
   await fetchFiles();
   await loadSteps();
   await loadLatestItinerary();
+  await loadLatestBooking();
   await loadItineraryContext();
+  await loadLatestTripInfo();
   await loadDestinations();
+  syncCombinedPreviews();
 });
 
