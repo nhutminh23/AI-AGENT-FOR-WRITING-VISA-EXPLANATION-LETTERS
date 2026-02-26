@@ -85,6 +85,7 @@ def _save_state(cache_dir: str, state: GraphState) -> None:
         "risk_points": state.get("risk_points", []),
         "risk_report": state.get("risk_report", ""),
         "summary_profile": state.get("summary_profile", ""),
+        "writer_context": state.get("writer_context", ""),
         "letter_full": state.get("letter_full", ""),
     }
     with open(_state_path(cache_dir), "w", encoding="utf-8") as f:
@@ -258,6 +259,14 @@ def get_risk_report():
     return jsonify({"risk_report": ""})
 
 
+@app.get("/api/writer_context")
+def get_writer_context():
+    output_path = request.args.get("output", os.path.join("output", "letter.txt"))
+    cache_dir = _cache_dir(output_path)
+    state_cache = _load_state(cache_dir)
+    return jsonify({"writer_context": state_cache.get("writer_context", "")})
+
+
 @app.get("/api/ingest_stream")
 def ingest_stream():
     input_dir = request.args.get("input_dir", "input")
@@ -410,6 +419,7 @@ def run_step():
     step = payload.get("step")
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     force = bool(payload.get("force", False))
+    writer_context = (payload.get("writer_context") or "").strip()
 
     if step not in STEP_ORDER:
         return jsonify({"error": "invalid_step"}), 400
@@ -435,6 +445,7 @@ def run_step():
         "risk_points": state_cache.get("risk_points", []),
         "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
+        "writer_context": writer_context or state_cache.get("writer_context", ""),
         "letter_full": state_cache.get("letter_full", ""),
     }
 
@@ -459,6 +470,7 @@ def run_all():
     output_path = payload.get("output", os.path.join("output", "letter.txt"))
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     force = bool(payload.get("force", False))
+    writer_context = (payload.get("writer_context") or "").strip()
 
     cache_dir = _cache_dir(output_path)
     state_cache = _load_state(cache_dir)
@@ -474,6 +486,7 @@ def run_all():
         "risk_points": state_cache.get("risk_points", []),
         "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
+        "writer_context": writer_context or state_cache.get("writer_context", ""),
         "letter_full": state_cache.get("letter_full", ""),
     }
 
@@ -494,6 +507,7 @@ def run_add_file():
     output_path = payload.get("output", os.path.join("output", "letter.txt"))
     file_ref = payload.get("file")
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    writer_context = (payload.get("writer_context") or "").strip()
 
     if not file_ref:
         return jsonify({"error": "missing_file"}), 400
@@ -516,6 +530,7 @@ def run_add_file():
         "risk_points": state_cache.get("risk_points", []),
         "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
+        "writer_context": writer_context or state_cache.get("writer_context", ""),
         "letter_full": state_cache.get("letter_full", ""),
     }
 
@@ -768,7 +783,14 @@ def extract_trip():
         return jsonify({"error": str(e)}), 500
 
     if not trip_info:
-        return jsonify({"error": "Không trích xuất được thông tin chuyến đi."}), 400
+        return jsonify(
+            {
+                "error": (
+                    "Không trích xuất được thông tin chuyến đi. "
+                    "Vui lòng thêm file có tiền tố 'THONG TIN CHUYEN DI'."
+                )
+            }
+        ), 400
 
     # Cache trip info + clear old booking cache (force fresh AI gen next time)
     cache_dir = _cache_dir(os.path.join("output", "letter.txt"))

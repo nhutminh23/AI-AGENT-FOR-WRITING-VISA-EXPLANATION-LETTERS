@@ -3,6 +3,7 @@ const resultEl = document.getElementById("result");
 const stepProgressEl = document.getElementById("stepProgress");
 const summaryEl = document.getElementById("summary");
 const riskReportEl = document.getElementById("riskReport");
+const writerContextEl = document.getElementById("writerContext");
 const summaryItineraryEl = document.getElementById("summaryItinerary");
 const stepsListEl = document.getElementById("stepsList");
 const inputDirEl = document.getElementById("inputDir");
@@ -89,9 +90,9 @@ async function fetchFiles() {
 function formatStage(stage) {
   const labelMap = {
     ingest: "Trích xuất văn bản",
-    extract: "Trích xuất 5 nhóm",
+    extract: "Phân loại thông tin thành 5 nhóm",
     summary: "Tổng hợp thông tin",
-    risk: "Điểm cần giải trình",
+    risk: "Điểm rủi ro cần giải trình",
     writer: "Viết thư",
   };
   return labelMap[stage] || stage;
@@ -137,6 +138,7 @@ async function loadSteps() {
   renderSteps(data.steps || []);
   await fetchSummary();
   await fetchRiskReport();
+  await fetchWriterContext();
 }
 
 async function fetchSummary() {
@@ -153,6 +155,15 @@ async function fetchRiskReport() {
   );
   const data = await res.json();
   riskReportEl.textContent = data.risk_report || "Chưa có dữ liệu.";
+}
+
+async function fetchWriterContext() {
+  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
+  const res = await fetch(
+    `/api/writer_context?output=${encodeURIComponent(outputPath)}`
+  );
+  const data = await res.json();
+  writerContextEl.value = data.writer_context || "";
 }
 
 async function runIngestStream(force = false) {
@@ -205,6 +216,7 @@ async function runStep(step, force = false) {
       output: outputPath,
       step,
       force,
+      writer_context: writerContextEl.value.trim(),
     }),
   });
 
@@ -434,6 +446,7 @@ async function runAll() {
       input_dir: inputDir,
       output: outputPath,
       force: true,
+      writer_context: writerContextEl.value.trim(),
     }),
   });
   const data = await res.json();

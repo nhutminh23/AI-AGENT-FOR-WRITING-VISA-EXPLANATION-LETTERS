@@ -568,6 +568,12 @@ def letter_writer(state: GraphState) -> GraphState:
         summary_profile=summary_profile,
         visa_relevance=visa_relevance,
     )
+    writer_context = (state.get("writer_context") or "").strip()
+    if writer_context:
+        prompt += (
+            "\n\nTHÔNG TIN BỔ SUNG TỪ NGƯỜI DÙNG (ƯU TIÊN SỬ DỤNG NẾU KHÔNG MÂU THUẪN INPUT):\n"
+            f"{writer_context}\n"
+        )
     result = llm.invoke([SystemMessage(content=SYSTEM_BASE), HumanMessage(content=prompt)])
     state["letter_full"] = result.content
     return state

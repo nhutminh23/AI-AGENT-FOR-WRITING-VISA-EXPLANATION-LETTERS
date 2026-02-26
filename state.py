@@ -21,6 +21,7 @@ class GraphState(TypedDict, total=False):
     risk_points: List[Dict[str, Any]]
     contradictions: Dict[str, List[str]]
     summary_profile: str
+    writer_context: str
     letter_vi: str
     letter_en: str
     letter_full: str

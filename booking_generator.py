@@ -640,20 +640,43 @@ def fill_flight_template(template_path: str, flight_data: Dict) -> str:
     section_route2 = _replace_by_class(section_route2, "flight-number", ret_flight_num)
 
     # --- Passengers ---
-    p1_name = passengers[0]["name"] if passengers else "THI THANH HIEN DO"
-    p2_name = passengers[1]["name"] if len(passengers) > 1 else "NGOC KHUE VU"
+    passenger_names = [
+        (p.get("name") or "").strip()
+        for p in passengers
+        if isinstance(p, dict) and (p.get("name") or "").strip()
+    ]
+    if not passenger_names:
+        passenger_names = ["THI THANH HIEN DO"]
 
-    # Replace passenger names using p-name class
-    pname_pattern = _re.compile(r'(<span class="p-name">)(.*?)(</span>)', _re.DOTALL)
-    pname_matches = list(pname_pattern.finditer(section_passengers))
-    if len(pname_matches) >= 2:
-        section_passengers = (
-            section_passengers[:pname_matches[0].start(2)] + p1_name +
-            section_passengers[pname_matches[0].end(2):pname_matches[1].start(2)] + p2_name +
-            section_passengers[pname_matches[1].end(2):]
-        )
-    elif len(pname_matches) == 1:
-        section_passengers = pname_pattern.sub(r'\g<1>' + p1_name + r'\3', section_passengers, count=1)
+    container_pattern = _re.compile(
+        r'<div class="passenger-container">[\s\S]*?</div>\s*</div>',
+        _re.DOTALL,
+    )
+    container_matches = list(container_pattern.finditer(section_passengers))
+    if container_matches:
+        prefix = section_passengers[:container_matches[0].start()]
+        suffix = section_passengers[container_matches[-1].end():]
+        container_template = container_matches[0].group(0)
+        passenger_blocks = []
+
+        for idx, name in enumerate(passenger_names, 1):
+            block = container_template
+            block = _re.sub(
+                r'(<span class="p-label">)Passenger \d+(</span>)',
+                rf'\1Passenger {idx}\2',
+                block,
+                count=1,
+            )
+            block = _re.sub(
+                r'(<span class="p-name">)(.*?)(</span>)',
+                rf'\1{name}\3',
+                block,
+                count=1,
+                flags=_re.DOTALL,
+            )
+            passenger_blocks.append(block)
+
+        section_passengers = prefix + "\n\n".join(passenger_blocks) + suffix
 
     # Replace route details in passenger section using city names from data
     out_dep_city = outbound.get("departure_city", "Hanoi")
@@ -682,10 +705,26 @@ def fill_flight_template(template_path: str, flight_data: Dict) -> str:
     route2_dep_desc = f"{ret_dep_city} ({ret_dep_airport}), {ret_dep_country}"
     route2_arr_desc = f"{ret_arr_city} ({ret_arr_airport}), {ret_arr_country}"
 
-    # Replace in template - original has "Hanoi (HAN), Vietnam" etc. 
-    section_passengers = section_passengers.replace("Hanoi (HAN), Vietnam", route1_dep_desc)
-    section_passengers = section_passengers.replace("Sydney (SYD), Australia", route1_arr_desc)
-    section_passengers = section_passengers.replace("Melbourne (MEL), Australia", route2_dep_desc)
+    # Replace route details in each passenger block (Route 1, Route 2).
+    route_detail_pattern = _re.compile(
+        r'(<div class="route-detail">\s*)(.*?)(\s*<i class="fa-solid fa-plane-departure separator-icon"></i>\s*)(.*?)(\s*</div>)',
+        _re.DOTALL,
+    )
+    route_matches = list(route_detail_pattern.finditer(section_passengers))
+    if route_matches:
+        new_parts = []
+        last_idx = 0
+        for i, m in enumerate(route_matches):
+            if i % 2 == 0:
+                dep_desc, arr_desc = route1_dep_desc, route1_arr_desc
+            else:
+                dep_desc, arr_desc = route2_dep_desc, route2_arr_desc
+            replacement = m.group(1) + dep_desc + m.group(3) + arr_desc + m.group(5)
+            new_parts.append(section_passengers[last_idx:m.start()])
+            new_parts.append(replacement)
+            last_idx = m.end()
+        new_parts.append(section_passengers[last_idx:])
+        section_passengers = "".join(new_parts)
 
     # Reassemble
     result = section_before + section_route1 + section_route2 + section_passengers

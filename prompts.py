@@ -377,7 +377,7 @@ Nguồn dữ liệu sử dụng để viết thư:
 2. visa_relevance – dùng để xây dựng lập luận thuyết phục
 
 Nhiệm vụ của bạn:
-Viết THƯ GIẢI TRÌNH SONG NGỮ (TIẾNG VIỆT & TIẾNG ANH) theo chuẩn thư nộp trực tiếp cho viên chức xét duyệt visa,
+Viết THƯ GIẢI TRÌNH TIẾNG ANH theo chuẩn thư nộp trực tiếp cho viên chức xét duyệt visa,
 với NGÔI VIẾT LÀ NGƯỜI XIN VISA TỰ TRÌNH BÀY (FIRST PERSON).
 
 Mục tiêu quan trọng nhất:
@@ -391,9 +391,7 @@ Mục tiêu quan trọng nhất:
 ────────────────────
 ⚠️ NGUYÊN TẮC BẮT BUỘC (CỰC KỲ QUAN TRỌNG)
 
-– Thư phải viết hoàn toàn ở NGÔI THỨ NHẤT:
-  • Tiếng Việt: “Tôi…”
-  • Tiếng Anh: “I…”
+– Thư phải viết hoàn toàn ở NGÔI THỨ NHẤT: "I..."
 
 – TUYỆT ĐỐI KHÔNG dùng:
   • “đương đơn”, “applicant”, “the applicant”
@@ -498,20 +496,18 @@ Freelancer / Nội trợ / Khác:
 – Nếu có:
   • Vé máy bay / khách sạn / lịch trình → trình bày bằng lời, không checklist
   • Thư mời → giải thích mối quan hệ
-– Nếu thiếu một phần:
-  • Giữ chỗ trống “……” theo hướng dẫn, không suy đoán
 
 ────────────────────
-CẤU TRÚC THƯ GIẢI TRÌNH (BẮT BUỘC)
+CẤU TRÚC THƯ GIẢI TRÌNH
 
 ⚠️ Áp dụng cho mọi loại visa, điều chỉnh nội dung theo mục đích
 
 1. HEADER (Thông tin nào có thì ghi)
-– Họ tên
-– Địa chỉ
+– Họ tên (Viết không dấu)
+– Địa chỉ (Dịch sang tiếng Anh)
 – Email
 – Số điện thoại
-– Ngày viết
+– Ngày viết (Dịch sang tiếng Anh)
 
 2. NGƯỜI NHẬN
 To: The Visa Officer  
@@ -533,10 +529,17 @@ Subject: Application for [Visa Type] – [Purpose]
   • Mục đích chính
 
 5. MỤC ĐÍCH CHUYẾN ĐI & KẾ HOẠCH
-– Mục đích chuyến đi / học tập / công tác
-– Thời gian
-– Kế hoạch cụ thể
-– Cam kết quay về sau chuyến đi
+Yêu cầu viết:
+- Không liệt kê chi tiết nhỏ (không ghi mã chuyến bay, không ghi tên khách sạn cụ thể)
+- Không sử dụng dấu ";" hoặc cấu trúc liệt kê
+Nội dung cần thể hiện (theo thứ tự logic):
+
+1. Nêu rõ mục đích chuyến đi (du lịch / công tác / học tập) và khẳng định hợp lý
+2. Nêu thời gian dự kiến của chuyến đi (from ... to ...)
+3. Nêu các điểm đến chính (thành phố/quốc gia)
+4. Xác nhận đã có kế hoạch di chuyển và lưu trú phù hợp với lịch trình
+5. Cam kết sẽ rời khỏi Úc đúng thời hạn và quay về Việt Nam
+
 
 6. Công việc & thu nhập (CHI TIẾT)
 – Tôi mô tả CỤ THỂ công việc hiện tại:
@@ -550,7 +553,8 @@ Subject: Application for [Visa Type] – [Purpose]
   • Vì sao tôi bắt buộc phải quay về Việt Nam để tiếp tục công việc
 
 7. Tài sản & ràng buộc kinh tế
-– Tôi trình bày các tài sản hoặc nguồn tài chính đang sở hữu (chỉ nêu tổng tiền hiện có, hoặc tài sản khác(nếu có), thu nhập hàng tháng(nếu có))
+– Tôi trình bày các tài sản hoặc nguồn tài chính đang sở hữu (nếu tài sản là tiền thì quy đổi thành khoảng bao nhiêu USD)
+– Không sử dụng số liệu chi tiết không cần thiết (ví dụ: số tài khoản, nhiều số dư rời rạc), Chỉ nêu tổng quan tài chính 
 – Tôi giải thích vai trò của các yếu tố này trong cuộc sống hiện tại
 – Tôi làm rõ vì sao các ràng buộc kinh tế này khiến tôi không có ý định lưu trú quá hạn
 
@@ -578,22 +582,32 @@ Subject: Application for [Visa Type] – [Purpose]
 11. CLOSING
 – Thank you
 – Ký tên
+
+Thư PHẢI được viết dưới dạng THƯ HÀNH CHÍNH HOÀN CHỈNH, KHÔNG phải báo cáo.
+
+– TUYỆT ĐỐI KHÔNG sử dụng:
+  • Bullet points (-, •)
+  • Numbered list
+  • Heading nội dung (ví dụ: "Mục đích chuyến đi:", "Tài chính:")
+  • Checklist
+
+– TẤT CẢ nội dung phải viết thành ĐOẠN VĂN LIỀN MẠCH
+
+– Mỗi ý chính = 1 đoạn văn
+
+– Các đoạn phải có LIÊN KẾT TỰ NHIÊN, không rời rạc
+
+– Không viết kiểu liệt kê thông tin, phải viết thành câu hoàn chỉnh
+
+👉 Thư phải đọc như một người thật đang viết, không giống AI, không giống form mẫu
 ────────────────────
 YÊU CẦU ĐẦU RA
 
-A. BẢN TIẾNG VIỆT
-– Ngôi “Tôi”
-– Văn phong hành chính
-– Có thể nộp trực tiếp
-
-B. BẢN TIẾNG ANH
+BẢN TIẾNG ANH
 – Ngôi “I”
 – Dịch sát nghĩa bản tiếng Việt
 – Formal visa letter
 – Không dịch máy móc
-
-Hai bản đặt LIỀN NHAU, có tiêu đề rõ ràng, không trộn ngôn ngữ.
-
 ────────────────────
 INPUT
 

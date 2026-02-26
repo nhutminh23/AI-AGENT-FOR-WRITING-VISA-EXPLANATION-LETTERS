@@ -7,6 +7,7 @@ hotels + flights for any country in the world.
 import json
 import os
 import re
+import unicodedata
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -17,7 +18,7 @@ from file_utils import read_docx, read_pdf, read_text_file
 
 # ==================== PROMPTS ====================
 
-TRIP_EXTRACTOR_PROMPT = """Bạn là chuyên viên xử lý hồ sơ visa. Nhiệm vụ: đọc các tài liệu dưới đây và trích xuất CHÍNH XÁC thông tin chuyến đi.
+TRIP_EXTRACTOR_PROMPT = """Bạn là chuyên viên xử lý hồ sơ visa. Nhiệm vụ: đọc file THÔNG TIN CHUYẾN ĐI và trích xuất CHÍNH XÁC thông tin chuyến đi.
 
 Quy tắc BẮT BUỘC:
 - Chỉ dùng thông tin CÓ trong tài liệu, KHÔNG suy đoán
@@ -36,35 +37,52 @@ Trích xuất các trường sau:
 3. cities_to_visit: Danh sách thành phố sẽ đến
    - Nếu không ghi rõ, để mảng rỗng (AI booking sẽ tự chọn)
 
-4. travel_start_date: Ngày bắt đầu chuyến đi (YYYY-MM-DD)
+4. city_stays: Danh sách số đêm theo từng thành phố (nếu có)
+   - Ví dụ từ "Toronto (4), Niagara (2), Vancouver (4)" thì trả về:
+     [
+       {{"city":"Toronto","nights":4}},
+       {{"city":"Niagara","nights":2}},
+       {{"city":"Vancouver","nights":4}}
+     ]
+   - Nếu không có số đêm theo từng thành phố thì để mảng rỗng
 
-5. travel_end_date: Ngày kết thúc chuyến đi (YYYY-MM-DD)
+5. travel_start_date: Ngày bắt đầu chuyến đi (YYYY-MM-DD)
 
-6. num_nights: Tổng số đêm ở (tính từ ngày đến - ngày về, trừ đêm bay)
+6. travel_end_date: Ngày kết thúc chuyến đi (YYYY-MM-DD)
 
-7. origin_city: Thành phố xuất phát (tiếng Việt)
+7. num_nights: Tổng số đêm ở (tính từ ngày đến - ngày về, trừ đêm bay)
 
-8. origin_airport: Mã sân bay xuất phát
-   - Hà Nội / Hải Phòng / miền Bắc → "HAN"
-   - TP.HCM / miền Nam → "SGN"
-   - Đà Nẵng / miền Trung → "DAD"
-   - Nếu không rõ, suy luận từ địa chỉ người nộp
+8. origin_city: Điểm xuất phát (có thể là thành phố hoặc quốc gia)
 
-9. travel_purpose: Mục đích (Tourism / Business / Visit Family / Study...)
+9. origin_airport: Mã sân bay xuất phát
+   - Chọn mã IATA phù hợp với điểm xuất phát đã nêu
+   - Nếu điểm xuất phát là quốc gia, chọn sân bay quốc tế lớn hợp lý nhất
 
-10. traveler_profile: Mô tả ngắn profile người đi (nghề nghiệp, tình trạng tài chính)
+10. return_point: Điểm về (có thể là thành phố hoặc quốc gia), nếu có
+
+11. destination_airport_hint: Mã sân bay gợi ý tại điểm đến đầu tiên (nếu suy luận được)
+
+12. return_airport_hint: Mã sân bay gợi ý cho điểm về (nếu suy luận được)
+
+13. travel_purpose: Mục đích (Tourism / Business / Visit Family / Study...)
+
+14. traveler_profile: Mô tả ngắn profile người đi (nghề nghiệp, tình trạng tài chính)
     để hỗ trợ AI chọn khách sạn phù hợp
 
 Trả về JSON hợp lệ, KHÔNG thêm chữ ngoài JSON:
 {{
   "guest_names": [],
   "destination_country": "",
-  "cities_to_visit": [],  
+  "cities_to_visit": [],
+  "city_stays": [],
   "travel_start_date": "",
   "travel_end_date": "",
   "num_nights": 0,
   "origin_city": "",
   "origin_airport": "",
+  "return_point": "",
+  "destination_airport_hint": "",
+  "return_airport_hint": "",
   "travel_purpose": "",
   "traveler_profile": ""
 }}
@@ -118,6 +136,8 @@ QUY TẮC TUYẾN BAY:
 2. Chiều về (return): từ sân bay THÀNH PHỐ CUỐI CÙNG trong cities_to_visit → origin_airport
    ✅ VD: cities_to_visit = ["Sydney", "Melbourne"] → đi HAN→SYD, về MEL→HAN
    ❌ SAI: về từ SYD khi thành phố cuối là Melbourne
+2b. Nếu có return_point, coi đó là điểm quay về cuối cùng của hành trình.
+    Route 2 phải là: điểm đến du lịch cuối cùng → return_point
 3. Phải là chuyến bay TRỰC TIẾP (hoặc transit qua 1 điểm nhưng chỉ ghi 1 số hiệu bay)
 4. KHÔNG ghi 2 số hiệu bay kiểu "VN280 / VN780"
 
@@ -142,10 +162,13 @@ QUY TẮC FORMAT:
    ✅ "9h 45m"
 4. departure_time, arrival_time: format "HH:MM"
    ✅ "23:30"
-5. departure_terminal, arrival_terminal: ngắn gọn
-   ✅ "Terminal 2"
-6. baggage: ĐÚNG format sau:
-   ✅ "Free baggage: 1 piece 23KG , 1 piece 23KG"
+4b. departure_date, arrival_date: format "DD/MM/YYYY"
+4c. THỜI GIAN PHẢI NHẤT QUÁN:
+   - arrival_datetime = departure_datetime + duration (không trừ múi giờ)
+   - Ví dụ: duration=16h15, departure=10:00 07/07/2026 → arrival=02:15 08/07/2026
+   - Không được để thời gian đến mâu thuẫn với duration
+5. departure_terminal, arrival_terminal: Tự động chọn cho phù hợp giống vé máy bay Vietnam Airlines
+6. baggage: Tự động chọn cho phù hợp giống vé máy bay Vietnam Airlines. Ví dụ: "Free baggage: 1 piece 23KG"
 7. Thêm 2 field mới trong outbound và return:
    - departure_city: tên thành phố xuất phát (VD: "Hanoi", "Melbourne")
    - arrival_city: tên thành phố đến (VD: "Sydney", "Hanoi")
@@ -161,6 +184,7 @@ QUY TẮC VỀ NGÀY THÁNG:
 - Nếu bay đêm (departure sau 22:00), arrival_date = departure_date + 1
 
 ⚠️ QUAN TRỌNG: Mọi giá trị PHẢI NGẮN GỌN. KHÔNG giải thích, bổ sung, thêm text thừa. KHÔNG bịa số hiệu bay.
+⚠️ Nếu không chắc chắn duration chính xác tuyệt đối, hãy chọn duration gần thực tế theo tuyến bay và vẫn đảm bảo logic thời gian đến/đi khớp.
 
 Trả về JSON hợp lệ, KHÔNG thêm chữ ngoài JSON:
 {{
@@ -231,6 +255,177 @@ Trả về JSON hợp lệ, KHÔNG thêm chữ ngoài JSON:
 
 
 # ==================== HELPER FUNCTIONS ====================
+
+AIRPORT_BY_CITY = {
+    "hanoi": "HAN",
+    "ho chi minh": "SGN",
+    "da nang": "DAD",
+    "sydney": "SYD",
+    "melbourne": "MEL",
+    "brisbane": "BNE",
+    "perth": "PER",
+    "toronto": "YYZ",
+    "niagara": "YYZ",
+    "vancouver": "YVR",
+    "montreal": "YUL",
+    "calgary": "YYC",
+    "new york": "JFK",
+    "los angeles": "LAX",
+    "san francisco": "SFO",
+    "london": "LHR",
+    "paris": "CDG",
+    "singapore": "SIN",
+    "bangkok": "BKK",
+    "tokyo": "NRT",
+    "osaka": "KIX",
+    "seoul": "ICN",
+    "auckland": "AKL",
+}
+
+AIRPORT_BY_COUNTRY = {
+    "vietnam": "HAN",
+    "australia": "SYD",
+    "canada": "YYZ",
+    "united states": "JFK",
+    "usa": "JFK",
+    "united kingdom": "LHR",
+    "uk": "LHR",
+    "france": "CDG",
+    "singapore": "SIN",
+    "thailand": "BKK",
+    "japan": "NRT",
+    "south korea": "ICN",
+    "new zealand": "AKL",
+}
+
+
+def _normalize_key(text: str) -> str:
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    return text
+
+
+def _is_trip_info_filename(filename: str) -> bool:
+    stem = os.path.splitext(filename)[0]
+    normalized = re.sub(r"[\s\-_]+", " ", stem.upper()).strip()
+    return normalized.startswith("THONG TIN CHUYEN DI")
+
+
+def _clean_city_name(city: str) -> str:
+    if not city:
+        return ""
+    city = re.sub(r"\s*\([^)]*\)\s*$", "", city).strip()
+    return city
+
+
+def _parse_city_stays(values: List[str]) -> List[Dict[str, Any]]:
+    city_stays: List[Dict[str, Any]] = []
+    for raw in values:
+        part = (raw or "").strip()
+        if not part:
+            continue
+        match = re.match(r"^(.*?)\s*\((\d+)\)\s*$", part)
+        if match:
+            city = _clean_city_name(match.group(1))
+            nights = int(match.group(2))
+            if city and nights > 0:
+                city_stays.append({"city": city, "nights": nights})
+        else:
+            city = _clean_city_name(part)
+            if city:
+                city_stays.append({"city": city, "nights": 0})
+    return city_stays
+
+
+def _infer_airport_from_location(location: str, fallback: str = "") -> str:
+    key = _normalize_key(location)
+    if not key:
+        return fallback
+
+    for city, code in AIRPORT_BY_CITY.items():
+        if city in key or key in city:
+            return code
+    for country, code in AIRPORT_BY_COUNTRY.items():
+        if country in key or key in country:
+            return code
+    return fallback
+
+
+def _airport_to_city_name(code: str) -> str:
+    by_airport = {
+        "HAN": "Hanoi",
+        "SGN": "Ho Chi Minh City",
+        "DAD": "Da Nang",
+        "SYD": "Sydney",
+        "MEL": "Melbourne",
+        "BNE": "Brisbane",
+        "PER": "Perth",
+        "YYZ": "Toronto",
+        "YVR": "Vancouver",
+        "YUL": "Montreal",
+        "JFK": "New York",
+        "LAX": "Los Angeles",
+        "LHR": "London",
+        "CDG": "Paris",
+        "SIN": "Singapore",
+        "BKK": "Bangkok",
+        "NRT": "Tokyo",
+        "KIX": "Osaka",
+        "ICN": "Seoul",
+        "AKL": "Auckland",
+    }
+    return by_airport.get((code or "").strip().upper(), "")
+
+
+def _to_passport_name(name: str) -> str:
+    n = _normalize_key(name).upper()
+    n = re.sub(r"\s+", " ", n).strip()
+    return n
+
+
+def _format_dmy(date_ymd: str) -> str:
+    try:
+        dt = datetime.strptime(date_ymd, "%Y-%m-%d")
+        return dt.strftime("%d/%m/%Y")
+    except (TypeError, ValueError):
+        return ""
+
+
+def _parse_duration_minutes(duration_text: str) -> Optional[int]:
+    if not duration_text:
+        return None
+    m = re.search(r"(\d+)\s*h\s*(\d+)", duration_text.lower())
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+    m = re.search(r"(\d+)\s*h", duration_text.lower())
+    if m:
+        return int(m.group(1)) * 60
+    return None
+
+
+def _enforce_leg_time_consistency(leg: Dict[str, Any]) -> None:
+    dep_date = (leg.get("departure_date") or "").strip()
+    dep_time = (leg.get("departure_time") or "").strip()
+    duration = (leg.get("duration") or "").strip()
+    if not dep_date or not dep_time or not duration:
+        return
+
+    duration_min = _parse_duration_minutes(duration)
+    if duration_min is None:
+        return
+
+    try:
+        dep_dt = datetime.strptime(f"{dep_date} {dep_time}", "%d/%m/%Y %H:%M")
+    except ValueError:
+        return
+
+    arr_dt = dep_dt + timedelta(minutes=duration_min)
+    leg["arrival_date"] = arr_dt.strftime("%d/%m/%Y")
+    leg["arrival_time"] = arr_dt.strftime("%H:%M")
 
 def _extract_text_from_file(llm: Any, path: str) -> str:
     """Extract text from a file (PDF, DOCX, image, or text)."""
@@ -321,7 +516,7 @@ def _safe_json_loads(text: str) -> dict:
 
 def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
     """
-    Read all files in input directory and extract trip information.
+    Read only files prefixed with "THONG TIN CHUYEN DI" and extract trip information.
     This is the Booking tab's own extraction - independent from the Letter tab.
 
     Args:
@@ -331,10 +526,12 @@ def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
     Returns:
         Dictionary with trip information
     """
-    # Collect text from all input files
+    # Collect text from files prefixed with "THONG TIN CHUYEN DI"
     all_texts = []
     for root, _, filenames in os.walk(input_dir):
         for fname in sorted(filenames):
+            if not _is_trip_info_filename(fname):
+                continue
             path = os.path.join(root, fname)
             text = _extract_text_from_file(llm, path)
             if text:
@@ -354,9 +551,74 @@ def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
 
     trip_info = _safe_json_loads(response.content)
 
-    # Post-process: ensure required fields
+    # Post-process: normalize required fields
     if not trip_info.get("guest_names"):
         trip_info["guest_names"] = []
+    if isinstance(trip_info.get("guest_names"), str):
+        trip_info["guest_names"] = [
+            n.strip()
+            for n in re.split(r"[,\n;]+", trip_info.get("guest_names", ""))
+            if n.strip()
+        ]
+
+    raw_city_values: List[str] = []
+    if not isinstance(trip_info.get("cities_to_visit"), list):
+        raw_cities = trip_info.get("cities_to_visit", "")
+        if isinstance(raw_cities, str):
+            raw_city_values = [c.strip() for c in re.split(r"[,\n;]+", raw_cities) if c.strip()]
+        else:
+            raw_city_values = []
+    else:
+        raw_city_values = [str(c).strip() for c in trip_info.get("cities_to_visit", []) if str(c).strip()]
+
+    city_stays = trip_info.get("city_stays", [])
+    normalized_city_stays: List[Dict[str, Any]] = []
+    if isinstance(city_stays, list):
+        for item in city_stays:
+            if not isinstance(item, dict):
+                continue
+            city = _clean_city_name(str(item.get("city", "")))
+            nights_raw = item.get("nights", 0)
+            try:
+                nights = int(nights_raw)
+            except (TypeError, ValueError):
+                nights = 0
+            if city:
+                normalized_city_stays.append({"city": city, "nights": max(0, nights)})
+
+    if not normalized_city_stays:
+        normalized_city_stays = _parse_city_stays(raw_city_values)
+
+    cleaned_cities = [s["city"] for s in normalized_city_stays if s.get("city")]
+    if not cleaned_cities:
+        cleaned_cities = [_clean_city_name(c) for c in raw_city_values if _clean_city_name(c)]
+    trip_info["cities_to_visit"] = cleaned_cities
+    trip_info["city_stays"] = normalized_city_stays
+
+    # Infer airports based on origin/destination/return points when missing
+    origin_point = trip_info.get("origin_city") or ""
+    return_point = trip_info.get("return_point") or ""
+    first_city = trip_info["cities_to_visit"][0] if trip_info.get("cities_to_visit") else ""
+    last_city = trip_info["cities_to_visit"][-1] if trip_info.get("cities_to_visit") else ""
+    destination_country = trip_info.get("destination_country") or ""
+
+    trip_info["origin_airport"] = (
+        (trip_info.get("origin_airport") or "").strip().upper()
+        or _infer_airport_from_location(origin_point)
+        or _infer_airport_from_location(return_point)
+    )
+    trip_info["destination_airport_hint"] = (
+        (trip_info.get("destination_airport_hint") or "").strip().upper()
+        or _infer_airport_from_location(first_city)
+        or _infer_airport_from_location(destination_country)
+    )
+    trip_info["return_airport_hint"] = (
+        (trip_info.get("return_airport_hint") or "").strip().upper()
+        or _infer_airport_from_location(last_city)
+        or _infer_airport_from_location(return_point)
+        or trip_info.get("origin_airport", "")
+    )
+
     if not trip_info.get("num_nights") and trip_info.get("travel_start_date") and trip_info.get("travel_end_date"):
         try:
             start = datetime.strptime(trip_info["travel_start_date"], "%Y-%m-%d")
@@ -364,6 +626,17 @@ def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
             trip_info["num_nights"] = (end - start).days
         except (ValueError, TypeError):
             pass
+
+    # If city_stays exists but nights are missing, distribute from total nights.
+    total_nights = int(trip_info.get("num_nights") or 0)
+    if trip_info["city_stays"]:
+        known = sum(int(s.get("nights") or 0) for s in trip_info["city_stays"])
+        if known == 0 and total_nights > 0:
+            n = len(trip_info["city_stays"])
+            base = total_nights // n
+            rem = total_nights % n
+            for i, stay in enumerate(trip_info["city_stays"]):
+                stay["nights"] = base + (1 if i < rem else 0)
 
     return trip_info
 
@@ -413,6 +686,43 @@ def ai_select_bookings(llm: Any, trip_info: Dict[str, Any]) -> Dict[str, Any]:
             except (ValueError, TypeError):
                 hotel["cancellation_policy"] = "Free cancellation up to 3 days before check-in"
 
+    # Enforce hotel count/nights by city_stays if available.
+    city_stays = trip_info.get("city_stays", [])
+    hotels = booking_data.get("hotels", [])
+    if isinstance(city_stays, list) and city_stays and hotels:
+        start_date_raw = trip_info.get("travel_start_date", "")
+        start_dt = None
+        try:
+            start_dt = datetime.strptime(start_date_raw, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            start_dt = None
+
+        adjusted_hotels: List[Dict[str, Any]] = []
+        cursor = start_dt
+        for i, stay in enumerate(city_stays):
+            if not isinstance(stay, dict):
+                continue
+            city = _clean_city_name(str(stay.get("city", "")))
+            nights = int(stay.get("nights") or 0)
+            base_hotel = dict(hotels[i % len(hotels)])
+            if city:
+                base_hotel["city"] = city
+            if trip_info.get("destination_country"):
+                base_hotel["country"] = trip_info.get("destination_country")
+            if nights > 0:
+                base_hotel["num_nights"] = nights
+                if cursor:
+                    checkout = cursor + timedelta(days=nights)
+                    base_hotel["check_in_date"] = cursor.strftime("%B %d, %Y")
+                    base_hotel["check_in_date_short"] = cursor.strftime("%d/%m/%Y")
+                    base_hotel["check_out_date"] = checkout.strftime("%B %d, %Y")
+                    base_hotel["check_out_date_short"] = checkout.strftime("%d/%m/%Y")
+                    cursor = checkout
+            adjusted_hotels.append(base_hotel)
+
+        if adjusted_hotels:
+            booking_data["hotels"] = adjusted_hotels
+
     # Post-process flight - sanitize all fields
     flight = booking_data.get("flight", {})
     if flight:
@@ -425,6 +735,65 @@ def ai_select_bookings(llm: Any, trip_info: Dict[str, Any]) -> Dict[str, Any]:
         airline = flight.get("airline", "")
         if "(" in airline:
             flight["airline"] = airline.split("(")[0].strip()
+
+        # Enforce passenger list from extracted trip info.
+        guest_names = trip_info.get("guest_names", [])
+        if isinstance(guest_names, list) and guest_names:
+            flight["passengers"] = [
+                {"name": _to_passport_name(str(name)), "type": "Adult"}
+                for name in guest_names
+                if str(name).strip()
+            ]
+
+        # Enforce route based on origin -> destination -> return_point.
+        origin_airport = (trip_info.get("origin_airport") or "").strip().upper()
+        first_city = (trip_info.get("cities_to_visit") or [""])[0] if trip_info.get("cities_to_visit") else ""
+        last_city = (trip_info.get("cities_to_visit") or [""])[-1] if trip_info.get("cities_to_visit") else ""
+        destination_country = (trip_info.get("destination_country") or "").strip()
+        return_point = (trip_info.get("return_point") or "").strip()
+
+        destination_airport = (
+            (trip_info.get("destination_airport_hint") or "").strip().upper()
+            or _infer_airport_from_location(first_city)
+            or _infer_airport_from_location(destination_country)
+        )
+        return_departure_airport = (
+            _infer_airport_from_location(last_city)
+            or destination_airport
+        )
+        return_arrival_airport = (
+            (trip_info.get("return_airport_hint") or "").strip().upper()
+            or _infer_airport_from_location(return_point)
+            or origin_airport
+        )
+
+        outbound = flight.setdefault("outbound", {})
+        inbound = flight.setdefault("return", {})
+        if origin_airport:
+            outbound["departure_airport"] = origin_airport
+        if destination_airport:
+            outbound["arrival_airport"] = destination_airport
+        if return_departure_airport:
+            inbound["departure_airport"] = return_departure_airport
+        if return_arrival_airport:
+            inbound["arrival_airport"] = return_arrival_airport
+
+        origin_city_label = (trip_info.get("origin_city") or "").strip() or _airport_to_city_name(outbound.get("departure_airport", ""))
+        dest_city_label = _clean_city_name(first_city) or destination_country or _airport_to_city_name(outbound.get("arrival_airport", ""))
+        return_dep_city_label = _clean_city_name(last_city) or destination_country or _airport_to_city_name(inbound.get("departure_airport", ""))
+        return_arr_city_label = return_point or (trip_info.get("origin_city") or "").strip() or _airport_to_city_name(inbound.get("arrival_airport", ""))
+
+        outbound["departure_city"] = origin_city_label
+        outbound["arrival_city"] = dest_city_label
+        inbound["departure_city"] = return_dep_city_label
+        inbound["arrival_city"] = return_arr_city_label
+
+        dep_dmy = _format_dmy(trip_info.get("travel_start_date", ""))
+        ret_dmy = _format_dmy(trip_info.get("travel_end_date", ""))
+        if dep_dmy:
+            outbound["departure_date"] = dep_dmy
+        if ret_dmy:
+            inbound["departure_date"] = ret_dmy
 
         # Sanitize flight sub-objects
         for leg_key in ("outbound", "return"):
@@ -486,6 +855,9 @@ def ai_select_bookings(llm: Any, trip_info: Dict[str, Any]) -> Dict[str, Any]:
                     match = re.search(r'(\d{2}:\d{2})', t_val)
                     if match:
                         leg[t_key] = match.group(1)
+
+            # Enforce arrival datetime consistency with duration.
+            _enforce_leg_time_consistency(leg)
 
         # Clean baggage → short format
         bag = flight.get("baggage", "")
