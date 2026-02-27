@@ -1,7 +1,6 @@
 const fileListEl = document.getElementById("fileList");
 const resultEl = document.getElementById("result");
 const summaryEl = document.getElementById("summary");
-const riskReportEl = document.getElementById("riskReport");
 const summaryItineraryEl = document.getElementById("summaryItinerary");
 const stepsListEl = document.getElementById("stepsList");
 const inputDirEl = document.getElementById("inputDir");
@@ -78,12 +77,10 @@ let cachedFiles = [];
 let hotelHtmls = [];
 let writerContextCache = "";
 let activeStepLog = null;
-const LETTER_STEP_ORDER = ["ingest", "extract", "summary", "risk", "writer"];
+const LETTER_STEP_ORDER = ["ingest", "summary", "writer"];
 const stepLogs = {
   ingest: "Chưa chạy.",
-  extract: "Chưa chạy.",
   summary: "Chưa chạy.",
-  risk: "Chưa chạy.",
   writer: "Chưa chạy.",
 };
 const DEFAULT_TRIP_INFO = {
@@ -136,9 +133,7 @@ async function fetchFiles() {
 function formatStage(stage) {
   const labelMap = {
     ingest: "Trích xuất văn bản",
-    extract: "Phân loại thông tin thành 5 nhóm",
     summary: "Tổng hợp thông tin",
-    risk: "Điểm rủi ro cần giải trình",
     writer: "Viết thư",
   };
   return labelMap[stage] || stage;
@@ -254,7 +249,6 @@ async function loadSteps() {
   const data = await res.json();
   renderSteps(data.steps || []);
   await fetchSummary();
-  await fetchRiskReport();
   await fetchWriterContext();
 }
 
@@ -263,15 +257,6 @@ async function fetchSummary() {
   const res = await fetch(`/api/summary?output=${encodeURIComponent(outputPath)}`);
   const data = await res.json();
   summaryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
-}
-
-async function fetchRiskReport() {
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
-  const res = await fetch(
-    `/api/risk_report?output=${encodeURIComponent(outputPath)}`
-  );
-  const data = await res.json();
-  riskReportEl.textContent = data.risk_report || "Chưa có dữ liệu.";
 }
 
 async function fetchWriterContext() {
@@ -367,7 +352,6 @@ async function runStep(step, force = false) {
   }
 
   await fetchSummary();
-  await fetchRiskReport();
   await loadSteps();
 }
 

@@ -9,15 +9,12 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 from langchain_openai import ChatOpenAI
 
 from agents import (
-    classify_files,
+    build_summary_profile,
     detect_domain,
-    domain_agent,
     extract_text_with_openai,
     ingest_files,
     itinerary_writer,
     letter_writer,
-    risk_explanation_finder,
-    _build_summary_profile,
 )
 from state import GraphState
 
@@ -46,9 +43,7 @@ def _list_input_files(input_dir: str) -> List[Dict[str, str]]:
 
 STEP_ORDER = [
     "ingest",
-    "extract",
     "summary",
-    "risk",
     "writer",
 ]
 
@@ -80,15 +75,6 @@ def _reset_downstream_steps(cache_dir: str, step: str) -> None:
         path = os.path.join(cache_dir, "summary_profile.txt")
         if os.path.exists(path):
             os.remove(path)
-    if "risk" in downstream:
-        path = os.path.join(cache_dir, "risk_points.json")
-        if os.path.exists(path):
-            os.remove(path)
-    if "writer" in downstream:
-        for name in ["risk_report.txt"]:
-            path = os.path.join(cache_dir, name)
-            if os.path.exists(path):
-                os.remove(path)
 
 
 def _load_state(cache_dir: str) -> Dict[str, Any]:
@@ -107,9 +93,6 @@ def _save_state(cache_dir: str, state: GraphState) -> None:
         "model": state.get("model"),
         "files": state.get("files", []),
         "grouped": state.get("grouped", {}),
-        "extracted": state.get("extracted", {}),
-        "risk_points": state.get("risk_points", []),
-        "risk_report": state.get("risk_report", ""),
         "summary_profile": state.get("summary_profile", ""),
         "writer_context": state.get("writer_context", ""),
         "letter_full": state.get("letter_full", ""),
@@ -123,36 +106,16 @@ def _save_step_output(cache_dir: str, step: str, state: GraphState) -> None:
     if step == "ingest":
         with open(os.path.join(cache_dir, "ingest.json"), "w", encoding="utf-8") as f:
             json.dump(state.get("files", []), f, ensure_ascii=False, indent=2)
-    elif step == "extract":
-        with open(os.path.join(cache_dir, "extracted.json"), "w", encoding="utf-8") as f:
-            json.dump(state.get("extracted", {}), f, ensure_ascii=False, indent=2)
     elif step == "summary":
         with open(
             os.path.join(cache_dir, "summary_profile.txt"), "w", encoding="utf-8"
         ) as f:
             f.write(state.get("summary_profile", ""))
-    elif step == "risk":
-        with open(
-            os.path.join(cache_dir, "risk_points.json"), "w", encoding="utf-8"
-        ) as f:
-            json.dump(
-                {"risk_points": state.get("risk_points", [])},
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
     elif step == "writer":
         output_path = state.get("output_path") or os.path.join("output", "letter.txt")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(state.get("letter_full", ""))
-        risk_report = state.get("risk_report", "")
-        if risk_report:
-            risk_path = os.path.join(os.path.dirname(output_path), "risk_report.txt")
-            with open(risk_path, "w", encoding="utf-8") as f:
-                f.write(risk_report)
-            with open(os.path.join(cache_dir, "risk_report.txt"), "w", encoding="utf-8") as f:
-                f.write(risk_report)
 
     with open(_step_marker_path(cache_dir, step), "w", encoding="utf-8") as f:
         json.dump({"done": True}, f)
@@ -205,20 +168,8 @@ def _missing_prereq_step(cache_dir: str, step: str) -> Optional[str]:
 def _run_single_step(step: str, state: GraphState) -> GraphState:
     if step == "ingest":
         return ingest_files(state)
-    if step == "extract":
-        state = classify_files(state)
-        state = domain_agent("personal")(state)
-        state = domain_agent("travel_history")(state)
-        state = domain_agent("employment")(state)
-        state = domain_agent("financial")(state)
-        state = domain_agent("purpose")(state)
-        return state
     if step == "summary":
-        summary = _build_summary_profile(state.get("extracted", {}))
-        state["summary_profile"] = summary
-        return state
-    if step == "risk":
-        return risk_explanation_finder(state)
+        return build_summary_profile(state)
     if step == "writer":
         return letter_writer(state)
     return state
@@ -251,38 +202,13 @@ def get_summary():
     output_path = request.args.get("output", os.path.join("output", "letter.txt"))
     cache_dir = _cache_dir(output_path)
     state_cache = _load_state(cache_dir)
-    extracted = state_cache.get("extracted", {})
-    summary = _build_summary_profile(extracted)
+    summary = state_cache.get("summary_profile", "")
+    if not summary:
+        path = os.path.join(cache_dir, "summary_profile.txt")
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                summary = f.read()
     return jsonify({"summary_profile": summary})
-
-
-@app.get("/api/risk_report")
-def get_risk_report():
-    output_path = request.args.get("output", os.path.join("output", "letter.txt"))
-    cache_dir = _cache_dir(output_path)
-    report_path = os.path.join(cache_dir, "risk_report.txt")
-    if os.path.exists(report_path):
-        with open(report_path, "r", encoding="utf-8") as f:
-            return jsonify({"risk_report": f.read()})
-
-    state_cache = _load_state(cache_dir)
-    risk_report = state_cache.get("risk_report", "")
-    if risk_report:
-        return jsonify({"risk_report": risk_report})
-
-    risk_points_path = os.path.join(cache_dir, "risk_points.json")
-    if os.path.exists(risk_points_path):
-        with open(risk_points_path, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
-        return jsonify(
-            {
-                "risk_report": json.dumps(
-                    data.get("risk_points", []), ensure_ascii=False, indent=2
-                )
-            }
-        )
-
-    return jsonify({"risk_report": ""})
 
 
 @app.get("/api/writer_context")
@@ -474,9 +400,6 @@ def run_step():
         "llm": llm,
         "files": state_cache.get("files", []),
         "grouped": state_cache.get("grouped", {}),
-        "extracted": state_cache.get("extracted", {}),
-        "risk_points": state_cache.get("risk_points", []),
-        "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
         "writer_context": writer_context or state_cache.get("writer_context", ""),
         "letter_full": state_cache.get("letter_full", ""),
@@ -515,9 +438,6 @@ def run_all():
         "llm": llm,
         "files": state_cache.get("files", []),
         "grouped": state_cache.get("grouped", {}),
-        "extracted": state_cache.get("extracted", {}),
-        "risk_points": state_cache.get("risk_points", []),
-        "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
         "writer_context": writer_context or state_cache.get("writer_context", ""),
         "letter_full": state_cache.get("letter_full", ""),
@@ -559,9 +479,6 @@ def run_add_file():
         "llm": llm,
         "files": state_cache.get("files", []),
         "grouped": state_cache.get("grouped", {}),
-        "extracted": state_cache.get("extracted", {}),
-        "risk_points": state_cache.get("risk_points", []),
-        "risk_report": state_cache.get("risk_report", ""),
         "summary_profile": state_cache.get("summary_profile", ""),
         "writer_context": writer_context or state_cache.get("writer_context", ""),
         "letter_full": state_cache.get("letter_full", ""),
@@ -579,7 +496,7 @@ def run_add_file():
     _save_state(cache_dir, state)
     _save_step_output(cache_dir, "ingest", state)
 
-    for step in ["extract", "summary", "risk", "writer"]:
+    for step in ["summary", "writer"]:
         state = _run_single_step(step, state)
         _save_state(cache_dir, state)
         _save_step_output(cache_dir, step, state)
@@ -668,24 +585,7 @@ def generate_booking():
     
     # Get guest name from summary if not provided
     if not guest_name:
-        cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
-        state_cache = _load_state(cache_dir)
-        extracted = state_cache.get("extracted", {})
-        
-        # Try to extract name from personal info
-        personal = extracted.get("personal", {})
-        if personal:
-            # Get first file's data
-            for _, data in personal.items():
-                if isinstance(data, dict):
-                    guest_name = data.get("ho_ten", data.get("name", "NGUYEN VAN A"))
-                    break
-                elif isinstance(data, str):
-                    # Try to parse name from text
-                    guest_name = "NGUYEN VAN A"
-        
-        if not guest_name:
-            guest_name = "NGUYEN VAN A"
+        guest_name = "NGUYEN VAN A"
     
     # Calculate start date (3 months from now by default)
     start_date_str = payload.get("start_date")

@@ -73,6 +73,7 @@ python server.py
 - `CONG VIEC` — Hợp đồng lao động, giấy phép kinh doanh
 - `TAI CHINH` — Sao kê ngân hàng, sổ tiết kiệm
 - `MUC DICH CHUYEN DI` — Thư mời, kế hoạch du lịch
+- `TONG QUAN` — Form khai thông tin, nội dung hồ sơ giải trình, hoặc tài liệu bổ sung tự do; dùng để bổ sung dữ liệu quan trọng cho bước tổng hợp và viết thư giải trình
 
 Ví dụ:
 

@@ -214,38 +214,32 @@ DỮ LIỆU:
 {text}
 """
 
-RISK_EXPLANATION_PROMPT = """Bạn là Agent_Risk_Explanation_Finder.
+SUMMARY_GROUP_PROMPT = """Bạn là chuyên viên tổng hợp hồ sơ visa.
 
-Đầu vào của bạn là JSON output từ 5 agent:
-- Identity
-- TravelHistory
-- Employment
-- Financial
-- PurposeOfTravel
+Nhiệm vụ:
+- Tổng hợp thông tin theo NHÓM HỒ SƠ để phục vụ viết thư giải trình.
+- Chỉ dùng dữ liệu có trong input, không suy đoán, không thêm.
+- Ưu tiên thông tin quan trọng cho xét visa: nhân thân, mục đích chuyến đi, lịch trình chính, tài chính, công việc/học tập, lịch sử du lịch, ràng buộc quay về.
+- Bắt buộc ghi theo dạng đoạn ngắn, rõ ràng, dễ dùng để viết thư.
 
-Nhiệm vụ của bạn:
-1. Phát hiện các điểm CÓ THỂ bị lãnh sự nghi ngờ.
-2. Chỉ liệt kê các điểm CẦN GIẢI TRÌNH, không viết thư.
-3. Mỗi điểm phải có:
-   - risk_type
-   - description
-   - severity (low / medium / high)
-   - suggested_explanation_direction (1–2 dòng)
+Định dạng bắt buộc:
+1) Dòng đầu:
+`{group_title}` có {file_count} file: {file_list}
 
-Trả về JSON:
-{{
-  "risk_points": [
-    {{
-      "risk_type": "",
-      "description": "",
-      "severity": "",
-      "suggested_explanation_direction": ""
-    }}
-  ]
-}}
+2) Mỗi file 1 dòng bắt đầu bằng dấu "-":
+- file <tên file>: <đoạn tóm tắt thông tin quan trọng của file đó, 1-3 câu>
 
-DỮ LIỆU:
-{inputs}
+- Nếu không có file trong nhóm:
+`{group_title}` có 0 file.
+
+- Không xuất markdown code block.
+
+INPUT:
+group_title: {group_title}
+file_count: {file_count}
+file_list: {file_list}
+files_json:
+{files_json}
 """
 
 ITINERARY_PROMPT = """You are a senior visa processing officer at Passport Lounge.
@@ -392,252 +386,104 @@ FINAL CHECK BEFORE OUTPUT
 Now generate the Travel Itinerary according to the above requirements.
 """
 
-LETTER_WRITER_PROMPT = """Bạn là chuyên viên xử lý visa cấp cao của Passport Lounge, chuyên xử lý hồ sơ visa quốc tế (du lịch, công tác, thăm thân, du học, v.v.).
+LETTER_WRITER_PROMPT = """Bạn là chuyên viên xử lý visa cấp cao của Passport Lounge.
 
-Nguồn dữ liệu sử dụng để viết thư:
-1. summary_profile – nền tảng nội dung chính
-2. visa_relevance – dùng để xây dựng lập luận thuyết phục
+Nguồn dữ liệu duy nhất để viết thư:
+- summary_profile (đã được tổng hợp từ các nhóm hồ sơ: TONG QUAN, HO SO CA NHAN, CONG VIEC, TAI CHINH, MUC DICH CHUYEN DI, LICH SU DU LICH)
 
-Nhiệm vụ của bạn:
-Viết THƯ GIẢI TRÌNH TIẾNG ANH theo chuẩn thư nộp trực tiếp cho viên chức xét duyệt visa,
-với NGÔI VIẾT LÀ NGƯỜI XIN VISA TỰ TRÌNH BÀY (FIRST PERSON).
+Nhiệm vụ:
+Viết THƯ GIẢI TRÌNH TIẾNG ANH theo chuẩn thư nộp cho viên chức xét duyệt visa, với NGÔI THỨ NHẤT ("I").
 
-Mục tiêu quan trọng nhất:
-- Chứng minh MỤC ĐÍCH XIN VISA LÀ HỢP LỆ & RÕ RÀNG
-- Chứng minh tôi CÓ KHẢ NĂNG TÀI CHÍNH PHÙ HỢP
-- Chứng minh tôi CÓ RÀNG BUỘC MẠNH TẠI VIỆT NAM (hoặc quốc gia cư trú)
-- Chứng minh tôi SẼ TUÂN THỦ LUẬT DI TRÚ VÀ RỜI KHỎI NƯỚC ĐÍCH ĐÚNG HẠN (nếu visa ngắn hạn)
+Mục tiêu nội dung:
+1) Mục đích xin visa rõ ràng, hợp lý.
+2) Kế hoạch chuyến đi/học tập/công tác nhất quán với dữ liệu.
+3) Năng lực tài chính phù hợp.
+4) Nền tảng ổn định (công việc/học tập/kinh doanh).
+5) Ràng buộc quay về hoặc kế hoạch hợp lý sau khi hoàn thành mục tiêu visa dài hạn.
 
-👉 Trình bày NGẮN GỌN – RÕ RÀNG – LOGIC – KHÔNG LAN MAN
+Nguyên tắc bắt buộc:
+- Tên và địa chỉ viết bằng tiếng Anh.
+- Chỉ dùng thông tin có trong summary_profile.
+- Không suy đoán, không thêm chi tiết ngoài dữ liệu.
+- Không mô tả như bên thứ ba (không dùng "the applicant", "đương đơn").
+- Không liệt kê checklist giấy tờ.
+- Được dùng tiêu đề mục ngắn trong thân thư theo format yêu cầu bên dưới.
+- Chỉ dùng bullet/numbered list khi phù hợp format yêu cầu (mục Financial support, Strong ties).
+- Văn phong: formal, rõ ràng, logic, ngắn gọn, thuyết phục.
 
-────────────────────
-⚠️ NGUYÊN TẮC BẮT BUỘC (CỰC KỲ QUAN TRỌNG)
+Ưu tiên khai thác dữ liệu:
+- Nếu có thông tin từ TONG QUAN, coi đây là ngữ cảnh bổ sung quan trọng và dùng để tăng tính đầy đủ/nhất quán của thư.
+- Nếu có mâu thuẫn giữa các phần, ưu tiên phương án an toàn, trung tính; không bịa để lấp chỗ trống.
+- Chỉ nêu số liệu tài chính ở mức tổng quan, không sa đà chi tiết kỹ thuật.
 
-– Thư phải viết hoàn toàn ở NGÔI THỨ NHẤT: "I..."
+Cấu trúc thư mong muốn (giữ logic các mục, nhưng trình bày theo mẫu hành chính rõ ràng):
 
-– TUYỆT ĐỐI KHÔNG dùng:
-  • “đương đơn”, “applicant”, “the applicant”
-  • “hồ sơ cho thấy”, “tài liệu thể hiện”
-  • Không viết như bên thứ 3 mô tả
+0) Tiêu đề đầu thư (3 dòng, bắt buộc):
+- "Letter of Explanation"
+- "Application for [Visa Type]" (ví dụ: Temporary Resident Visa (Visitor Visa))
+- [Current Date in English format, ví dụ: 25 February 2026]
 
-– Viết như chính người xin visa đang tự trình bày và ký tên
+1) Cơ quan nhận & salutation:
+- [Embassy/Consulate/Immigration authority name if available, ví dụ: Immigration, Refugees and Citizenship Canada (IRCC)]
+- "Dear Visa Officer,"
 
-– KHÔNG:
-  • Liệt kê checklist giấy tờ
-  • Mô tả kỹ thuật hồ sơ
-  • Thêm thông tin ngoài dữ liệu
-  • Suy đoán / sáng tác
+2) Opening paragraph (đúng logic mục OPENING):
+- Giới thiệu bản thân: họ tên, ngày sinh, quốc tịch, tình trạng học tập/công việc.
+- Nêu rõ loại visa và mục đích chính của đơn.
 
-– Chỉ sử dụng thông tin có trong input
+3) Section heading: "About me"
+- Trình bày thông tin nhân thân + nền tảng hiện tại (học tập/công việc/cư trú hợp pháp).
+- Nếu có giấy tờ chứng minh phù hợp, có thể nêu ngắn gọn rằng đã đính kèm (không checklist dài).
 
-– Văn phong:
-  • Trung lập
-  • Logic
-  • Trực tiếp
-  • Không cảm xúc, không storytelling
+4) Section heading: "Purpose of travel to [Country]"
+- Nêu rõ mục đích chuyến đi hợp lý.
+- Nêu thời gian dự kiến (from ... to ...), điểm đến chính.
+- Nêu kế hoạch di chuyển/lưu trú nhất quán dữ liệu.
+- Cam kết rời khỏi quốc gia đến đúng hạn.
+- Không nêu chi tiết kỹ thuật không cần thiết (vd: mã đặt chỗ dài dòng).
 
-👉 Ưu tiên:
-"ÍT GIẢI THÍCH – KHÔNG LỘ RỦI RO"
+5) Section heading: "Employment" (nếu có thông tin)
+– Mô tả CỤ THỂ công việc hiện tại: Chức danh/vai trò, Nơi làm việc, ...
+- Trình bày các thông tin liên quan nếu có
 
-────────────────────
-NGUYÊN TẮC XÂY DỰNG LẬP LUẬN (APPLY CHO MỌI LOẠI VISA)
+6) Section heading: "Financial"
+– Mô tả CỤ THỂ công việc hiện tại: Chức danh/vai trò, Nơi làm việc, ...
+- Nêu tổng quan nguồn tài chính chính/phụ, ai chi trả, mức độ đủ cho chuyến đi.
+- Cho phép tách ý tài chính quan trọng thành dòng riêng nếu cần rõ ràng.
+- Không liệt kê số tài khoản hoặc chi tiết kỹ thuật thừa.
 
-Thư phải trả lời rõ các câu hỏi sau:
+7) Section heading: "Travel history" (nếu có thông tin)
+– nêu các quốc gia đã từng đi và mục đích chuyến đi
+– nêu các visa đã được cấp hoặc từng bị từ chối (nếu có)
+– khẳng định việc tuân thủ luật di trú trong các chuyến đi trước
 
-1. Tôi xin visa để làm gì? (Purpose)
-2. Kế hoạch của tôi là gì? (Plan)
-3. Tôi có đủ tài chính không? (Financial capacity)
-4. Tôi có nền tảng ổn định không? (Employment / Study / Business)
-5. Tôi có ràng buộc để quay về không? (Strong ties / Return intention)
+8) Section heading: "Strong ties to [home/residence country]"
+- Visa ngắn hạn: làm rõ ràng buộc về học tập/công việc/gia đình/tài sản.
+- Visa dài hạn: thay bằng kế hoạch học tập/làm việc và định hướng sau khi hoàn thành.
+- Có thể tách các ý chính thành các dòng riêng nếu giúp lập luận rõ hơn.
 
-👉 Nếu thiếu bất kỳ yếu tố nào → thư yếu
+9) Declaration paragraph:
+- Cam kết tuân thủ điều kiện visa, cung cấp thông tin trung thực, và rời đi đúng hạn.
 
-⚠️ Với visa dài hạn (du học, làm việc):
-– Thay “quay về” bằng:
-  • Mục tiêu học tập / làm việc rõ ràng
-  • Kế hoạch sau khi hoàn thành
+10) Closing:
+- "Thank you for considering my application."
+- "Sincerely,"
+- [Full Name]
+- Nếu có: Address / Mobile / Email / Passport No. thì mỗi dòng là 1 thông tin
 
-────────────────────
-NGUYÊN TẮC KHAI THÁC THÔNG TIN HỒ SƠ (RẤT QUAN TRỌNG)
+Ràng buộc chất lượng:
+- Thư phải là văn bản hành chính hoàn chỉnh, không phải báo cáo.
+- Giữ mạch logic tự nhiên, thuyết phục, ngắn gọn.
+- Không bịa dữ liệu còn thiếu.
+- Ngôn ngữ phải tự nhiên như người thật viết.
 
-Bạn PHẢI hiểu vai trò chứng minh của từng NHÓM THÔNG TIN đã được tổng hợp,
-và chuyển hóa chúng thành lời trình bày cá nhân trong thư:
+Yêu cầu đầu ra:
+- Chỉ trả về nội dung thư tiếng Anh hoàn chỉnh.
+- Không thêm giải thích ngoài thư.
 
-01_HO_SO_CA_NHAN (IDENTITY)
-– Dùng để:
-  • Xác định nhân thân
-  • Tình trạng hôn nhân
-  • Quan hệ gia đình
-– Nếu có:
-  • Giấy ly hôn → giải thích tình trạng hiện tại, quyền nuôi con (nếu có), sự tự chủ tài chính
-  • Sổ hộ khẩu → thể hiện nơi cư trú ổn định
-→ Chỉ đưa vào thư dưới dạng LỜI TRÌNH BÀY CÁ NHÂN, không liệt kê giấy tờ
-
-02_LICH_SU_DU_LICH (TRAVEL_HISTORY)
-– Dùng để:
-  • Chứng minh kinh nghiệm du lịch
-  • Thái độ tuân thủ visa
-– Nếu có visa/stamp:
-  • Trình bày ngắn gọn các chuyến đi
-  • Nhấn mạnh việc luôn quay về đúng hạn
-
-03_CONG_VIEC (EMPLOYMENT)
-– BẮT BUỘC viết chi tiết nếu có dữ liệu
-
-Người lao động:
-– Dựa trên hợp đồng, bảng lương, BHXH:
-  • Mô tả công việc cụ thể tôi đang làm
-  • Thu nhập ổn định như thế nào
-  • Trách nhiệm công việc khiến tôi phải quay về
-
-Chủ doanh nghiệp:
-– Dựa trên đăng ký kinh doanh, thuế, sao kê công ty:
-  • Tôi là ai trong doanh nghiệp
-  • Doanh nghiệp hoạt động trong lĩnh vực gì
-  • Tôi trực tiếp điều hành/ chịu trách nhiệm ra sao
-  • Việc đóng thuế, vận hành liên tục thể hiện sự ràng buộc tại Việt Nam
-
-Freelancer / Nội trợ / Khác:
-– Dựa trên thư giải trình và bằng chứng thay thế:
-  • Tôi tự chủ tài chính như thế nào
-  • Thu nhập đến từ đâu
-  • Vì sao cuộc sống của tôi gắn bó với Việt Nam
-
-04_TAI_CHINH (FINANCIAL)
-– Dùng để:
-  • Chứng minh khả năng chi trả chuyến đi
-  • Thể hiện sự ổn định kinh tế dài hạn
-– Nếu có:
-  • Sao kê, tiết kiệm → nêu tổng quát, không liệt kê số tài khoản
-  • Tài sản → giải thích vai trò trong cuộc sống tại Việt Nam
-– Nếu có đóng thuế → có thể nêu tôi luôn thực hiện đầy đủ nghĩa vụ tài chính
-
-05_MUC_DICH_CHUYEN_DI (PURPOSE_OF_TRAVEL)
-– Dùng để:
-  • Xây dựng mục đích chuyến đi rõ ràng, hợp lý
-– Nếu có:
-  • Vé máy bay / khách sạn / lịch trình → trình bày bằng lời, không checklist
-  • Thư mời → giải thích mối quan hệ
-
-────────────────────
-CẤU TRÚC THƯ GIẢI TRÌNH
-
-⚠️ Áp dụng cho mọi loại visa, điều chỉnh nội dung theo mục đích
-
-1. HEADER (Thông tin nào có thì ghi)
-– Họ tên (Viết không dấu)
-– Địa chỉ (Dịch sang tiếng Anh)
-– Email
-– Số điện thoại
-– Ngày viết (Dịch sang tiếng Anh)
-
-2. NGƯỜI NHẬN
-To: The Visa Officer  
-[Embassy/Consulate/Immigration Authority của quốc gia xin visa]
-
-3. SUBJECT
-Subject: Application for [Visa Type] – [Purpose]
-
-(Ví dụ: Tourist Visa / Business Visa / Student Visa)
-
-4. OPENING (MỞ ĐẦU)
-– Tôi giới thiệu:
-  • Họ tên
-  • Ngày sinh
-  • Quốc tịch
-  • Nghề nghiệp / tình trạng học tập
-– Tôi nêu:
-  • Loại visa xin
-  • Mục đích chính
-
-5. MỤC ĐÍCH CHUYẾN ĐI & KẾ HOẠCH
-Yêu cầu viết:
-- Không liệt kê chi tiết nhỏ (không ghi mã chuyến bay, không ghi tên khách sạn cụ thể)
-- Không sử dụng dấu ";" hoặc cấu trúc liệt kê
-Nội dung cần thể hiện (theo thứ tự logic):
-
-1. Nêu rõ mục đích chuyến đi (du lịch / công tác / học tập) và khẳng định hợp lý
-2. Nêu thời gian dự kiến của chuyến đi (from ... to ...)
-3. Nêu các điểm đến chính (thành phố/quốc gia)
-4. Xác nhận đã có kế hoạch di chuyển và lưu trú phù hợp với lịch trình
-5. Cam kết sẽ rời khỏi quốc gia đến đúng thời hạn và quay về quốc gia đích đúng hạn
-
-
-6. Công việc & thu nhập (CHI TIẾT)
-– Tôi mô tả CỤ THỂ công việc hiện tại:
-  • Chức danh/vai trò
-  • Lĩnh vực hoạt động
-  • Nơi làm việc
-  • Công việc hàng ngày tôi trực tiếp đảm nhiệm
-– Tôi nêu nguồn thu nhập chính/phụ (ở mức tổng quát)
-– Tôi giải thích:
-  • Vì sao công việc này mang tính ổn định
-  • Trách nhiệm cá nhân của tôi đối với công việc
-  • Vì sao tôi bắt buộc phải quay về Việt Nam để tiếp tục công việc
-
-7. Tài sản & ràng buộc kinh tế
-– Tôi trình bày các tài sản hoặc nguồn tài chính đang sở hữu
-– Không sử dụng số liệu chi tiết không cần thiết (ví dụ: số tài khoản, nhiều số dư rời rạc), Chỉ nêu tổng quan tài chính 
-– Tôi giải thích vai trò của các yếu tố này trong cuộc sống hiện tại
-– Tôi làm rõ vì sao các ràng buộc kinh tế này khiến tôi không có ý định lưu trú quá hạn
-
-8. Lịch sử du lịch & visa (nếu có)
-– Tôi nêu các quốc gia đã từng đi và mục đích chuyến đi
-– Tôi nêu các visa đã được cấp hoặc từng bị từ chối (nếu có)
-– Tôi khẳng định việc tuân thủ luật di trú trong các chuyến đi trước
-
-
-9. STRONG TIES / FUTURE PLAN
-– Visa ngắn hạn: 
-  • Công việc
-  • Gia đình
-  • Tài sản
-  -> Tôi làm rõ vì sao các mối quan hệ này ràng buộc tôi phải quay về Việt Nam
-– Visa dài hạn:
-  • Kế hoạch sau khi hoàn thành mục tiêu
-  • Định hướng nghề nghiệp
-
-10. DECLARATION
-– Cam kết:
-  • Tuân thủ luật di trú
-  • Cung cấp thông tin trung thực
-
-11. CLOSING
-– Thank you
-– Ký tên
-
-Thư PHẢI được viết dưới dạng THƯ HÀNH CHÍNH HOÀN CHỈNH, KHÔNG phải báo cáo.
-
-– TUYỆT ĐỐI KHÔNG sử dụng:
-  • Bullet points (-, •)
-  • Numbered list
-  • Heading nội dung (ví dụ: "Mục đích chuyến đi:", "Tài chính:")
-  • Checklist
-
-– TẤT CẢ nội dung phải viết thành ĐOẠN VĂN LIỀN MẠCH
-
-– Mỗi ý chính = 1 đoạn văn
-
-– Các đoạn phải có LIÊN KẾT TỰ NHIÊN, không rời rạc
-
-– Không viết kiểu liệt kê thông tin, phải viết thành câu hoàn chỉnh
-
-👉 Thư phải đọc như một người thật đang viết, không giống AI, không giống form mẫu
-────────────────────
-YÊU CẦU ĐẦU RA
-
-BẢN TIẾNG ANH
-– Ngôi “I”
-– Dịch sát nghĩa bản tiếng Việt
-– Formal visa letter
-– Không dịch máy móc
-────────────────────
 INPUT
 
 summary_profile:
 {summary_profile}
-
-visa_relevance:
-{visa_relevance}
 
 """

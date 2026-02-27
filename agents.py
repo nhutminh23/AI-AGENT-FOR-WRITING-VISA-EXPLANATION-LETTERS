@@ -16,16 +16,17 @@ from prompts import (
     FINANCIAL_EXTRACT_PROMPT,
     IDENTITY_EXTRACT_PROMPT,
     ITINERARY_PROMPT,
-    PURPOSE_EXTRACT_PROMPT,
-    RISK_EXPLANATION_PROMPT,
-    SYSTEM_BASE,
     LETTER_WRITER_PROMPT,
+    PURPOSE_EXTRACT_PROMPT,
+    SUMMARY_GROUP_PROMPT,
+    SYSTEM_BASE,
     TRAVEL_HISTORY_EXTRACT_PROMPT,
 )
 from state import GraphState
 
 
 PREFIX_TO_DOMAIN = {
+    "TONG QUAN": "overview",
     "HO SO CA NHAN": "personal",
     "LICH SU DU LICH": "travel_history",
     "CONG VIEC": "employment",
@@ -140,11 +141,70 @@ def ingest_files(state: GraphState) -> GraphState:
 
 
 def classify_files(state: GraphState) -> GraphState:
-    grouped: Dict[str, List[str]] = {}
+    grouped: Dict[str, List[Dict[str, str]]] = {}
     for item in state.get("files", []):
-        if item["domain"] in PREFIX_TO_DOMAIN.values():
-            grouped.setdefault(item["domain"], []).append(item["text"])
+        domain = item.get("domain")
+        if domain in PREFIX_TO_DOMAIN.values():
+            grouped.setdefault(domain, []).append(
+                {
+                    "name": item.get("name", ""),
+                    "path": item.get("path", ""),
+                    "text": item.get("text", ""),
+                }
+            )
     state["grouped"] = grouped
+    return state
+
+
+SUMMARY_DOMAIN_ORDER = [
+    ("overview", "TONG QUAN"),
+    ("personal", "HO SO CA NHAN"),
+    ("employment", "CONG VIEC"),
+    ("financial", "TAI CHINH"),
+    ("purpose", "MUC DICH CHUYEN DI"),
+    ("travel_history", "LICH SU DU LICH"),
+]
+
+
+def _trim_text_for_summary(text: str, max_chars: int = 12000) -> str:
+    if not text:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    head = text[:8000]
+    tail = text[-3500:]
+    return f"{head}\n\n...[TRUNCATED]...\n\n{tail}"
+
+
+def build_summary_profile(state: GraphState) -> GraphState:
+    llm = state["llm"]
+    grouped = classify_files(state).get("grouped", {})
+    sections: List[str] = []
+
+    for domain, title in SUMMARY_DOMAIN_ORDER:
+        files = grouped.get(domain, [])
+        if not files:
+            sections.append(f"`{title}` có 0 file.")
+            continue
+
+        file_list = ", ".join(f.get("name", "") for f in files if f.get("name"))
+        compact_files = [
+            {
+                "file_name": f.get("name", ""),
+                "content": _trim_text_for_summary(f.get("text", "")),
+            }
+            for f in files
+        ]
+        prompt = SUMMARY_GROUP_PROMPT.format(
+            group_title=title,
+            file_count=len(files),
+            file_list=file_list,
+            files_json=json.dumps(compact_files, ensure_ascii=False),
+        )
+        result = llm.invoke([SystemMessage(content=SYSTEM_BASE), HumanMessage(content=prompt)])
+        sections.append((result.content or "").strip())
+
+    state["summary_profile"] = "\n\n".join(s for s in sections if s).strip()
     return state
 
 
@@ -158,7 +218,8 @@ def _safe_json_loads(text: str) -> Any:
 def domain_agent(domain: str):
     def _run(state: GraphState) -> GraphState:
         llm = state["llm"]
-        texts = state.get("grouped", {}).get(domain, [])
+        items = state.get("grouped", {}).get(domain, [])
+        texts = [x.get("text", "") for x in items if isinstance(x, dict)]
         if not texts:
             state.setdefault("extracted", {})[domain] = _empty_domain_output(domain)
             return state
@@ -173,26 +234,6 @@ def domain_agent(domain: str):
         return state
 
     return _run
-
-
-def risk_explanation_finder(state: GraphState) -> GraphState:
-    llm = state["llm"]
-    extracted = state.get("extracted", {})
-    inputs = {
-        "Identity": extracted.get("personal", {}),
-        "TravelHistory": extracted.get("travel_history", {}),
-        "Employment": extracted.get("employment", {}),
-        "Financial": extracted.get("financial", {}),
-        "PurposeOfTravel": extracted.get("purpose", {}),
-    }
-    prompt = RISK_EXPLANATION_PROMPT.format(
-        inputs=json.dumps(inputs, ensure_ascii=False)
-    )
-    result = llm.invoke([SystemMessage(content=SYSTEM_BASE), HumanMessage(content=prompt)])
-    parsed = _safe_json_loads(result.content)
-    state["risk_points"] = parsed.get("risk_points", [])
-    return state
-
 
 def _empty_domain_output(domain: str) -> Dict[str, Any]:
     if domain == "personal":
@@ -565,45 +606,9 @@ def _build_visa_relevance(extracted: Dict[str, Any]) -> List[str]:
 
 def letter_writer(state: GraphState) -> GraphState:
     llm = state["llm"]
-    extracted = state.get("extracted", {})
-    summary_profile = _build_summary_profile(extracted)
+    summary_profile = (state.get("summary_profile") or "").strip()
     state["summary_profile"] = summary_profile
-    visa_relevance: List[str] = _build_visa_relevance(extracted)
-
-    def _format_risk_report(risk_points: Any) -> str:
-        if not isinstance(risk_points, list) or len(risk_points) == 0:
-            return "Chưa có dữ liệu rủi ro (risk_points trống)."
-
-        lines: List[str] = []
-        lines.append("BÁO CÁO RỦI RO (ĐIỂM CẦN GIẢI TRÌNH)")
-        lines.append("(Tự động tạo từ bước 'Điểm cần giải trình')")
-        lines.append("")
-
-        for i, item in enumerate(risk_points, 1):
-            if not isinstance(item, dict):
-                continue
-            risk_type = (item.get("risk_type") or "").strip()
-            severity = (item.get("severity") or "").strip()
-            description = (item.get("description") or "").strip()
-            direction = (item.get("suggested_explanation_direction") or "").strip()
-
-            title_parts = [p for p in [risk_type, severity] if p]
-            title = " | ".join(title_parts) if title_parts else f"Risk #{i}"
-            lines.append(f"{i}. {title}")
-            if description:
-                lines.append(f"   - Mô tả: {description}")
-            if direction:
-                lines.append(f"   - Hướng giải trình gợi ý: {direction}")
-            lines.append("")
-
-        return "\n".join(lines).strip()
-
-    state["risk_report"] = _format_risk_report(state.get("risk_points", []))
-
-    prompt = LETTER_WRITER_PROMPT.format(
-        summary_profile=summary_profile,
-        visa_relevance=visa_relevance,
-    )
+    prompt = LETTER_WRITER_PROMPT.format(summary_profile=summary_profile)
     writer_context = (state.get("writer_context") or "").strip()
     if writer_context:
         prompt += (

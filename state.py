@@ -16,9 +16,7 @@ class GraphState(TypedDict, total=False):
     model: str
     llm: Any
     files: List[FileItem]
-    grouped: Dict[str, List[str]]
-    extracted: Dict[str, Any]
-    risk_points: List[Dict[str, Any]]
+    grouped: Dict[str, List[Dict[str, str]]]
     contradictions: Dict[str, List[str]]
     summary_profile: str
     writer_context: str
