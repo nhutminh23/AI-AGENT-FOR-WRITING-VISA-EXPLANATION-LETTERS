@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -16,6 +17,8 @@ from agents import (
     itinerary_writer,
     letter_writer,
 )
+from file_classifier_agent import classify_files_in_folder
+from pypdf import PdfReader, PdfWriter
 from state import GraphState
 
 
@@ -185,6 +188,212 @@ def list_files():
     input_dir = request.args.get("input_dir", "input")
     files = _list_input_files(input_dir)
     return jsonify({"input_dir": input_dir, "files": files})
+
+
+@app.get("/api/classifier/files")
+def list_classifier_files():
+    input_dir = request.args.get("input_dir", os.path.join("phanloai", "input"))
+    if not os.path.isdir(input_dir):
+        return jsonify({"input_dir": input_dir, "files": [], "exists": False})
+    items = _list_input_files(input_dir)
+    return jsonify(
+        {
+            "input_dir": input_dir,
+            "exists": True,
+            "files": items,
+        }
+    )
+
+
+@app.post("/api/classifier/run")
+def run_classifier():
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    output_dir = payload.get("output_dir", os.path.join("phanloai", "output"))
+    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
+    if not os.path.isdir(input_dir):
+        return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
+
+    result = classify_files_in_folder(input_dir=input_dir, output_dir=output_dir, model=model)
+    return jsonify({"status": "done", **result})
+
+
+def _safe_join(base: str, rel_path: str) -> str:
+    base_abs = os.path.abspath(base)
+    candidate = os.path.abspath(os.path.join(base, rel_path))
+    if not candidate.startswith(base_abs):
+        raise ValueError("Invalid path")
+    return candidate
+
+
+@app.post("/api/classifier/split_manual")
+def split_manual():
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    output_dir = payload.get("output_dir", os.path.join("phanloai", "output"))
+    source = (payload.get("source") or "").strip()
+    segments = payload.get("segments") or []
+
+    if not os.path.isdir(input_dir):
+        return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
+    os.makedirs(output_dir, exist_ok=True)
+    if not source:
+        return jsonify({"error": "missing_source"}), 400
+    if not isinstance(segments, list) or not segments:
+        return jsonify({"error": "missing_segments"}), 400
+
+    try:
+        src_path = _safe_join(input_dir, source)
+    except ValueError:
+        return jsonify({"error": "invalid_source"}), 400
+
+    if not os.path.exists(src_path):
+        return jsonify({"error": "source_not_found"}), 404
+    if os.path.splitext(src_path)[1].lower() != ".pdf":
+        return jsonify({"error": "source_not_pdf"}), 400
+
+    try:
+        reader = PdfReader(src_path)
+    except Exception as exc:
+        return jsonify({"error": "read_pdf_failed", "detail": str(exc)}), 500
+
+    total_pages = len(reader.pages)
+    created: list[dict[str, Any]] = []
+
+    def _sanitize_name(value: str, fallback: str) -> str:
+        text = (value or "").strip()
+        text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text or fallback
+
+    def _pick_unique(dest_dir: str, stem: str, ext: str) -> str:
+        candidate = os.path.join(dest_dir, f"{stem}{ext}")
+        idx = 1
+        while os.path.exists(candidate):
+            candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
+            idx += 1
+        return candidate
+
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        name = _sanitize_name(seg.get("output_name") or "", "DOCUMENT")
+        try:
+            s = int(seg.get("start_page"))
+            e = int(seg.get("end_page"))
+        except Exception:
+            continue
+        if s < 1 or e < 1 or s > total_pages or e > total_pages:
+            continue
+        if s > e:
+            s, e = e, s
+        writer = PdfWriter()
+        for i in range(s - 1, e):
+            writer.add_page(reader.pages[i])
+        out_path = _pick_unique(output_dir, name, ".pdf")
+        try:
+            with open(out_path, "wb") as f:
+                writer.write(f)
+        except Exception:
+            continue
+        created.append(
+            {
+                "output_name": name,
+                "start_page": s,
+                "end_page": e,
+                "to": os.path.relpath(out_path, output_dir).replace("\\", "/"),
+            }
+        )
+
+    return jsonify(
+        {
+            "status": "done",
+            "input_dir": input_dir,
+            "output_dir": output_dir,
+            "source": source,
+            "total_pages": total_pages,
+            "segments": created,
+        }
+    )
+
+
+@app.route("/api/pdf/merge", methods=["POST"])
+def merge_pdf():
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", os.path.join("pdf", "input"))
+    output_dir = payload.get("output_dir", os.path.join("pdf", "output"))
+    files = payload.get("files") or []
+    output_name = (payload.get("output_name") or "").strip()
+
+    if not os.path.isdir(input_dir):
+        return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
+    os.makedirs(output_dir, exist_ok=True)
+
+    if not isinstance(files, list) or not files:
+        return jsonify({"error": "missing_files"}), 400
+    if not output_name:
+        return jsonify({"error": "missing_output_name"}), 400
+
+    # Reuse helpers
+    def _sanitize_name(value: str, fallback: str) -> str:
+        text = (value or "").strip()
+        text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text or fallback
+
+    def _pick_unique(dest_dir: str, stem: str, ext: str) -> str:
+        candidate = os.path.join(dest_dir, f"{stem}{ext}")
+        idx = 1
+        while os.path.exists(candidate):
+            candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
+            idx += 1
+        return candidate
+
+    writer = PdfWriter()
+    total_pages = 0
+    used_files: list[str] = []
+
+    for rel in files:
+        try:
+            src_path = _safe_join(input_dir, rel)
+        except ValueError:
+            continue
+        if not os.path.exists(src_path):
+            continue
+        if os.path.splitext(src_path)[1].lower() != ".pdf":
+            continue
+        try:
+            reader = PdfReader(src_path)
+        except Exception:
+            continue
+        for page in reader.pages:
+            writer.add_page(page)
+            total_pages += 1
+        used_files.append(os.path.relpath(src_path, input_dir).replace("\\", "/"))
+
+    if not used_files:
+        return jsonify({"error": "no_valid_pdfs"}), 400
+
+    safe_name = _sanitize_name(output_name, "MERGED")
+    out_path = _pick_unique(output_dir, safe_name, ".pdf")
+    try:
+        with open(out_path, "wb") as f:
+            writer.write(f)
+    except Exception as exc:
+        return jsonify({"error": "write_failed", "detail": str(exc)}), 500
+
+    return jsonify(
+        {
+            "status": "done",
+            "input_dir": input_dir,
+            "output_dir": output_dir,
+            "files": used_files,
+            "file_count": len(used_files),
+            "total_pages": total_pages,
+            "output_file": os.path.relpath(out_path, output_dir).replace("\\", "/"),
+        }
+    )
 
 
 @app.get("/api/steps")

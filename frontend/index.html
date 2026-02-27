@@ -16,6 +16,8 @@
         <button class="tab-btn" data-tab="itinerary">Lịch trình</button>
         <button class="tab-btn" data-tab="letter">Thư giải trình</button>
         <button class="tab-btn" data-tab="outputs">Kết quả</button>
+        <button class="tab-btn" data-tab="classifier">Phân loại file</button>
+        <button class="tab-btn" data-tab="pdf">Tách/Nối PDF</button>
       </div>
 
       <!-- NEW: AI Booking Section -->
@@ -323,6 +325,86 @@
             <button id="exportCombinedHotelPdfBtn" class="export-pdf-btn">📄 Xuất PDF</button>
           </div>
           <iframe id="combinedHotelBookingResult" class="booking-frame" title="Combined Hotel Preview"></iframe>
+        </section>
+      </div>
+
+      <div id="classifierSection" class="section hidden">
+        <section class="card">
+          <h2>AI Phân loại hồ sơ visa</h2>
+          <div class="hint">
+            Agent riêng chỉ dùng cho trang này. Hệ thống đọc file trong <code>phanloai/input</code>, giữ nguyên file gốc, và ghi kết quả sang <code>phanloai/output</code> theo từng người.
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label for="classifierInputDir">Thư mục input phân loại</label>
+              <input id="classifierInputDir" type="text" value="phanloai/input" />
+            </div>
+            <div>
+              <label for="classifierOutputDir">Thư mục output kết quả</label>
+              <input id="classifierOutputDir" type="text" value="phanloai/output" />
+            </div>
+            <button id="loadClassifierFilesBtn">Tải danh sách file</button>
+            <button id="runClassifierBtn">Chạy AI phân loại</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>File nguồn trong thư mục phanloai</h2>
+          <div id="classifierFileList" class="file-list empty">Chưa có dữ liệu. Bấm "Tải danh sách file".</div>
+        </section>
+
+        <section class="card">
+          <h2>Kết quả phân loại</h2>
+          <pre id="classifierResult" class="summary">Chưa chạy.</pre>
+        </section>
+      </div>
+
+      <div id="pdfSection" class="section hidden">
+        <section class="card">
+          <h2>Tách PDF thủ công</h2>
+          <div class="hint">
+            Chọn 1 file PDF trong <code>pdf/input</code> và nhập số file con + khoảng trang cho mỗi file. Kết quả sẽ được lưu vào <code>pdf/output</code>.
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label for="pdfManualSourceFile">Chọn file nguồn (PDF)</label>
+              <select id="pdfManualSourceFile"></select>
+            </div>
+            <div>
+              <label for="pdfManualCount">Số file sau khi tách</label>
+              <input id="pdfManualCount" type="number" min="1" max="10" value="1" />
+            </div>
+            <button id="pdfBuildSplitFormBtn">Tạo form tách</button>
+          </div>
+          <div id="pdfManualSegments" style="margin-top: 10px;"></div>
+          <div style="margin-top: 10px;">
+            <button id="pdfRunSplitBtn">Thực hiện tách file</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Nối PDF</h2>
+          <div class="hint">
+            Chọn nhiều file PDF trong <code>pdf/input</code> để nối thành 1 file duy nhất trong <code>pdf/output</code>.
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label for="pdfMergeFiles">Chọn các file cần nối (giữ Ctrl để chọn nhiều)</label>
+              <select id="pdfMergeFiles" multiple size="6"></select>
+            </div>
+            <div>
+              <label for="pdfMergeOutputName">Tên file output (không cần .pdf)</label>
+              <input id="pdfMergeOutputName" type="text" value="MERGED_PDF" />
+            </div>
+          </div>
+          <div style="margin-top: 10px;">
+            <button id="pdfRunMergeBtn">Nối PDF</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Kết quả tách/nối PDF</h2>
+          <pre id="pdfToolsResult" class="summary">Chưa chạy.</pre>
         </section>
       </div>
 

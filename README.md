@@ -32,7 +32,8 @@ Script `setup.bat` sẽ tự động:
 3. Chạy server:
 
 ```powershell
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 python server.py
 ```
 

@@ -25,6 +25,8 @@ const letterSection = document.getElementById("letterSection");
 const itinerarySection = document.getElementById("itinerarySection");
 const bookingSection = document.getElementById("bookingSection");
 const outputsSection = document.getElementById("outputsSection");
+const classifierSection = document.getElementById("classifierSection");
+const pdfSection = document.getElementById("pdfSection");
 
 // Booking elements
 const guestNameEl = document.getElementById("guestName");
@@ -72,11 +74,35 @@ const exportCombinedAllPdfBtn = document.getElementById("exportCombinedAllPdfBtn
 const combinedItineraryResultEl = document.getElementById("combinedItineraryResult");
 const combinedFlightBookingResultEl = document.getElementById("combinedFlightBookingResult");
 const combinedHotelBookingResultEl = document.getElementById("combinedHotelBookingResult");
+const classifierInputDirEl = document.getElementById("classifierInputDir");
+const classifierOutputDirEl = document.getElementById("classifierOutputDir");
+const loadClassifierFilesBtn = document.getElementById("loadClassifierFilesBtn");
+const runClassifierBtn = document.getElementById("runClassifierBtn");
+const classifierFileListEl = document.getElementById("classifierFileList");
+const classifierResultEl = document.getElementById("classifierResult");
+const manualSplitSourceFileEl = document.getElementById("manualSplitSourceFile");
+const manualSplitCountEl = document.getElementById("manualSplitCount");
+const buildManualSegmentsBtn = document.getElementById("buildManualSegmentsBtn");
+const manualSplitSegmentsContainerEl = document.getElementById("manualSplitSegmentsContainer");
+const runManualSplitBtn = document.getElementById("runManualSplitBtn");
+
+// PDF tools tab elements
+const pdfManualSourceFileEl = document.getElementById("pdfManualSourceFile");
+const pdfManualCountEl = document.getElementById("pdfManualCount");
+const pdfBuildSplitFormBtn = document.getElementById("pdfBuildSplitFormBtn");
+const pdfManualSegmentsEl = document.getElementById("pdfManualSegments");
+const pdfRunSplitBtn = document.getElementById("pdfRunSplitBtn");
+const pdfMergeFilesEl = document.getElementById("pdfMergeFiles");
+const pdfMergeOutputNameEl = document.getElementById("pdfMergeOutputName");
+const pdfRunMergeBtn = document.getElementById("pdfRunMergeBtn");
+const pdfToolsResultEl = document.getElementById("pdfToolsResult");
 
 let cachedFiles = [];
 let hotelHtmls = [];
 let writerContextCache = "";
 let activeStepLog = null;
+let classifierFilesCache = [];
+let pdfFilesCache = [];
 const LETTER_STEP_ORDER = ["ingest", "summary", "writer"];
 const stepLogs = {
   ingest: "Chưa chạy.",
@@ -128,6 +154,354 @@ async function fetchFiles() {
   const res = await fetch(`/api/files?input_dir=${encodeURIComponent(inputDir)}`);
   const data = await res.json();
   renderFiles(data.files || []);
+}
+
+function renderClassifierFiles(files) {
+  if (!files || files.length === 0) {
+    classifierFileListEl.classList.add("empty");
+    classifierFileListEl.textContent = "Không có file nào trong thư mục input phân loại.";
+    return;
+  }
+  classifierFileListEl.classList.remove("empty");
+  classifierFileListEl.innerHTML = files
+    .map(
+      (f) => `<div class="file-row">
+        <span class="file-name">${f.rel_path || f.name}</span>
+        <span class="file-domain">${f.domain}</span>
+      </div>`
+    )
+    .join("");
+}
+
+async function loadClassifierFiles() {
+  const inputDir = classifierInputDirEl.value.trim() || "phanloai/input";
+  classifierFileListEl.textContent = "Đang tải...";
+  const res = await fetch(`/api/classifier/files?input_dir=${encodeURIComponent(inputDir)}`);
+  const data = await res.json();
+  if (!data.exists) {
+    classifierFileListEl.classList.add("empty");
+    classifierFileListEl.textContent = `Không tìm thấy thư mục: ${inputDir}`;
+    return;
+  }
+  classifierFilesCache = data.files || [];
+  renderClassifierFiles(classifierFilesCache);
+}
+
+// === PDF tools helpers ===
+
+async function loadPdfFiles() {
+  const inputDir = "pdf/input";
+  try {
+    const res = await fetch(`/api/classifier/files?input_dir=${encodeURIComponent(inputDir)}`);
+    const data = await res.json();
+    if (!data.exists) {
+      pdfFilesCache = [];
+      if (pdfManualSourceFileEl) {
+        pdfManualSourceFileEl.innerHTML =
+          '<option value="">-- Không tìm thấy thư mục pdf/input --</option>';
+      }
+      if (pdfMergeFilesEl) {
+        pdfMergeFilesEl.innerHTML = "";
+      }
+      return;
+    }
+    pdfFilesCache = data.files || [];
+    renderPdfSourceOptions();
+  } catch (err) {
+    console.error("loadPdfFiles error", err);
+  }
+}
+
+function renderPdfSourceOptions() {
+  const pdfs = (pdfFilesCache || []).filter((f) =>
+    (f.name || "").toLowerCase().endsWith(".pdf")
+  );
+
+  if (pdfManualSourceFileEl) {
+    if (!pdfs.length) {
+      pdfManualSourceFileEl.innerHTML =
+        '<option value="">-- Không có file PDF nào trong pdf/input --</option>';
+    } else {
+      pdfManualSourceFileEl.innerHTML = pdfs
+        .map((f) => {
+          const value = f.rel_path || f.name;
+          const label = f.rel_path || f.name;
+          return `<option value="${value}">${label}</option>`;
+        })
+        .join("");
+    }
+  }
+
+  if (pdfMergeFilesEl) {
+    if (!pdfs.length) {
+      pdfMergeFilesEl.innerHTML = "";
+    } else {
+      pdfMergeFilesEl.innerHTML = pdfs
+        .map((f) => {
+          const value = f.rel_path || f.name;
+          const label = f.rel_path || f.name;
+          return `<option value="${value}">${label}</option>`;
+        })
+        .join("");
+    }
+  }
+}
+
+function buildManualSegments() {
+  const count = parseInt(manualSplitCountEl.value || "0", 10) || 0;
+  const safeCount = Math.max(1, Math.min(count, 10));
+  manualSplitCountEl.value = safeCount;
+  const parts = [];
+  for (let i = 1; i <= safeCount; i++) {
+    parts.push(`
+      <div class="manual-segment" data-index="${i}" style="margin-top:8px; padding:8px; border:1px dashed #e5e7eb; border-radius:6px;">
+        <div class="row">
+          <div>
+            <label for="segmentName-${i}">File ${i} - Tên file output (không cần .pdf)</label>
+            <input id="segmentName-${i}" type="text" />
+          </div>
+          <div>
+            <label for="segmentStart-${i}">Từ trang</label>
+            <input id="segmentStart-${i}" type="number" min="1" />
+          </div>
+          <div>
+            <label for="segmentEnd-${i}">Đến trang</label>
+            <input id="segmentEnd-${i}" type="number" min="1" />
+          </div>
+        </div>
+      </div>
+    `);
+  }
+  manualSplitSegmentsContainerEl.innerHTML = parts.join("");
+}
+
+function buildPdfManualSegments() {
+  if (!pdfManualCountEl || !pdfManualSegmentsEl) return;
+  const count = parseInt(pdfManualCountEl.value || "0", 10) || 0;
+  const safeCount = Math.max(1, Math.min(count, 10));
+  pdfManualCountEl.value = safeCount;
+  const parts = [];
+  for (let i = 1; i <= safeCount; i++) {
+    parts.push(`
+      <div class="manual-segment" data-index="${i}" style="margin-top:8px; padding:8px; border:1px dashed #e5e7eb; border-radius:6px;">
+        <div class="row">
+          <div>
+            <label for="pdf-segmentName-${i}">File ${i} - Tên file output (không cần .pdf)</label>
+            <input id="pdf-segmentName-${i}" type="text" />
+          </div>
+          <div>
+            <label for="pdf-segmentStart-${i}">Từ trang</label>
+            <input id="pdf-segmentStart-${i}" type="number" min="1" />
+          </div>
+          <div>
+            <label for="pdf-segmentEnd-${i}">Đến trang</label>
+            <input id="pdf-segmentEnd-${i}" type="number" min="1" />
+          </div>
+        </div>
+      </div>
+    `);
+  }
+  pdfManualSegmentsEl.innerHTML = parts.join("");
+}
+
+async function runPdfManualSplit() {
+  const inputDir = "pdf/input";
+  const outputDir = "pdf/output";
+  if (!pdfManualSourceFileEl) {
+    alert("Không tìm thấy danh sách file nguồn.");
+    return;
+  }
+  const source = pdfManualSourceFileEl.value;
+  if (!source) {
+    alert("Vui lòng chọn file nguồn (PDF).");
+    return;
+  }
+  const count = parseInt(pdfManualCountEl.value || "0", 10) || 0;
+  const segments = [];
+  for (let i = 1; i <= count; i++) {
+    const nameEl = document.getElementById(`pdf-segmentName-${i}`);
+    const startEl = document.getElementById(`pdf-segmentStart-${i}`);
+    const endEl = document.getElementById(`pdf-segmentEnd-${i}`);
+    if (!nameEl || !startEl || !endEl) continue;
+    const output_name = nameEl.value.trim();
+    const start_page = parseInt(startEl.value || "0", 10);
+    const end_page = parseInt(endEl.value || "0", 10);
+    if (!output_name || !start_page || !end_page) continue;
+    segments.push({ output_name, start_page, end_page });
+  }
+  if (!segments.length) {
+    alert("Vui lòng nhập đầy đủ tên file và khoảng trang cho ít nhất 1 file con.");
+    return;
+  }
+  const originalText = pdfRunSplitBtn.textContent;
+  pdfRunSplitBtn.disabled = true;
+  pdfRunSplitBtn.textContent = "Đang tách...";
+  if (pdfToolsResultEl) {
+    pdfToolsResultEl.textContent = "Đang tách file PDF theo cấu hình bạn nhập...";
+  }
+  try {
+    const res = await fetch("/api/classifier/split_manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_dir: inputDir, output_dir: outputDir, source, segments }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (pdfToolsResultEl) {
+        pdfToolsResultEl.textContent = `Lỗi tách file: ${data.error || "không xác định"}`;
+      }
+      return;
+    }
+    const lines = [];
+    lines.push("Tách file thủ công hoàn thành.");
+    lines.push(`- File nguồn: ${data.source}`);
+    lines.push(`- Tổng số trang file nguồn: ${data.total_pages}`);
+    lines.push(`- Số file con tạo ra: ${data.segments?.length || 0}`);
+    lines.push("");
+    lines.push("Chi tiết:");
+    (data.segments || []).forEach((seg) => {
+      lines.push(
+        `- ${seg.output_name}.pdf (trang ${seg.start_page}-${seg.end_page}) -> ${seg.to}`
+      );
+    });
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = lines.join("\n");
+    }
+
+    // Đóng/clear form tách sau khi thực hiện xong
+    if (pdfManualSegmentsEl) pdfManualSegmentsEl.innerHTML = "";
+    if (pdfManualCountEl) pdfManualCountEl.value = "1";
+    await loadPdfFiles();
+  } catch (error) {
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = `Lỗi tách file: ${error.message}`;
+    }
+  } finally {
+    pdfRunSplitBtn.disabled = false;
+    pdfRunSplitBtn.textContent = originalText;
+  }
+}
+
+async function runPdfMerge() {
+  const inputDir = "pdf/input";
+  const outputDir = "pdf/output";
+  if (!pdfMergeFilesEl) {
+    alert("Không tìm thấy danh sách file để nối.");
+    return;
+  }
+  const selected = Array.from(pdfMergeFilesEl.options)
+    .filter((opt) => opt.selected)
+    .map((opt) => opt.value);
+  if (!selected.length) {
+    alert("Vui lòng chọn ít nhất 2 file PDF để nối.");
+    return;
+  }
+  const output_name = (pdfMergeOutputNameEl?.value || "").trim();
+  if (!output_name) {
+    alert("Vui lòng nhập tên file output.");
+    return;
+  }
+  const originalText = pdfRunMergeBtn.textContent;
+  pdfRunMergeBtn.disabled = true;
+  pdfRunMergeBtn.textContent = "Đang nối...";
+  if (pdfToolsResultEl) {
+    pdfToolsResultEl.textContent = "Đang nối các file PDF...";
+  }
+  try {
+    const res = await fetch("/api/pdf/merge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input_dir: inputDir,
+        output_dir: outputDir,
+        files: selected,
+        output_name,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (pdfToolsResultEl) {
+        pdfToolsResultEl.textContent = `Lỗi nối PDF: ${data.error || "không xác định"}`;
+      }
+      return;
+    }
+    const lines = [];
+    lines.push("Nối PDF hoàn thành.");
+    lines.push(`- Số file nguồn: ${data.file_count}`);
+    lines.push(`- Tổng số trang: ${data.total_pages}`);
+    lines.push(`- File kết quả: ${data.output_file}`);
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = lines.join("\n");
+    }
+    await loadPdfFiles();
+  } catch (error) {
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = `Lỗi nối PDF: ${error.message}`;
+    }
+  } finally {
+    pdfRunMergeBtn.disabled = false;
+    pdfRunMergeBtn.textContent = originalText;
+  }
+}
+
+function formatClassifierResult(data) {
+  const counts = data.person_counts || {};
+  const countLines = Object.keys(counts).map((k) => `- ${k}: ${counts[k]} file`);
+  const splitLogs = data.split_logs || [];
+  const splitLines = splitLogs.flatMap((x) => {
+    const outputs = (x.outputs || []).map(
+      (o) => `  - ${o.doc_type_en}.pdf (${o.person_name}, trang ${o.pages})`
+    );
+    return [`- ${x.source_file}: tách ${x.detected_documents} tài liệu`, ...outputs];
+  });
+  const copiedLines = (data.copied || []).map(
+    (m) => `- ${m.source} -> ${m.person_name}/${m.doc_type_en} (${m.to})`
+  );
+  return [
+    "Phân loại hoàn thành.",
+    `- Input: ${data.input_dir || ""}`,
+    `- Output: ${data.output_dir || ""}`,
+    `- Tổng file đã xử lý: ${data.copied_count || 0}`,
+    `- File bỏ qua/lỗi: ${data.skipped_count || 0}`,
+    "",
+    "Thống kê theo từng người:",
+    ...countLines,
+    "",
+    ...(splitLines.length > 0
+      ? ["PDF nhiều giấy tờ đã tách:", ...splitLines, ""]
+      : []),
+    "",
+    "Chi tiết:",
+    ...(copiedLines.length > 0 ? copiedLines : ["- Không có file nào được ghi ra output."]),
+  ].join("\n");
+}
+
+async function runClassifier() {
+  const inputDir = classifierInputDirEl.value.trim() || "phanloai/input";
+  const outputDir = classifierOutputDirEl.value.trim() || "phanloai/output";
+  const originalText = runClassifierBtn.textContent;
+  runClassifierBtn.disabled = true;
+  runClassifierBtn.textContent = "Đang phân loại...";
+  classifierResultEl.textContent = "AI đang phân tích và phân loại file...";
+  try {
+    const res = await fetch("/api/classifier/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_dir: inputDir, output_dir: outputDir }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      classifierResultEl.textContent = `Lỗi: ${data.error || "Không thể phân loại file."}`;
+      return;
+    }
+    classifierResultEl.textContent = formatClassifierResult(data);
+    await loadClassifierFiles();
+  } catch (error) {
+    classifierResultEl.textContent = `Lỗi: ${error.message}`;
+  } finally {
+    runClassifierBtn.disabled = false;
+    runClassifierBtn.textContent = originalText;
+  }
 }
 
 function formatStage(stage) {
@@ -553,11 +927,15 @@ function setActiveTab(tab) {
     itinerarySection.classList.add("hidden");
     bookingSection.classList.add("hidden");
     outputsSection.classList.add("hidden");
+    classifierSection.classList.add("hidden");
+    pdfSection.classList.add("hidden");
   } else if (tab === "itinerary") {
     letterSection.classList.add("hidden");
     itinerarySection.classList.remove("hidden");
     bookingSection.classList.add("hidden");
     outputsSection.classList.add("hidden");
+    classifierSection.classList.add("hidden");
+    pdfSection.classList.add("hidden");
     loadLatestItinerary();
     loadItineraryContext();
   } else if (tab === "booking") {
@@ -565,6 +943,8 @@ function setActiveTab(tab) {
     itinerarySection.classList.add("hidden");
     bookingSection.classList.remove("hidden");
     outputsSection.classList.add("hidden");
+    classifierSection.classList.add("hidden");
+    pdfSection.classList.add("hidden");
     loadLatestBooking();
     loadLatestTripInfo();
   } else if (tab === "outputs") {
@@ -572,9 +952,27 @@ function setActiveTab(tab) {
     itinerarySection.classList.add("hidden");
     bookingSection.classList.add("hidden");
     outputsSection.classList.remove("hidden");
+    classifierSection.classList.add("hidden");
+    pdfSection.classList.add("hidden");
     loadLatestItinerary().then(syncCombinedPreviews);
     loadLatestBooking().then(syncCombinedPreviews);
     syncCombinedPreviews();
+  } else if (tab === "classifier") {
+    letterSection.classList.add("hidden");
+    itinerarySection.classList.add("hidden");
+    bookingSection.classList.add("hidden");
+    outputsSection.classList.add("hidden");
+    classifierSection.classList.remove("hidden");
+    pdfSection.classList.add("hidden");
+    loadClassifierFiles();
+  } else if (tab === "pdf") {
+    letterSection.classList.add("hidden");
+    itinerarySection.classList.add("hidden");
+    bookingSection.classList.add("hidden");
+    outputsSection.classList.add("hidden");
+    classifierSection.classList.add("hidden");
+    pdfSection.classList.remove("hidden");
+    loadPdfFiles();
   }
 }
 
@@ -989,6 +1387,17 @@ runBookingBtn.addEventListener("click", runBookingGeneration);
 extractTripBtn.addEventListener("click", extractTripInfo);
 saveTripInfoBtn.addEventListener("click", saveTripInfo);
 runAIBookingBtn.addEventListener("click", runAIBooking);
+loadClassifierFilesBtn.addEventListener("click", loadClassifierFiles);
+runClassifierBtn.addEventListener("click", runClassifier);
+if (pdfBuildSplitFormBtn) {
+  pdfBuildSplitFormBtn.addEventListener("click", buildPdfManualSegments);
+}
+if (pdfRunSplitBtn) {
+  pdfRunSplitBtn.addEventListener("click", runPdfManualSplit);
+}
+if (pdfRunMergeBtn) {
+  pdfRunMergeBtn.addEventListener("click", runPdfMerge);
+}
 
 // PDF Export helpers
 function printIframeAsPdf(iframeEl, title) {
@@ -1240,6 +1649,7 @@ window.addEventListener("load", async () => {
   await loadItineraryContext();
   await loadLatestTripInfo();
   await loadDestinations();
+  await loadClassifierFiles();
   syncCombinedPreviews();
 });
 

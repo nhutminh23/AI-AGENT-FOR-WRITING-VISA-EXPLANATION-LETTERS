@@ -5,3 +5,4 @@ flask
 pdfplumber
 python-docx
 pillow
+pypdf
