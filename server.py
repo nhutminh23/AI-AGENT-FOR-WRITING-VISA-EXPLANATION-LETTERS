@@ -1180,6 +1180,201 @@ def ai_generate_booking():
         import traceback
         return jsonify({"error": "Lỗi khi tạo HTML: " + str(e), "traceback": traceback.format_exc()}), 500
 
+# ==================== AI PDF SPLITTER ENDPOINTS ====================
+
+import uuid
+import shutil
+import zipfile
+import threading
+from pathlib import Path as SplitterPath
+
+from pdf_splitter.pdf_service import pdf_to_images, get_page_count, create_output_files
+from pdf_splitter.ai_service import classify_all_pages
+
+# Directories for AI splitter
+SPLITTER_UPLOAD_DIR = SplitterPath(__file__).parent / "splitter_uploads"
+SPLITTER_OUTPUT_DIR = SplitterPath(__file__).parent / "splitter_outputs"
+SPLITTER_UPLOAD_DIR.mkdir(exist_ok=True)
+SPLITTER_OUTPUT_DIR.mkdir(exist_ok=True)
+
+# In-memory job tracking for AI splitter
+splitter_jobs: Dict[str, Dict] = {}
+
+
+def _run_splitter_job(file_id: str):
+    """Run AI PDF splitting in a background thread with its own event loop."""
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_process_splitter_job(file_id))
+    finally:
+        loop.close()
+
+
+async def _process_splitter_job(file_id: str):
+    """Process a PDF file: convert → classify → split."""
+    job = splitter_jobs[file_id]
+    try:
+        # Step 1: Convert PDF pages to images
+        job["status"] = "converting"
+        images = pdf_to_images(job["file_path"])
+
+        # Step 2: Classify each page with AI
+        job["status"] = "classifying"
+
+        async def progress_callback(page_num, total, result):
+            job["current_page"] = page_num
+            job["classifications"].append({
+                "page": page_num,
+                "document_type_en": result.get("document_type_en", ""),
+                "person_name_en": result.get("person_name_en", ""),
+                "is_continuation": result.get("is_continuation", False),
+            })
+
+        classifications = await classify_all_pages(
+            images, progress_callback=progress_callback
+        )
+
+        # Update with post-processed data
+        job["classifications"] = []
+        for idx, cls in enumerate(classifications):
+            job["classifications"].append({
+                "page": idx + 1,
+                "document_type_en": cls.get("document_type_en", ""),
+                "person_name_en": cls.get("person_name_en", ""),
+                "is_continuation": cls.get("is_continuation", False),
+            })
+
+        # Step 3: Create output files
+        job["status"] = "splitting"
+        job_output_dir = str(SPLITTER_OUTPUT_DIR / file_id)
+        output_files = create_output_files(
+            job["file_path"], classifications, job_output_dir
+        )
+        job["output_files"] = output_files
+
+        # Step 4: Create ZIP
+        zip_path = str(SPLITTER_OUTPUT_DIR / f"{file_id}.zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in output_files:
+                zf.write(f["path"], f["filename"])
+        job["zip_path"] = zip_path
+        job["status"] = "completed"
+
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+        print(f"[AI Splitter] Error processing {file_id}: {e}")
+
+
+@app.post("/api/ai-splitter/upload")
+def splitter_upload():
+    if "file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+    file = request.files["file"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "not_pdf"}), 400
+
+    file_id = uuid.uuid4().hex[:8]
+    job_dir = SPLITTER_UPLOAD_DIR / file_id
+    job_dir.mkdir(exist_ok=True)
+    file_path = job_dir / file.filename
+    file.save(str(file_path))
+
+    page_count = get_page_count(str(file_path))
+
+    splitter_jobs[file_id] = {
+        "status": "uploaded",
+        "filename": file.filename,
+        "file_path": str(file_path),
+        "page_count": page_count,
+        "current_page": 0,
+        "classifications": [],
+        "output_files": [],
+        "error": None,
+        "zip_path": None,
+    }
+
+    return jsonify({
+        "file_id": file_id,
+        "filename": file.filename,
+        "page_count": page_count,
+    })
+
+
+@app.post("/api/ai-splitter/process/<file_id>")
+def splitter_process(file_id: str):
+    if file_id not in splitter_jobs:
+        return jsonify({"error": "not_found"}), 404
+    job = splitter_jobs[file_id]
+    if job["status"] in ("processing", "classifying", "converting", "splitting"):
+        return jsonify({"message": "already_processing"})
+    if job["status"] == "completed":
+        return jsonify({"message": "already_completed"})
+
+    job["status"] = "processing"
+    job["current_page"] = 0
+    job["classifications"] = []
+    job["output_files"] = []
+    job["error"] = None
+
+    # Run in background thread (separate event loop for async code)
+    t = threading.Thread(target=_run_splitter_job, args=(file_id,), daemon=True)
+    t.start()
+
+    return jsonify({"message": "processing_started", "file_id": file_id})
+
+
+@app.get("/api/ai-splitter/status/<file_id>")
+def splitter_status(file_id: str):
+    if file_id not in splitter_jobs:
+        return jsonify({"error": "not_found"}), 404
+    job = splitter_jobs[file_id]
+    resp = {
+        "file_id": file_id,
+        "filename": job["filename"],
+        "status": job["status"],
+        "page_count": job["page_count"],
+        "current_page": job["current_page"],
+        "error": job["error"],
+        "classifications": job.get("classifications", []),
+    }
+    if job["status"] == "completed":
+        resp["output_files"] = [
+            {
+                "filename": f["filename"],
+                "document_type": f["document_type"],
+                "person_name": f["person_name"],
+                "pages": f["pages"],
+            }
+            for f in job["output_files"]
+        ]
+    return jsonify(resp)
+
+
+@app.get("/api/ai-splitter/download/<file_id>/<filename>")
+def splitter_download_single(file_id: str, filename: str):
+    if file_id not in splitter_jobs:
+        return jsonify({"error": "not_found"}), 404
+    file_path = SPLITTER_OUTPUT_DIR / file_id / filename
+    if not file_path.exists():
+        return jsonify({"error": "file_not_found"}), 404
+    return send_from_directory(str(SPLITTER_OUTPUT_DIR / file_id), filename,
+                                as_attachment=True, mimetype="application/pdf")
+
+
+@app.get("/api/ai-splitter/download-zip/<file_id>")
+def splitter_download_zip(file_id: str):
+    if file_id not in splitter_jobs:
+        return jsonify({"error": "not_found"}), 404
+    job = splitter_jobs[file_id]
+    if job["status"] != "completed" or not job.get("zip_path"):
+        return jsonify({"error": "not_ready"}), 400
+    zip_path = SplitterPath(job["zip_path"])
+    return send_from_directory(str(zip_path.parent), zip_path.name,
+                                as_attachment=True, mimetype="application/zip")
+
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=False)

@@ -1239,57 +1239,37 @@ function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
   });
+
+  // Hide all sections first
+  const allSections = [letterSection, itinerarySection, bookingSection,
+    outputsSection, classifierSection, pdfSection];
+  const aisplitterSection = document.getElementById("aisplitterSection");
+  if (aisplitterSection) allSections.push(aisplitterSection);
+  allSections.forEach((s) => { if (s) s.classList.add("hidden"); });
+
   if (tab === "letter") {
     letterSection.classList.remove("hidden");
-    itinerarySection.classList.add("hidden");
-    bookingSection.classList.add("hidden");
-    outputsSection.classList.add("hidden");
-    classifierSection.classList.add("hidden");
-    pdfSection.classList.add("hidden");
   } else if (tab === "itinerary") {
-    letterSection.classList.add("hidden");
     itinerarySection.classList.remove("hidden");
-    bookingSection.classList.add("hidden");
-    outputsSection.classList.add("hidden");
-    classifierSection.classList.add("hidden");
-    pdfSection.classList.add("hidden");
     loadLatestItinerary();
     loadItineraryContext();
   } else if (tab === "booking") {
-    letterSection.classList.add("hidden");
-    itinerarySection.classList.add("hidden");
     bookingSection.classList.remove("hidden");
-    outputsSection.classList.add("hidden");
-    classifierSection.classList.add("hidden");
-    pdfSection.classList.add("hidden");
     loadLatestBooking();
     loadLatestTripInfo();
   } else if (tab === "outputs") {
-    letterSection.classList.add("hidden");
-    itinerarySection.classList.add("hidden");
-    bookingSection.classList.add("hidden");
     outputsSection.classList.remove("hidden");
-    classifierSection.classList.add("hidden");
-    pdfSection.classList.add("hidden");
     loadLatestItinerary().then(syncCombinedPreviews);
     loadLatestBooking().then(syncCombinedPreviews);
     syncCombinedPreviews();
   } else if (tab === "classifier") {
-    letterSection.classList.add("hidden");
-    itinerarySection.classList.add("hidden");
-    bookingSection.classList.add("hidden");
-    outputsSection.classList.add("hidden");
     classifierSection.classList.remove("hidden");
-    pdfSection.classList.add("hidden");
     loadClassifierFiles();
   } else if (tab === "pdf") {
-    letterSection.classList.add("hidden");
-    itinerarySection.classList.add("hidden");
-    bookingSection.classList.add("hidden");
-    outputsSection.classList.add("hidden");
-    classifierSection.classList.add("hidden");
     pdfSection.classList.remove("hidden");
     loadPdfFiles();
+  } else if (tab === "aisplitter") {
+    if (aisplitterSection) aisplitterSection.classList.remove("hidden");
   }
 }
 
@@ -1997,3 +1977,167 @@ window.addEventListener("load", async () => {
   syncCombinedPreviews();
 });
 
+// ==================== AI PDF SPLITTER ====================
+
+(function initAISplitter() {
+  const uploadBtn = document.getElementById("splitterUploadBtn");
+  const fileInput = document.getElementById("splitterFileInput");
+  const progressDiv = document.getElementById("splitterProgress");
+  const progressBar = document.getElementById("splitterProgressBar");
+  const progressText = document.getElementById("splitterProgressText");
+  const statusText = document.getElementById("splitterStatus");
+  const classificationsCard = document.getElementById("splitterClassificationsCard");
+  const classificationsDiv = document.getElementById("splitterClassifications");
+  const resultsCard = document.getElementById("splitterResultsCard");
+  const resultsDiv = document.getElementById("splitterResults");
+  const downloadAllBtn = document.getElementById("splitterDownloadAllBtn");
+
+  if (!uploadBtn) return; // safety check
+
+  let currentFileId = null;
+  let pollTimer = null;
+
+  const DOC_ICONS = {
+    Passport: "🛂", Birth_Certificate: "👶", Marriage_Certificate: "💍",
+    Contract: "📝", Agreement: "📝", Decision: "📄", Account_Statement: "🏦",
+    Social_Insurance_Record: "📋", Power_of_Attorney: "⚖️", CCCD: "🆔",
+    Business_License: "💼", Receipt_Voucher: "🧾", Price_Quotation: "💰",
+    Registration_Form: "📑", Commitment_Letter: "✉️",
+  };
+
+  function getIcon(docType) {
+    return DOC_ICONS[docType] || "📄";
+  }
+
+  uploadBtn.addEventListener("click", async () => {
+    if (!fileInput.files || !fileInput.files.length) {
+      alert("Vui lòng chọn file PDF.");
+      return;
+    }
+
+    const file = fileInput.files[0];
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = "Đang upload...";
+    progressDiv.style.display = "block";
+    statusText.textContent = "Đang upload file...";
+    progressBar.value = 0;
+    progressText.textContent = "0%";
+    classificationsCard.style.display = "none";
+    resultsCard.style.display = "none";
+
+    try {
+      // 1. Upload
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await fetch("/api/ai-splitter/upload", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (uploadData.error) {
+        statusText.textContent = `Lỗi: ${uploadData.error}`;
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "📤 Upload & Tách";
+        return;
+      }
+
+      currentFileId = uploadData.file_id;
+      statusText.textContent = `Đã upload ${uploadData.filename} (${uploadData.page_count} trang). Đang xử lý...`;
+
+      // 2. Start processing
+      await fetch(`/api/ai-splitter/process/${currentFileId}`, { method: "POST" });
+
+      // 3. Poll status
+      startPolling();
+    } catch (err) {
+      statusText.textContent = `Lỗi: ${err.message}`;
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = "📤 Upload & Tách";
+    }
+  });
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(checkStatus, 1000);
+  }
+
+  async function checkStatus() {
+    if (!currentFileId) return;
+    try {
+      const res = await fetch(`/api/ai-splitter/status/${currentFileId}`);
+      const data = await res.json();
+
+      // Update progress
+      const pct = data.page_count > 0
+        ? Math.round((data.current_page / data.page_count) * 100) : 0;
+      progressBar.value = pct;
+      progressBar.max = 100;
+      progressText.textContent = `${pct}%`;
+
+      const statusMap = {
+        converting: "Đang chuyển PDF thành ảnh...",
+        classifying: `Đang phân loại trang ${data.current_page}/${data.page_count}...`,
+        splitting: "Đang tách file...",
+        processing: "Đang xử lý...",
+      };
+      statusText.textContent = statusMap[data.status] || data.status;
+
+      // Show live classifications
+      if (data.classifications && data.classifications.length > 0) {
+        renderClassifications(data.classifications);
+      }
+
+      // Completed
+      if (data.status === "completed") {
+        clearInterval(pollTimer);
+        progressBar.value = 100;
+        progressText.textContent = "100%";
+        statusText.textContent = `✅ Hoàn thành! Đã tách thành ${data.output_files.length} file.`;
+        renderOutputFiles(data.output_files);
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "📤 Upload & Tách";
+      } else if (data.status === "error") {
+        clearInterval(pollTimer);
+        statusText.textContent = `❌ Lỗi: ${data.error}`;
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "📤 Upload & Tách";
+      }
+    } catch (err) {
+      console.error("Poll error:", err);
+    }
+  }
+
+  function renderClassifications(cls) {
+    classificationsCard.style.display = "block";
+    classificationsDiv.innerHTML = cls.map((c) => {
+      const icon = getIcon(c.document_type_en);
+      const cont = c.is_continuation ? ' <span style="color:#888;font-size:0.85em;">↳ cont.</span>' : "";
+      return `<div style="padding:4px 8px; border-bottom:1px solid #f0f0f0; font-size:0.9em;">
+        <strong>P${c.page}</strong> ${icon} ${c.document_type_en}${cont}
+        <span style="color:#666; margin-left:8px;">👤 ${c.person_name_en}</span>
+      </div>`;
+    }).join("");
+    // Auto-scroll to bottom
+    classificationsDiv.scrollTop = classificationsDiv.scrollHeight;
+  }
+
+  function renderOutputFiles(files) {
+    resultsCard.style.display = "block";
+    resultsDiv.innerHTML = files.map((f) => {
+      const icon = getIcon(f.document_type);
+      const pages = f.pages.join(", ");
+      return `<div style="padding:8px 12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          ${icon} <strong>${f.filename}</strong>
+          <br><small style="color:#666;">${f.document_type} · 👤 ${f.person_name} · ${f.pages.length} trang (${pages})</small>
+        </div>
+        <a href="/api/ai-splitter/download/${currentFileId}/${encodeURIComponent(f.filename)}"
+           style="text-decoration:none; padding:4px 12px; background:#4f46e5; color:white; border-radius:4px; font-size:0.85em;">
+          ⬇ Download
+        </a>
+      </div>`;
+    }).join("");
+  }
+
+  downloadAllBtn.addEventListener("click", () => {
+    if (!currentFileId) return;
+    window.location.href = `/api/ai-splitter/download-zip/${currentFileId}`;
+  });
+})();

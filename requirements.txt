@@ -6,3 +6,6 @@ pdfplumber
 python-docx
 pillow
 pypdf
+PyMuPDF
+google-generativeai
+openai

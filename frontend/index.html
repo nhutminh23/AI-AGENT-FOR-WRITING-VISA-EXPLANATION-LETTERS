@@ -18,6 +18,7 @@
         <button class="tab-btn" data-tab="outputs">Kết quả</button>
         <button class="tab-btn" data-tab="classifier">Phân loại file</button>
         <button class="tab-btn" data-tab="pdf">Tách/Nối/Rename PDF</button>
+        <button class="tab-btn" data-tab="aisplitter">📎 Tách PDF (AI)</button>
       </div>
 
       <!-- NEW: AI Booking Section -->
@@ -466,6 +467,43 @@
         <section class="card">
           <h2>Kết quả tách/nối PDF</h2>
           <pre id="pdfToolsResult" class="summary">Chưa chạy.</pre>
+        </section>
+      </div>
+
+      <!-- AI PDF Splitter Section -->
+      <div id="aisplitterSection" class="section hidden">
+        <section class="card">
+          <h2>📎 Tách PDF bằng AI (Vision API)</h2>
+          <div class="hint">
+            Upload file PDF scan → AI tự nhận diện từng trang → phân loại loại giấy tờ và tên người → tự động tách thành các file riêng.
+          </div>
+          <div class="row" style="margin-top: 12px;">
+            <div>
+              <label for="splitterFileInput">Chọn file PDF</label>
+              <input type="file" id="splitterFileInput" accept=".pdf" />
+            </div>
+            <button id="splitterUploadBtn">📤 Upload & Tách</button>
+          </div>
+          <div id="splitterProgress" style="margin-top: 10px; display:none;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <progress id="splitterProgressBar" value="0" max="100" style="flex:1;"></progress>
+              <span id="splitterProgressText">0%</span>
+            </div>
+            <div id="splitterStatus" class="hint" style="margin-top:4px;">Đang xử lý...</div>
+          </div>
+        </section>
+
+        <section class="card" id="splitterClassificationsCard" style="display:none;">
+          <h2>Kết quả phân loại từng trang</h2>
+          <div id="splitterClassifications" style="max-height:400px; overflow-y:auto;"></div>
+        </section>
+
+        <section class="card" id="splitterResultsCard" style="display:none;">
+          <h2>✅ File đã tách</h2>
+          <div id="splitterResults"></div>
+          <div style="margin-top:12px;">
+            <button id="splitterDownloadAllBtn">📦 Tải tất cả (ZIP)</button>
+          </div>
         </section>
       </div>
 
