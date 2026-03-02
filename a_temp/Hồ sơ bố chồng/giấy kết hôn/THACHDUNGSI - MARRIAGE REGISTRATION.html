@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Marriage Certificate</title>
+<style>
+    body {
+        margin: 0;
+        padding: 20px 0;
+        background: #eee;
+        display: flex;
+        justify-content: center;
+        font-family: "Times New Roman", serif;
+    }
+    .a4 {
+        width: 210mm;
+        min-height: 297mm;
+        background: #fff;
+        padding: 20mm;
+        box-sizing: border-box;
+        box-shadow: 0 0 10px rgba(0,0,0,0.15);
+        position: relative;
+        color: #000;
+        font-size: 14px;
+        line-height: 1.2;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        width: 100%;
+        margin-bottom: 8mm;
+        font-size: 12px;
+    }
+    .header .col {
+        width: 33%;
+        white-space: pre-wrap;
+    }
+    .header .center {
+        text-align: center;
+        width: 34%;
+    }
+    .title {
+        text-align: center;
+        font-size: 28px;
+        font-weight: bold;
+        margin-bottom: 6mm;
+    }
+    .sub-title {
+        text-align: center;
+        font-size: 16px;
+        margin-bottom: 6mm;
+    }
+
+    .columns {
+        display: flex;
+        gap: 10mm;
+        width: 100%;
+    }
+    .column {
+        width: 50%;
+        box-sizing: border-box;
+    }
+
+    .form-table {
+        width: 100%;
+        display: flex;
+        gap: 10mm;
+    }
+
+    .field {
+        width: 100%;
+        margin-bottom: 6mm;
+        white-space: pre-wrap;
+        font-size: 14px;
+    }
+
+    .two-columns {
+        display: flex;
+        border-top: 1px solid transparent;
+    }
+
+    .col-left, .col-right {
+        width: 50%;
+        padding: 0 6mm;
+        box-sizing: border-box;
+        border-left: 0.5px solid #999;
+        border-right: 0.5px solid #999;
+    }
+    .col-left { border-left: none; }
+    .col-right { border-right: none; }
+
+    .field-line {
+        margin-bottom: 4mm;
+        white-space: pre-wrap;
+    }
+
+    .registered {
+        margin-top: 6mm;
+        text-align: left;
+        white-space: pre-wrap;
+    }
+
+    .signatures {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        width: 100%;
+        margin-top: 18mm;
+        gap: 10mm;
+        box-sizing: border-box;
+    }
+    .sig-block {
+        width: 33%;
+        text-align: center;
+        white-space: pre-wrap;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .sig-block .title {
+        font-size: 14px;
+        margin-bottom: 18mm;
+    }
+    .sig-block .signed {
+        margin-top: 4mm;
+        font-size: 14px;
+    }
+
+    @media print {
+        @page { size: A4; margin: 0; }
+        body { padding: 0; background: none; }
+        .a4 {
+            width: 210mm;
+            height: 297mm;
+            box-shadow: none;
+            margin: 0;
+            padding: 20mm;
+        }
+    }
+</style>
+</head>
+<body>
+    <div class="a4">
+        <div class="header">
+            <div class="col left" style="text-align:left; white-space:pre-wrap;">
+PEOPLE'S COMMITTEE
+Commune, Ward 13
+District, District 03
+Province, Ho Chi Minh City
+            </div>
+            <div class="col center">
+SOCIALIST REPUBLIC OF VIETNAM
+Independence - Freedom - Happiness
+            </div>
+            <div class="col right" style="text-align:right; white-space:pre-wrap;">
+Form No. HT12/P3
+Decision No.
+Date
+No. 20
+Book No. 01
+            </div>
+        </div>
+
+        <div class="title">MARRIAGE CERTIFICATE</div>
+
+        <div class="two-columns" style="border: 0;">
+            <div class="col-left">
+                <div class="field-line" style="font-weight:bold; text-align:center;">HUSBAND</div>
+
+                <div class="field-line">Full name:  Thach chung Si</div>
+                <div class="field-line">Alias:</div>
+                <div class="field-line">Date of birth:  15 December 1963</div>
+                <div class="field-line">year or age </div>
+                <div class="field-line">Nationality:  Vietnam</div>
+                <div class="field-line">Occupation:  Worker</div>
+                <div class="field-line">Place of registration:  128/12
+household registration:  Bui Thi Xuan</div>
+                <div class="field-line">Permanent residence:  Ward 13, District 1</div>
+                <div class="field-line">Identity card number:</div>
+            </div>
+
+            <div class="col-right">
+                <div class="field-line" style="font-weight:bold; text-align:center;">WIFE</div>
+
+                <div class="field-line">Chau Thi Tho</div>
+                <div class="field-line"> </div>
+                <div class="field-line">01 October 1965</div>
+                <div class="field-line"> </div>
+                <div class="field-line">Vietnam</div>
+                <div class="field-line">Worker</div>
+                <div class="field-line">47/102A
+Tran Quoc Toan</div>
+                <div class="field-line">Ward 13, District 3</div>
+                <div class="field-line"></div>
+            </div>
+        </div>
+
+        <div class="registered">Registered on 04 October 1986</div>
+
+        <div class="signatures">
+            <div class="sig-block">
+                <div class="title">Husband's signature</div>
+                <div class="signed">[signed]</div>
+            </div>
+
+            <div class="sig-block">
+                <div class="title">Wife's signature</div>
+                <div class="signed">[signed]</div>
+            </div>
+
+            <div class="sig-block">
+                <div class="title">On behalf of Ward 13 People's Committee, District 3</div>
+                <div class="signed">[signed]</div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

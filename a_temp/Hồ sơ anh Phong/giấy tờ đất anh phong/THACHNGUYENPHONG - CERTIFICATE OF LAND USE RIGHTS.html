@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate</title>
+    <style>
+        @page { size: A4; margin: 0; }
+        body {
+            background: #777;
+            font-family: "Times New Roman", Times, serif;
+            margin: 0;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 28px;
+        }
+        .paper {
+            width: 210mm;
+            height: 297mm;
+            background: #fff;
+            box-sizing: border-box;
+            padding: 16mm 14mm;
+            box-shadow: 0 0 12px rgba(0,0,0,0.45);
+            position: relative;
+            color: #000;
+            font-size: 13pt;
+            line-height: 1.35;
+            border: 1px solid #d0d0d0;
+        }
+
+        .emblem {
+            position: absolute;
+            left: 18mm;
+            top: 16mm;
+            width: 20mm;
+            height: auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 6px;
+            padding-top: 4mm;
+        }
+
+        .header .state {
+            font-weight: bold;
+            font-size: 12pt;
+        }
+
+        .header .motto {
+            display: inline-block;
+            font-size: 11pt;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+
+        .main-title {
+            text-transform: uppercase;
+            color: #b22222;
+            font-weight: bold;
+            margin-top: 8px;
+            line-height: 1.05;
+        }
+
+        .title-large { font-size: 20pt; }
+        .title-medium { font-size: 15.5pt; margin-top: 4px; }
+
+        .content {
+            margin-top: 8px;
+            text-align: left;
+        }
+
+        .section { margin-bottom: 12px; }
+
+        .section .sec-title {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .col { margin-left: 12px; }
+
+        .two-col { display:flex; gap:12px; flex-wrap:wrap; }
+
+        .map-area {
+            width: 100%;
+            height: 260px;
+            border: 1px dashed #bbb;
+            margin: 8px 0;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(0,0,0,0.02) 0px,
+                rgba(0,0,0,0.02) 8px,
+                transparent 8px,
+                transparent 16px
+            );
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 6px;
+            vertical-align: top;
+            font-size: 12pt;
+        }
+
+        th { background: #fff; font-weight: bold; text-align: left; }
+
+        .signature-area {
+            position: absolute;
+            right: 14mm;
+            bottom: 36mm;
+            width: 48%;
+            text-align: center;
+        }
+
+        .date-line { font-style: italic; margin-bottom: 6px; }
+
+        .sign-block {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 11pt;
+            line-height: 1.05;
+        }
+
+        .sign-block .sig-lines { margin-top: 8px; }
+
+        .sign-name {
+            margin-top: 56px;
+            font-weight: bold;
+        }
+
+        .entry-number {
+            position: absolute;
+            left: 14mm;
+            bottom: 16mm;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 12pt;
+        }
+
+        .footer-note {
+            position: absolute;
+            left: 14mm;
+            bottom: 8mm;
+            right: 14mm;
+            font-size: 10pt;
+            font-style: italic;
+            text-align: justify;
+        }
+
+        .qr-note {
+            margin-top:10px;
+            font-size: 11pt;
+            font-style: italic;
+        }
+
+        .scanned {
+            position: absolute;
+            right: 14mm;
+            bottom: 8mm;
+            font-size: 9.5pt;
+            font-style: italic;
+        }
+
+        .center-block {
+            display:inline-block;
+            text-align:center;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="paper">
+    <img src="Emblem_of_Vietnam.png" alt="Quốc huy" class="emblem">
+    <div class="header">
+        <div class="state">SOCIALIST REPUBLIC OF VIETNAM</div>
+        <div class="motto">Independence - Freedom - Happiness</div>
+
+        <div class="main-title">
+            <div class="title-large">CERTIFICATE</div>
+            <div class="title-medium">RIGHT TO USE LAND,</div>
+            <div class="title-medium">OWNERSHIP OF ASSETS ATTACHED TO LAND</div>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <span class="sec-title">1. Person using the land, owner of assets attached to the land:</span>
+            <div class="col">
+                Mr. THACH NGUYEN PHONG, CCCD: 079093015131<br>
+                And wife: Mrs. NGUYEN LE KIM NGAN, CCCD: 079195000613
+            </div>
+        </div>
+
+        <div class="section">
+            <span class="sec-title">2. Information on the land parcel:</span>
+            <div class="col">
+                a. Land parcel number: 53; map sheet number: 19,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; b. Area: 11615.0m2;<br>
+                c. Type of land: Residential land in urban areas,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; d. Term of use: Long term<br>
+                d. Form of use: Shared use.<br>
+                e. Address: 275 Vo Nguyen Giap Street, An Phu Ward, Thu Duc City, Ho Chi Minh City.
+            </div>
+        </div>
+
+        <div class="section">
+            <span class="sec-title">3. Information on the asset attached to the land:</span>
+            <div class="col">
+                a. Name of asset: Apartment No. 16.03, Floor 16,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; b. Usable area: 70.1m2;<br>
+                c. Form of ownership: Joint ownership,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; d. Duration of ownership: -<br>
+                Address: Apartment No. 16.03, Floor 16 - Residential area - Commercial Center - Office at No. 275 Vo Nguyen Giap Street, Quarter 4, An Phu Ward, Thu Duc City, Ho Chi Minh City.
+            </div>
+        </div>
+
+        <div class="section">
+            <br><br><br>
+            <div style="height:10px;"></div>
+            
+            <div class="center-block" style="width:100%; margin-top:6px;">
+                <div class="sign-block" style="display:inline-block;">
+                    Ho Chi Minh City, 05 April 2025<br>
+                    CITY LAND REGISTRATION OFFICE<br>
+                    ON BEHALF OF THE DIRECTOR<br>
+                    DEPUTY DIRECTOR
+                    <div class="sig-lines">
+                        [signed]<br>
+                        LE THANH PHUONG
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="entry-number">
+        AA 01096845
+    </div>
+
+</div>
+
+<div class="paper">
+    <div class="content">
+        <div class="section">
+            <span class="sec-title">4. Diagram of the land parcel and assets attached to the land:</span>
+            <div class="map-area"></div>
+        </div>
+
+        <div class="section">
+            <span class="sec-title">5. Notes: -/--</span>
+        </div>
+
+        <div class="section">
+            <span class="sec-title">6. Changes after issuance of the Certificate:</span>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:69%;">Content of changes and legal basis</th>
+                        <th style="width:31%;">Confirmation by the competent authority</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="height:120px;">
+                        <td></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top:10px;">
+            The person to whom the Certificate is issued must not correct, erase or add any content in the Certificate; if the Certificate is lost or damaged, it must be reported immediately to the issuing authority.
+        </div>
+
+        <div class="entry-number">
+            Certificate issuance registration number: VP 15776
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

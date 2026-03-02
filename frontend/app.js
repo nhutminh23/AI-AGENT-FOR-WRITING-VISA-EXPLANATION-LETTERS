@@ -93,9 +93,20 @@ const pdfBuildSplitFormBtn = document.getElementById("pdfBuildSplitFormBtn");
 const pdfManualSegmentsEl = document.getElementById("pdfManualSegments");
 const pdfRunSplitBtn = document.getElementById("pdfRunSplitBtn");
 const pdfMergeFilesEl = document.getElementById("pdfMergeFiles");
-const pdfMergeOutputNameEl = document.getElementById("pdfMergeOutputName");
+const pdfMergePrefixEl = document.getElementById("pdfMergePrefix");
+const pdfMergeDocTypeEl = document.getElementById("pdfMergeDocType");
+const pdfMergeDocTypeCustomEl = document.getElementById("pdfMergeDocTypeCustom");
+const pdfMergeGenBtn = document.getElementById("pdfMergeGenBtn");
+const pdfMergePreviewEl = document.getElementById("pdfMergePreview");
 const pdfRunMergeBtn = document.getElementById("pdfRunMergeBtn");
 const pdfToolsResultEl = document.getElementById("pdfToolsResult");
+const pdfRenameSourceFileEl = document.getElementById("pdfRenameSourceFile");
+const pdfRenamePrefixEl = document.getElementById("pdfRenamePrefix");
+const pdfRenameDocTypeEl = document.getElementById("pdfRenameDocType");
+const pdfRenameDocTypeCustomEl = document.getElementById("pdfRenameDocTypeCustom");
+const pdfRenameGenBtn = document.getElementById("pdfRenameGenBtn");
+const pdfRunRenameBtn = document.getElementById("pdfRunRenameBtn");
+const pdfRenamePreviewEl = document.getElementById("pdfRenamePreview");
 
 let cachedFiles = [];
 let hotelHtmls = [];
@@ -103,6 +114,31 @@ let writerContextCache = "";
 let activeStepLog = null;
 let classifierFilesCache = [];
 let pdfFilesCache = [];
+
+const PDF_RENAME_PREFIX_OPTIONS = [
+  { value: "PERSONAL", label: "HO SO CA NHAN / PERSONAL" },
+  { value: "TRAVEL HISTORY", label: "LICH SU DU LICH / TRAVEL HISTORY" },
+  { value: "EMPLOYMENT", label: "CONG VIEC / EMPLOYMENT" },
+  { value: "FINANCES", label: "TAI CHINH / FINANCES" },
+  { value: "PURPOSE", label: "MUC DICH CHUYEN DI / PURPOSE" },
+];
+
+const PDF_RENAME_DOC_TYPE_SUGGESTIONS = [
+  { value: "BIRTH CERT", label: "GIAY KHAI SINH / BIRTH CERT" },
+  { value: "MARRIAGE CERT", label: "GIAY KET HON / MARRIAGE CERT" },
+  { value: "DIVORCE CERT", label: "GIAY LY HON / DIVORCE CERT" },
+  { value: "LEAVE LETTER", label: "DON XIN NGHI PHEP / LEAVE LETTER" },
+  { value: "LABOR CONTRACT", label: "HOP DONG LAO DONG / LABOR CONTRACT" },
+  { value: "LEASE AGREEMENT", label: "HOP DONG THUE NHA / LEASE AGREEMENT" },
+  { value: "SOCIAL INSURANCE", label: "BAO HIEM XA HOI / SOCIAL INSURANCE" },
+  { value: "LAND CERT", label: "GIAY TO DAT / LAND CERT" },
+  { value: "BUSINESS LICENSE", label: "GIAY PHEP KINH DOANH / BUSINESS LICENSE" },
+  { value: "TAX", label: "THUE / TAX" },
+  { value: "BANK STATEMENT", label: "SAO KE / BANK STATEMENT" },
+  { value: "PASSPORT", label: "HO CHIEU / PASSPORT" },
+  { value: "NATIONAL ID", label: "CAN CUOC CONG DAN / NATIONAL ID" },
+  { value: "BALANCE CERT", label: "XAC NHAN SO DU / BALANCE CERT" },
+];
 const LETTER_STEP_ORDER = ["ingest", "summary", "writer"];
 const stepLogs = {
   ingest: "Chưa chạy.",
@@ -245,6 +281,116 @@ function renderPdfSourceOptions() {
         .join("");
     }
   }
+
+  if (pdfRenameSourceFileEl) {
+    if (!pdfs.length) {
+      pdfRenameSourceFileEl.innerHTML =
+        '<option value="">-- Không có file PDF nào trong pdf/input --</option>';
+    } else {
+      pdfRenameSourceFileEl.innerHTML = pdfs
+        .map((f) => {
+          const value = f.rel_path || f.name;
+          const label = f.rel_path || f.name;
+          return `<option value="${value}">${label}</option>`;
+        })
+        .join("");
+    }
+  }
+
+  if (pdfRenamePrefixEl) {
+    pdfRenamePrefixEl.innerHTML = PDF_RENAME_PREFIX_OPTIONS.map(
+      (opt) => `<option value="${opt.value}">${opt.label}</option>`
+    ).join("");
+  }
+
+  if (pdfRenameDocTypeEl) {
+    const options = PDF_RENAME_DOC_TYPE_SUGGESTIONS.map(
+      (opt) => `<option value="${opt.value}">${opt.label}</option>`
+    );
+    options.push('<option value="__CUSTOM__">Khác (tự nhập / dùng AI)</option>');
+    pdfRenameDocTypeEl.innerHTML = options.join("");
+  }
+
+  if (pdfMergePrefixEl) {
+    pdfMergePrefixEl.innerHTML = PDF_RENAME_PREFIX_OPTIONS.map(
+      (opt) => `<option value="${opt.value}">${opt.label}</option>`
+    ).join("");
+  }
+
+  if (pdfMergeDocTypeEl) {
+    const options = PDF_RENAME_DOC_TYPE_SUGGESTIONS.map(
+      (opt) => `<option value="${opt.value}">${opt.label}</option>`
+    );
+    options.push('<option value="__CUSTOM__">Khác (tự nhập / dùng AI)</option>');
+    pdfMergeDocTypeEl.innerHTML = options.join("");
+  }
+
+  updatePdfRenamePreview();
+  updatePdfMergePreview();
+}
+
+function updatePdfRenamePreview() {
+  if (!pdfRenamePreviewEl) return;
+  const prefix = (pdfRenamePrefixEl?.value || "").trim() || "[PREFIX]";
+  let docType = "[DOC_TYPE]";
+  if (pdfRenameDocTypeEl) {
+    const selected = (pdfRenameDocTypeEl.value || "").trim();
+    if (selected === "__CUSTOM__") {
+      if (pdfRenameDocTypeCustomEl) {
+        const custom = (pdfRenameDocTypeCustomEl.value || "").trim();
+        if (custom) {
+          docType = custom;
+        }
+        pdfRenameDocTypeCustomEl.style.display = "block";
+      }
+    } else {
+      docType = selected || "[DOC_TYPE]";
+      if (pdfRenameDocTypeCustomEl) {
+        pdfRenameDocTypeCustomEl.style.display = "none";
+      }
+    }
+  }
+  pdfRenamePreviewEl.textContent = `Tên mới sẽ có dạng: ${prefix} - ${docType}.pdf`;
+}
+
+function updatePdfMergePreview() {
+  if (!pdfMergePreviewEl) return;
+  const prefix = (pdfMergePrefixEl?.value || "").trim() || "[PREFIX]";
+  let docType = "[DOC_TYPE]";
+  if (pdfMergeDocTypeEl) {
+    const selected = (pdfMergeDocTypeEl.value || "").trim();
+    if (selected === "__CUSTOM__") {
+      if (pdfMergeDocTypeCustomEl) {
+        const custom = (pdfMergeDocTypeCustomEl.value || "").trim();
+        if (custom) {
+          docType = custom;
+        }
+        pdfMergeDocTypeCustomEl.style.display = "block";
+      }
+    } else {
+      docType = selected || "[DOC_TYPE]";
+      if (pdfMergeDocTypeCustomEl) {
+        pdfMergeDocTypeCustomEl.style.display = "none";
+      }
+    }
+  }
+  pdfMergePreviewEl.textContent = `Tên file output sẽ có dạng: ${prefix} - ${docType}.pdf`;
+}
+
+function getPdfMergeOutputName() {
+  const prefix = (pdfMergePrefixEl?.value || "").trim();
+  if (!prefix) return "";
+  let docType = "";
+  if (pdfMergeDocTypeEl) {
+    const selected = (pdfMergeDocTypeEl.value || "").trim();
+    if (selected === "__CUSTOM__") {
+      docType = (pdfMergeDocTypeCustomEl?.value || "").trim();
+    } else {
+      docType = selected;
+    }
+  }
+  if (!docType) return "";
+  return `${prefix} - ${docType}`;
 }
 
 function buildManualSegments() {
@@ -396,9 +542,9 @@ async function runPdfMerge() {
     alert("Vui lòng chọn ít nhất 2 file PDF để nối.");
     return;
   }
-  const output_name = (pdfMergeOutputNameEl?.value || "").trim();
+  const output_name = getPdfMergeOutputName();
   if (!output_name) {
-    alert("Vui lòng nhập tên file output.");
+    alert("Vui lòng chọn tiền tố loại hồ sơ và tên giấy tờ.");
     return;
   }
   const originalText = pdfRunMergeBtn.textContent;
@@ -441,6 +587,177 @@ async function runPdfMerge() {
   } finally {
     pdfRunMergeBtn.disabled = false;
     pdfRunMergeBtn.textContent = originalText;
+  }
+}
+
+async function runPdfRename() {
+  const inputDir = "pdf/input";
+  if (!pdfRenameSourceFileEl) {
+    alert("Không tìm thấy danh sách file PDF.");
+    return;
+  }
+  const source = pdfRenameSourceFileEl.value;
+  if (!source) {
+    alert("Vui lòng chọn file PDF cần đổi tên.");
+    return;
+  }
+  const prefix = (pdfRenamePrefixEl?.value || "").trim();
+  let docType = "";
+  if (!prefix) {
+    alert("Vui lòng chọn tiền tố loại hồ sơ.");
+    return;
+  }
+  if (!pdfRenameDocTypeEl) {
+    alert("Không tìm thấy box Tên giấy tờ.");
+    return;
+  }
+  const selected = (pdfRenameDocTypeEl.value || "").trim();
+  if (selected === "__CUSTOM__") {
+    const custom = (pdfRenameDocTypeCustomEl?.value || "").trim();
+    if (!custom) {
+      alert("Vui lòng nhập tên giấy tờ (có thể nhập tiếng Việt để gen EN).");
+      return;
+    }
+    docType = custom;
+  } else {
+    docType = selected;
+  }
+  if (!docType) {
+    alert("Vui lòng chọn hoặc nhập tên giấy tờ.");
+    return;
+  }
+
+  const originalText = pdfRunRenameBtn.textContent;
+  pdfRunRenameBtn.disabled = true;
+  pdfRunRenameBtn.textContent = "Đang đổi tên...";
+  if (pdfToolsResultEl) {
+    pdfToolsResultEl.textContent = "Đang đổi tên file PDF...";
+  }
+
+  try {
+    const res = await fetch("/api/pdf/rename", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input_dir: inputDir,
+        source,
+        prefix,
+        doc_type: docType,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (pdfToolsResultEl) {
+        pdfToolsResultEl.textContent = `Lỗi đổi tên PDF: ${data.error || "không xác định"}`;
+      }
+      return;
+    }
+
+    if (pdfToolsResultEl) {
+      const lines = [];
+      lines.push("Đổi tên PDF hoàn thành.");
+      lines.push(`- File cũ: ${data.source}`);
+      lines.push(`- Tên mới: ${data.new_name}`);
+      lines.push(`- Đường dẫn mới (tương đối với pdf/input): ${data.new_rel_path}`);
+      pdfToolsResultEl.textContent = lines.join("\n");
+    }
+
+    await loadPdfFiles();
+  } catch (error) {
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = `Lỗi đổi tên PDF: ${error.message}`;
+    }
+  } finally {
+    pdfRunRenameBtn.disabled = false;
+    pdfRunRenameBtn.textContent = originalText;
+  }
+}
+
+async function genPdfRenameDocType() {
+  if (!pdfRenameDocTypeCustomEl) return;
+  const current = (pdfRenameDocTypeCustomEl.value || "").trim();
+  if (!current) {
+    alert("Vui lòng nhập nội dung tiếng Việt mô tả loại giấy tờ trước khi gen tên EN.");
+    return;
+  }
+
+  if (pdfToolsResultEl) {
+    pdfToolsResultEl.textContent = "Đang gọi AI để gợi ý tên tiếng Anh ngắn gọn...";
+  }
+
+  try {
+    const res = await fetch("/api/pdf/rename_suggest_name", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_text: current }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (pdfToolsResultEl) {
+        pdfToolsResultEl.textContent = `Lỗi gen tên EN: ${data.error || "không xác định"}`;
+      }
+      return;
+    }
+
+    const suggested = (data.suggested_name || "").trim();
+    if (suggested) {
+      if (pdfRenameDocTypeEl) {
+        pdfRenameDocTypeEl.value = "__CUSTOM__";
+      }
+      pdfRenameDocTypeCustomEl.value = suggested;
+      updatePdfRenamePreview();
+    }
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = `Gợi ý tên EN: ${suggested}`;
+    }
+  } catch (error) {
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = `Lỗi gen tên EN: ${error.message}`;
+    }
+  }
+}
+
+async function genPdfMergeDocType() {
+  if (!pdfMergeDocTypeCustomEl) return;
+  const current = (pdfMergeDocTypeCustomEl.value || "").trim();
+  if (!current) {
+    alert("Vui lòng nhập nội dung tiếng Việt mô tả loại giấy tờ trước khi gen tên EN.");
+    return;
+  }
+
+  if (pdfToolsResultEl) {
+    pdfToolsResultEl.textContent = "Đang gọi AI để gợi ý tên tiếng Anh ngắn gọn...";
+  }
+
+  try {
+    const res = await fetch("/api/pdf/rename_suggest_name", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_text: current }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (pdfToolsResultEl) {
+        pdfToolsResultEl.textContent = `Lỗi gen tên EN: ${data.error || "không xác định"}`;
+      }
+      return;
+    }
+
+    const suggested = (data.suggested_name || "").trim();
+    if (suggested) {
+      if (pdfMergeDocTypeEl) {
+        pdfMergeDocTypeEl.value = "__CUSTOM__";
+      }
+      pdfMergeDocTypeCustomEl.value = suggested;
+      updatePdfMergePreview();
+    }
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = `Gợi ý tên EN: ${suggested}`;
+    }
+  } catch (error) {
+    if (pdfToolsResultEl) {
+      pdfToolsResultEl.textContent = `Lỗi gen tên EN: ${error.message}`;
+    }
   }
 }
 
@@ -1397,6 +1714,33 @@ if (pdfRunSplitBtn) {
 }
 if (pdfRunMergeBtn) {
   pdfRunMergeBtn.addEventListener("click", runPdfMerge);
+}
+if (pdfRunRenameBtn) {
+  pdfRunRenameBtn.addEventListener("click", runPdfRename);
+}
+if (pdfRenameGenBtn) {
+  pdfRenameGenBtn.addEventListener("click", genPdfRenameDocType);
+}
+if (pdfRenamePrefixEl) {
+  pdfRenamePrefixEl.addEventListener("change", updatePdfRenamePreview);
+}
+if (pdfRenameDocTypeEl) {
+  pdfRenameDocTypeEl.addEventListener("change", updatePdfRenamePreview);
+}
+if (pdfRenameDocTypeCustomEl) {
+  pdfRenameDocTypeCustomEl.addEventListener("input", updatePdfRenamePreview);
+}
+if (pdfMergeGenBtn) {
+  pdfMergeGenBtn.addEventListener("click", genPdfMergeDocType);
+}
+if (pdfMergePrefixEl) {
+  pdfMergePrefixEl.addEventListener("change", updatePdfMergePreview);
+}
+if (pdfMergeDocTypeEl) {
+  pdfMergeDocTypeEl.addEventListener("change", updatePdfMergePreview);
+}
+if (pdfMergeDocTypeCustomEl) {
+  pdfMergeDocTypeCustomEl.addEventListener("input", updatePdfMergePreview);
 }
 
 // PDF Export helpers

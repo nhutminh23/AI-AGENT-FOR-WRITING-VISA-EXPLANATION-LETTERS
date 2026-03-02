@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Document</title>
+<style>
+    @page { size: A4; margin: 0; }
+    body {
+        margin: 0;
+        padding: 20px 0;
+        background: #eee;
+        display: flex;
+        flex-direction: column; /* Xếp dọc các trang */
+        align-items: center;    /* Căn giữa trang A4 */
+        font-family: "Times New Roman", Times, serif;
+        -webkit-print-color-adjust: exact;
+    }
+    .a4 {
+        width: 210mm;
+        min-height: 297mm;
+        background: #fff;
+        padding: 20mm;
+        box-sizing: border-box;
+        box-shadow: 0 0 10px rgba(0,0,0,0.15);
+        position: relative;
+        color: #000;
+        font-size: 12pt;
+        line-height: 1.4;
+        margin-bottom: 20px; /* Tạo khoảng cách giữa các trang trên web */
+        page-break-after: always;
+    }
+    .center {
+        text-align: center;
+    }
+    .title {
+        font-weight: bold;
+        text-transform: uppercase;
+        margin: 0 0 6px 0;
+        font-size: 14pt;
+    }
+    .subtitle {
+        margin: 0 0 12px 0;
+        font-size: 12pt;
+        font-style: normal;
+    }
+    .small-note {
+        font-size: 10pt;
+        margin-bottom: 12px;
+    }
+    .section {
+        margin-bottom: 10px;
+        text-align: justify;
+    }
+    .numbered {
+        margin-left: 0;
+        margin-bottom: 8px;
+    }
+    .signature-row {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-top: 36px;
+    }
+    .sig-block {
+        width: 48%;
+        text-align: center;
+    }
+    .sig-block .sig-title {
+        font-weight: bold;
+        margin-bottom: 18px;
+    }
+    .sig-block .sig-line {
+        display: block;
+        margin: 6px 0;
+        min-height: 18px;
+    }
+    .footer-page {
+        position: absolute;
+        bottom: 12mm;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 10pt;
+    }
+    /* Print rules */
+    @media print {
+        body { 
+            padding: 0; 
+            background: none; 
+            display: block; /* Tắt flexbox khi in */
+        }
+        .a4 { 
+            box-shadow: none; 
+            margin: 0; /* Bỏ margin khi in */
+            height: 297mm; 
+            padding: 20mm; 
+        }
+    }
+    /* Preserve whitespace for preformatted blocks */
+    .preserve {
+        white-space: pre-wrap;
+        font-size: 12pt;
+    }
+    table.pay {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        margin-bottom: 8px;
+    }
+    table.pay td, table.pay th {
+        border: 1px solid #000;
+        padding: 6px;
+        vertical-align: top;
+        font-size: 11pt;
+    }
+    table.pay th {
+        text-align: center;
+        font-weight: bold;
+    }
+</style>
+</head>
+<body>
+
+    <div class="a4">
+        <div class="center">
+            <div class="title">APPENDIX 6</div>
+            <div class="title">OPERATION AND MANAGEMENT FEE</div>
+            <div class="small-note">(Attached to the house/construction sale and purchase contract No. NWP.5.5-2.28/2024/HDMB/DVBT-TNP-NLKN dated 10 June 2024)</div>
+        </div>
+
+        <div class="section preserve">
+The Buyer shall be responsible for payment of the Operation and Management Fee according to the provisions as follows:
+
+1. The Operation and Management Fee (excluding VAT) is prescribed by the Seller and is calculated per square metre of Total Land Use Area. Details of this fee level will be notified in writing by the Seller to the Buyer at the time of invitation to receive handover; the expected fee level is from 16,000 to 20,000 VND/m2/month.
+
+This fee may be adjusted by agreement with the management and operation unit on a reasonable basis, appropriate to the actual circumstances at each time and shall be notified in writing by the Seller to the Buyer prior to application.
+
+The Buyer is obliged to pay 03 (three) months of the initial Operation and Management Fee into the Seller's account within 05 (five) days before the Handover Date as notified by the Seller. The remaining Operation and Management Fee for the first year shall be paid periodically quarterly (every 03 months) on the first 05 (five) days of each quarter.
+
+2. The Operation and Management Fee shall be paid into the Seller's management and operation expense account as notified by the Seller.
+
+3. The Operation and Management Fee shall be used to carry out the works and services of managing and operating the Resort Real Estate Area including but not limited to security services, environmental sanitation, pest control, gardening, care of green trees, cleaning of public areas, fire-fighting equipment, electricity and water costs for the Common Area and wastewater treatment costs.
+        </div>
+
+        <div class="signature-row">
+            <div class="sig-block">
+                <div class="sig-title">BUYER</div>
+                <div class="sig-line">[signed]</div>
+                <div class="sig-line">THACH NGUYEN PHONG</div>
+                <div class="sig-line">[signed]</div>
+                <div class="sig-line">NGUYEN LE KIM NGAN</div>
+            </div>
+
+            <div class="sig-block">
+                <div class="sig-title">SELLER'S REPRESENTATIVE</div>
+                <div class="sig-line">[signed]</div>
+                <div class="sig-line">PHUNG HAI DANG</div>
+                <div class="sig-line">Project Executive Director</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="a4">
+        <div class="center">
+            <div class="title">APPENDIX 7</div>
+            <div class="title">REGULATIONS OF THE RESORT REAL ESTATE AREA</div>
+            <div class="small-note">(Attached to the house/construction sale and purchase contract No. NWP.5.5-2.28/2024/HDMB/DVBT-TNP-NLKN dated 10 June 2024)</div>
+        </div>
+
+        <div class="section preserve">
+PART 1: DEFINITIONS
+
+Unless the context requires otherwise, the following capitalised terms in the Regulations of the Resort Real Estate Area shall have the corresponding meanings as follows:
+
+Contract                      : means the sale/purchase/rental contract for the house/construction works and all appendices attached thereto as well as all written amendments and supplements to the contract made and signed by the Investor and the Owner during the performance of the contract.
+
+Project                       : means the real estate project of the Investor named Toh hop Khu du lich Thung Valley Dai Duong located at Tien Thanh Commune, Phan Thiet City.
+
+Owner                         : means one or more persons who have legal ownership rights/legal lawful use rights to the Resort Real Estate within the Resort Real Estate Area or the buyer/lessee named in the Contract
+
+Occupant                      : means the Owner, members of the Owner's family, the Tenant, members of the Tenant's family, domestic helpers and any person entitled to reside in the Resort Real Estate.
+
+Tenant                        : means one or more persons who have signed a long-term lease contract (lease term of 6 months or more) of the Resort Real Estate with the Owner.
+
+Guest                         : means any person present in the Resort Real Estate Area invited by the Owner/ Tenant/ Occupant.
+
+Investor                      : means the capital owner or the organisation, individual assigned to manage and use the capital to implement the investment project for construction of the Resort Real Estate.
+
+Resort Real Estate            : means including resort villas, shophouses and other resort real estates of the Project constructed by the Investor for sale/long-term lease, details as stipulated in this Contract.
+
+Real Estate Area              : means the area including the Resort Real Estate of the Project.
+        </div>
+    </div>
+
+    <div class="a4">
+        <div class="center">
+            <div class="title">APPENDIX 8</div>
+            <div class="small-note">(Attached to the house/construction sale and purchase contract No. NWP.5.5-2.28/2024/HDMB/DVBT-TNP-NLKN dated 10 June 2024)</div>
+        </div>
+
+        <div class="section preserve">
+This Appendix ("Appendix") is made on 10 June 2024, by and between the following parties:
+
+DELTA-VALLEY BINH THUAN COMPANY LIMITED
+
+Head office address        : Hon Gio - Thuan Quy Street, Thon Tien Hoa, Tien Thanh Commune, Phan Thiet City, Binh Thuan Province
+
+Contact address            : 65 Nguyen Du, Ben Nghe Ward, District 1, Ho Chi Minh City, Vietnam
+
+Telephone                  : 1900636666
+
+Account number (VND)       : 3171157970066 at Military Commercial Joint Stock Bank (MB) - Bac Sai Gon Branch
+
+Business registration number: 3400573917
+
+Representative             : Mr PHUNG HAI DANG
+
+Position                   : Project Executive Director
+
+Pursuant to Power of Attorney No.: 07/2024-UQ-DVBT dated 29 December 2023
+
+(Hereinafter referred to as "Seller" or "Investor")
+
+And
+
+Mr./Ms                    : THACH NGUYEN PHONG
+
+Citizen identity card / passport no./ID card: 079093015131   Issued date : 27 November 2021   Issued at : Department of Police for Administrative Management of Social Order
+
+Expiration date           : 05 April 2033
+
+Mr./Ms                    : NGUYEN LE KIM NGAN
+
+ID card/passport/CCC D    : 079195000613  Issued date: 23 January 2022  Issued at: Department of Police for Administrative Management of Social Order
+
+Expiration date           : 12 January 2035
+
+(Hereinafter referred to as "Buyer")
+
+(The Seller and the Buyer hereinafter jointly referred to as the "Parties" and individually as a "Party", to be understood as applicable
+        </div>
+
+        <div class="section preserve">
+CONSIDERING:
+
+A. The Parties have entered into the house/construction sale and purchase contract No.
+NWP.5.5-2.28/2024/HDMB/DVBT-TNP-NLKN dated 10 June 2024, and the attached appendices ("Contract");
+
+B. Based on the needs and actual wishes of the Parties in performing the Contract.
+
+THEREFORE, NOW, the Parties agree to prepare and sign this Appendix to amend and supplement some contents of the Contract as follows:
+
+ARTICLE 1. AMENDED AND SUPPLEMENTED CONTENTS
+
+The Parties agree to amend Item 4 of Appendix 5 - Sale price and payment schedule attached to the Contract as follows:
+
+"4. Based on the capability and needs of the Buyer, the Parties agree the payment schedule of the Sale Price of the Resort Real Estate as follows:
+        </div>
+    </div>
+
+    <div class="a4">
+        <div class="section preserve">
+(The Seller and the Buyer hereinafter jointly referred to as the "Parties" and individually as a "Party", to be understood as applicable)
+
+CONSIDERING:
+
+A. The Parties have entered into the house/construction sale and purchase contract No.
+NWP.5.5-2.28/2024/HDMB/DVBT-TNP-NLKN dated 10 June 2024, and the attached appendices ("Contract");
+
+B. Based on the needs and actual wishes of the Parties in performing the Contract.
+
+THEREFORE, NOW, the Parties agree to prepare and sign this Appendix to amend and supplement some contents of the Contract as follows:
+
+ARTICLE 1. AMENDED AND SUPPLEMENTED CONTENTS
+
+The Parties agree to amend Item 4 of Appendix 5 - Sale price and payment schedule attached to the Contract as follows:
+
+"4. Based on the capability and needs of the Buyer, the Parties agree the payment schedule of the Sale Price of the Resort Real Estate as follows:
+        </div>
+                <table class="pay">
+            <thead>
+                <tr>
+                    <th>Installment</th>
+                    <th>Payment ratio<br>(%/Sale Price of the Resort Real Estate)</th>
+                    <th>Payment amount excluding VAT (VND)</th>
+                    <th>Corresponding VAT (VND)</th>
+                    <th>Total payment amount including VAT (VND)</th>
+                    <th>Payment deadline</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="text-align: center;">1</td>
+                    <td style="text-align: center;">30.00</td>
+                    <td style="text-align: right;">3,247,207,814</td>
+                    <td style="text-align: right;">324,720,781</td>
+                    <td style="text-align: right;">3,571,928,595</td>
+                    <td>Immediately after signing the Contract</td>
+                </tr>
+                <tr>
+                    <td style="text-align: center;">2</td>
+                    <td style="text-align: center;">43.44</td>
+                    <td style="text-align: right;">4,702,449,339</td>
+                    <td style="text-align: right;">470,244,934</td>
+                    <td style="text-align: right;">5,172,694,273</td>
+                    <td>Within 10 (ten) days from the day following the signing date of the Contract (The right of late payment of 10 days specified in Clause 11.1 of the Contract shall not be applied)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="a4">
+        <table class="pay">
+            <tbody>
+                <tr>
+                    <td style="text-align: center;">3</td>
+                    <td style="text-align: center;">21.56</td>
+                    <td style="text-align: right;">2,333,167,592</td>
+                    <td style="text-align: right;">233,316,759</td>
+                    <td style="text-align: right;">2,566,484,351</td>
+                    <td>Within 05 (five) days before the expected handover date of the Resort Real Estate as notified by letter.</td>
+                </tr>
+                <tr>
+                    <td style="text-align: center;">4</td>
+                    <td style="text-align: center;">5.00</td>
+                    <td style="text-align: right;">541,201,302</td>
+                    <td style="text-align: right;">54,120,131</td>
+                    <td style="text-align: right;">595,321,433</td>
+                    <td>Within 05 (five) days before the expected issuance date of the Certificate as notified by letter. (The remaining VAT of 54,120,131 VND will be paid at the same time as the aforementioned Handover installment)</td>
+                </tr>
+                <tr>
+                    <td style="text-align: center; font-weight: bold;">TOTAL</td>
+                    <td style="text-align: center; font-weight: bold;">100.00</td>
+                    <td style="text-align: right; font-weight: bold;">10,824,026,047</td>
+                    <td style="text-align: right; font-weight: bold;">1,082,402,605</td>
+                    <td style="text-align: right; font-weight: bold;">11,906,428,652</td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section preserve">
+For the avoidance of doubt, in the event that any content of Article 1 of this Appendix cannot be implemented without fault of the Parties, the Parties agree to terminate performance of payment in accordance with the schedule stipulated in Article 1 of this Appendix. Accordingly, the Buyer shall proceed to make payments according to the Sale Price of the Resort Real Estate and the payment schedule specified in Appendix 5 attached to the Contract. Any amount paid by the Buyer in excess of the payment schedule stipulated in Appendix 5 attached to the Contract shall not be refunded to the Buyer but shall be deemed as a withholding amount (security deposit) to secure payment of subsequent installments in accordance with Appendix 5 attached to the Contract and shall be applied against subsequent installments as stipulated in Appendix 5 attached to the Contract.
+
+ARTICLE 2: GENERAL PROVISIONS
+
+2.1. This Appendix is governed by and construed in accordance with the laws of Vietnam.
+
+2.2. This Appendix is executed on the basis of voluntariness and equality. The Parties warrant that they have the authority and capacity under this Appendix and the law to sign and perform this Appendix.
+
+2.3. In this Appendix, capitalised words and phrases shall have the meanings as defined in the Contract, unless the context requires a different interpretation.
+
+2.4. This Appendix shall take effect from the date of signing by the Parties and is an integral part of the Contract. Matters not stipulated in this Appendix shall be governed by the provisions of the Contract and applicable law.
+        </div>
+    </div>
+    <div class="a4">
+        <div class="section preserve">
+2.5. From the effective date of this Appendix, except for the contents amended and supplemented herein, the remaining contents of the Contract shall continue to be in force between the Parties. In the event of any inconsistency between this Appendix and the Contract with respect to the same matter, the provisions of this Appendix shall prevail.
+
+2.6. In the event that any clause and/or provision of this Appendix is determined by a competent State authority to be invalid or without legal effect or unenforceable, such determination shall not affect the validity of the remaining clauses and/or provisions; the Parties shall agree to amend such clause or provision to conform with the intent of the Parties and the law as soon as possible. The Parties shall continue and shall not interrupt the performance of other valid clauses and provisions of this Appendix.
+
+2.7. This Appendix is executed in 03 (three) original copies in Vietnamese, each bearing the original signature of the authorised representative of each Party and having equal legal validity. The Seller keeps 02 (two) copies, the Buyer keeps 01 (one) copy as the basis for implementation.
+        </div>
+
+        <div class="signature-row" style="margin-top:18px;">
+            <div class="sig-block">
+                <div class="sig-title">BUYER/BUYER'S REPRESENTATIVE</div>
+                <div class="sig-line">[signed]</div>
+                <div class="sig-line">THACH NGUYEN PHONG</div>
+                <div class="sig-line">NGUYEN LE KIM NGAN</div>
+            </div>
+
+            <div class="sig-block">
+                <div class="sig-title">SELLER'S REPRESENTATIVE</div>
+                <div class="sig-line">[signed]</div>
+                <div class="sig-line">PHUNG HAI DANG</div>
+                <div class="sig-line">Project Executive Director</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

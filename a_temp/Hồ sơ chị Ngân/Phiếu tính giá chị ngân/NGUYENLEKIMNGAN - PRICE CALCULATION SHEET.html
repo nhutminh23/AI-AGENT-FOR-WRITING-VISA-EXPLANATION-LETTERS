@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PRICE CALCULATION SHEET</title>
+<style>
+    /* Thiết lập trang in chuẩn A4, loại bỏ margin mặc định của trình duyệt */
+    @page {
+        size: A4;
+        margin: 0; 
+    }
+    
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #eee;
+        font-family: "Times New Roman", serif;
+        -webkit-print-color-adjust: exact;
+    }
+
+    /* Container A4 */
+    .a4 {
+        width: 210mm;
+        height: 297mm; /* Chiều cao cố định chuẩn A4 */
+        background: #fff;
+        margin: 20px auto;
+        box-sizing: border-box;
+        padding: 15mm 20mm; /* Giảm padding trên/dưới để tăng không gian chứa nội dung */
+        box-shadow: 0 0 8px rgba(0,0,0,0.15);
+        position: relative;
+        color: #000;
+        font-size: 11.5pt; /* Giảm nhẹ font tổng thể */
+        line-height: 1.15;
+        overflow: hidden; /* Cắt bỏ phần thừa (nếu có) để tránh tràn trang */
+    }
+
+    /* Header elements */
+    .title {
+        text-align: center;
+        font-size: 15pt;
+        font-weight: bold;
+        margin-top: 0;
+        margin-bottom: 8px;
+        letter-spacing: 1px;
+    }
+
+    .doc-number {
+        position: absolute;
+        right: 20mm;
+        top: 15mm;
+        font-size: 15pt;
+        color: #000;
+        font-weight: bold;
+    }
+
+    /* Main table style */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 6px; /* Giảm khoảng cách giữa các bảng */
+    }
+    
+    .boxed td, .boxed th {
+        border: 1px solid #000;
+        padding: 3px 5px; /* Giảm padding trong cell */
+        vertical-align: middle;
+        font-size: 10pt;
+    }
+    
+    .section-heading {
+        font-weight: bold;
+        margin: 6px 0 4px 0;
+        font-size: 11pt;
+    }
+
+    /* Two-column info grid */
+    .info-table td {
+        vertical-align: middle;
+        padding: 3px 6px;
+        border: 1px solid #000;
+        font-size: 10.5pt;
+    }
+
+    /* Alignments */
+    .r { text-align: right; }
+    .c { text-align: center; }
+
+    /* Payment schedule table */
+    .schedule td, .schedule th {
+        border: 1px solid #000;
+        padding: 4px 6px;
+        font-size: 10pt;
+    }
+    .schedule th {
+        background: transparent;
+        font-weight: bold;
+    }
+
+    /* Signature blocks */
+    .signatures {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 12px;
+        gap: 10px;
+    }
+    .sign-block {
+        width: 32%;
+        text-align: center;
+        font-size: 10.5pt;
+    }
+    .sign-block .title {
+        font-weight: normal;
+        font-size: 10pt;
+        margin-bottom: 2px;
+    }
+    .sign-block .fullname {
+        margin-top: 4px;
+        font-weight: bold;
+        font-size: 10.5pt;
+    }
+    .signature-line {
+        margin-top: 15px; /* Rút gọn không gian ký tên */
+        height: 35px;
+    }
+
+    /* Bank info */
+    .bank {
+        margin-top: 8px;
+        font-size: 10pt;
+    }
+
+    /* Print-specific rules */
+    @media print {
+        body { 
+            background: none; 
+        }
+        .a4 { 
+            margin: 0; 
+            box-shadow: none; 
+            width: 100%; 
+            height: 100%; 
+            page-break-after: avoid; 
+            page-break-before: avoid;
+        }
+    }
+</style>
+</head>
+<body>
+    <div class="a4">
+        <div class="doc-number">2234</div>
+
+        <div class="title">PRICE CALCULATION SHEET</div>
+
+        <div class="section-heading">I. Customer information:</div>
+        <table class="info-table">
+            <tr>
+                <td style="width:28%;">Unit code:</td>
+                <td style="width:72%;">OS124.17</td>
+            </tr>
+            <tr>
+                <td>Customer name:</td>
+                <td>NGUYEN LE KIM NGAN</td>
+            </tr>
+            <tr>
+                <td>Building:</td>
+                <td>OS1</td>
+            </tr>
+            <tr>
+                <td>Floor:</td>
+                <td>24</td>
+            </tr>
+            <tr>
+                <td>Unit:</td>
+                <td>24.17</td>
+            </tr>
+        </table>
+
+        <div class="section-heading">II. Value calculation</div>
+        <table class="boxed">
+            <tr>
+                <td style="width:65%;">Net usable area (m2)</td>
+                <td class="r">30,20</td>
+            </tr>
+            <tr>
+                <td>Unit price (net usable area) (excluding VAT)</td>
+                <td class="r">106.372.578</td>
+            </tr>
+            <tr>
+                <td>Total value excluding VAT before deductions</td>
+                <td class="r">3.212.451.866</td>
+            </tr>
+            <tr>
+                <td>Price of package "Zen Home - Your Style" OPI - Studio Unit Discount 160 million</td>
+                <td class="r">160.000.000</td>
+            </tr>
+            <tr>
+                <td>Discount 11,5% if customer pays with own funds according to standard progress</td>
+                <td class="r">11,50%</td>
+            </tr>
+            <tr>
+                <td>Customer does not receive BK/HT? Discount 1%</td>
+                <td class="r">1,00%</td>
+            </tr>
+            <tr>
+                <td>Total value after deductions (excluding VAT)</td>
+                <td class="r">2.674.405.702</td>
+            </tr>
+            <tr>
+                <td>VAT 10%</td>
+                <td class="r">266.185.156</td>
+            </tr>
+            <tr>
+                <td>Maintenance fee 2%</td>
+                <td class="r">55.488.114</td>
+            </tr>
+            <tr>
+                <td>Total selling price (including VAT and maintenance fund)</td>
+                <td class="r">2.994.078.972</td>
+            </tr>
+            <tr>
+                <td>Selling unit price including VAT + KPBT (net usable area)</td>
+                <td class="r">99.141.688</td>
+            </tr>
+        </table>
+
+        <div class="section-heading">III. Payment schedule</div>
+        <table class="schedule">
+            <tr>
+                <th style="width:30%;">Schedule</th>
+                <th style="width:25%;">Payment date of installment</th>
+                <th style="width:10%;">%</th>
+                <th style="width:35%;">Total payment of installments according to schedule</th>
+            </tr>
+            <tr>
+                <td>Installment 1: Upon signing the Sale and Purchase Agreement</td>
+                <td class="c">30 October 2025</td>
+                <td class="r">10%</td>
+                <td class="r">294.059.086</td>
+            </tr>
+            <tr>
+                <td>Installment 2</td>
+                <td class="c">31 October 2025</td>
+                <td class="r">10%</td>
+                <td class="r">294.059.086</td>
+            </tr>
+            <tr>
+                <td>Installment 3</td>
+                <td class="c">25 November 2025</td>
+                <td class="r">15%</td>
+                <td class="r">441.088.629</td>
+            </tr>
+            <tr>
+                <td>Installment 4</td>
+                <td class="c">25 January 2026</td>
+                <td class="r">15%</td>
+                <td class="r">441.088.629</td>
+            </tr>
+            <tr>
+                <td>Installment 5: Upon handover of the apartment - including KPBT (Estimated)</td>
+                <td class="c">31 March 2026</td>
+                <td class="r">45%</td>
+                <td class="r">1.346.383.144</td>
+            </tr>
+            <tr>
+                <td>Upon receiving the pink book (Estimated)</td>
+                <td class="c">01 July 2026</td>
+                <td class="r">5%</td>
+                <td class="r">133.722.285</td>
+            </tr>
+            <tr>
+                <td class="c" colspan="2"><strong>Total</strong></td>
+                <td class="r"><strong>100%</strong></td>
+                <td class="r"><strong>2.994.078.972</strong></td>
+            </tr>
+        </table>
+
+        <div class="bank">
+            <strong>Kindly make the payment to the following bank account:</strong><br>
+            BENEFICIARY NAME: S-VIN2 VIET NAM REAL ESTATE BUSINESS JOINT STOCK COMPANY<br>
+            Account number: 3450088888<br>
+            Joint Stock Commercial Bank Viet Nam Thinh Vuong (VPBank) - Head Office Branch<br>
+            Swiftcode: VPBKVNVX<br>
+            Content: Apartment code, Name of customer purchasing the apartment, Payment installment date..., VHP Project
+        </div>
+
+        <div style="font-size:10pt; margin-top:6px;">
+            <strong>Customers please note:</strong>
+            <div style="margin-top:4px; padding-left:8px; font-style: italic;">
+                "In case the customer makes payment with incorrect content that the Buyer proves to be incorrect according to the terms and conditions of the Contract, the Appendices and/or the related documents and agreements signed by the Parties, the other Party must accept the amount paid and shall not be responsible for such errors."
+            </div>
+        </div>
+
+        <div class="signatures">
+            <div class="sign-block">
+                <div class="title">Preparer</div>
+                <div>(Full name)</div>
+                <div class="signature-line">[ signed ]</div>
+                <div class="fullname">NGO THI THANH NHAN</div>
+            </div>
+
+            <div class="sign-block">
+                <div class="title">Head of Receipts / Control</div>
+                <div>(Full name)</div>
+                <div class="signature-line">[ signed ]</div>
+                <div class="fullname">DUONG THI MY PHUC</div>
+            </div>
+
+            <div class="sign-block">
+                <div class="title">Customer</div>
+                <div>(Full name)</div>
+                <div class="signature-line">[ signed ]</div>
+                <div class="fullname">NGUYEN LE KIM NGAN</div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

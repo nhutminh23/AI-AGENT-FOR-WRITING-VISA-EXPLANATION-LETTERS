@@ -83,7 +83,12 @@ HO SO CA NHAN - passport.pdf
 CONG VIEC - hop_dong_lao_dong.docx
 TAI CHINH - sao_ke_6_thang.pdf
 ```
-
+PERSONAL
+TRAVEL HISTORY
+EMPLOYMENT
+FINANCES
+PURPOSE
+SUMMARY
 ---
 
 ## 🖥️ Sử dụng

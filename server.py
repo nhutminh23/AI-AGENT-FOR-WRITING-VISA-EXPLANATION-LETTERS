@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, request, send_from_directory
 from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents import (
     build_summary_profile,
@@ -394,6 +395,109 @@ def merge_pdf():
             "output_file": os.path.relpath(out_path, output_dir).replace("\\", "/"),
         }
     )
+
+
+@app.route("/api/pdf/rename", methods=["POST"])
+def rename_pdf():
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", os.path.join("pdf", "input"))
+    source = (payload.get("source") or "").strip()
+    prefix = (payload.get("prefix") or "").strip()
+    doc_type = (payload.get("doc_type") or "").strip()
+
+    if not os.path.isdir(input_dir):
+        return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
+    if not source:
+        return jsonify({"error": "missing_source"}), 400
+    if not prefix or not doc_type:
+        return jsonify({"error": "missing_name_parts"}), 400
+
+    try:
+        src_path = _safe_join(input_dir, source)
+    except ValueError:
+        return jsonify({"error": "invalid_source"}), 400
+
+    if not os.path.exists(src_path):
+        return jsonify({"error": "source_not_found"}), 404
+    if os.path.splitext(src_path)[1].lower() != ".pdf":
+        return jsonify({"error": "source_not_pdf"}), 400
+
+    def _sanitize_part(value: str) -> str:
+        text = (value or "").strip()
+        text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    def _pick_unique_name(dest_dir: str, stem: str, ext: str) -> str:
+        candidate = os.path.join(dest_dir, f"{stem}{ext}")
+        idx = 1
+        while os.path.exists(candidate):
+            candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
+            idx += 1
+        return candidate
+
+    prefix_clean = _sanitize_part(prefix)
+    doc_type_clean = _sanitize_part(doc_type)
+    if not prefix_clean or not doc_type_clean:
+        return jsonify({"error": "invalid_name"}), 400
+
+    stem = f"{prefix_clean} - {doc_type_clean}"
+    dest_dir = os.path.dirname(src_path)
+    dest_path = _pick_unique_name(dest_dir, stem, ".pdf")
+
+    try:
+        os.rename(src_path, dest_path)
+    except Exception as exc:
+        return jsonify({"error": "rename_failed", "detail": str(exc)}), 500
+
+    return jsonify(
+        {
+            "status": "done",
+            "input_dir": input_dir,
+            "source": os.path.relpath(src_path, input_dir).replace("\\", "/"),
+            "new_name": os.path.basename(dest_path),
+            "new_rel_path": os.path.relpath(dest_path, input_dir).replace("\\", "/"),
+        }
+    )
+
+
+@app.route("/api/pdf/rename_suggest_name", methods=["POST"])
+def pdf_rename_suggest_name():
+    payload = request.get_json(force=True) or {}
+    input_text = (payload.get("input_text") or "").strip()
+    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
+    if not input_text:
+        return jsonify({"error": "missing_input_text"}), 400
+
+    llm = ChatOpenAI(model=model, temperature=0)
+
+    system = SystemMessage(
+        content=(
+            "Bạn là trợ lý đặt tên tài liệu cho hồ sơ visa. "
+            "Nhiệm vụ: chuyển mô tả tiếng Việt về loại giấy tờ sang 1 cụm tiếng Anh rất ngắn gọn "
+            "(tối đa khoảng 3–4 từ), ALL CAPS, phù hợp đặt tên file. "
+            "Ví dụ: 'giấy khai sinh' -> 'BIRTH CERT'; 'giấy kết hôn' -> 'MARRIAGE CERT'. "
+            "Chỉ trả về đúng cụm tiếng Anh, không giải thích thêm."
+        )
+    )
+    human = HumanMessage(
+        content=f"Người dùng nhập: \"{input_text}\".\nHãy trả về cụm tiếng Anh ngắn gọn để đặt tên file."
+    )
+
+    try:
+        result = llm.invoke([system, human])
+    except Exception as exc:
+        return jsonify({"error": "llm_error", "detail": str(exc)}), 500
+
+    suggested = (getattr(result, "content", "") or "").strip().upper()
+    suggested = re.sub(r"[^A-Z0-9\s]", " ", suggested)
+    suggested = re.sub(r"\s+", " ", suggested).strip()
+
+    if not suggested:
+        return jsonify({"error": "empty_suggestion"}), 500
+
+    return jsonify({"suggested_name": suggested})
 
 
 @app.get("/api/steps")

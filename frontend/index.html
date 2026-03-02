@@ -17,7 +17,7 @@
         <button class="tab-btn" data-tab="letter">Thư giải trình</button>
         <button class="tab-btn" data-tab="outputs">Kết quả</button>
         <button class="tab-btn" data-tab="classifier">Phân loại file</button>
-        <button class="tab-btn" data-tab="pdf">Tách/Nối PDF</button>
+        <button class="tab-btn" data-tab="pdf">Tách/Nối/Rename PDF</button>
       </div>
 
       <!-- NEW: AI Booking Section -->
@@ -392,13 +392,74 @@
               <label for="pdfMergeFiles">Chọn các file cần nối (giữ Ctrl để chọn nhiều)</label>
               <select id="pdfMergeFiles" multiple size="6"></select>
             </div>
-            <div>
-              <label for="pdfMergeOutputName">Tên file output (không cần .pdf)</label>
-              <input id="pdfMergeOutputName" type="text" value="MERGED_PDF" />
+          </div>
+          <div class="row" style="margin-top: 10px; align-items: flex-end;">
+            <label style="flex: 0 0 100%; margin-bottom: 6px;">Tên file output (không cần .pdf)</label>
+            <div style="flex: 1; min-width: 180px;">
+              <label for="pdfMergePrefix">Tiền tố loại hồ sơ</label>
+              <select id="pdfMergePrefix"></select>
+            </div>
+            <div style="flex: 2; min-width: 220px; margin-left: 12px;">
+              <label for="pdfMergeDocType">Tên giấy tờ (EN, ngắn gọn)</label>
+              <select id="pdfMergeDocType"></select>
+              <input
+                id="pdfMergeDocTypeCustom"
+                type="text"
+                placeholder="Nhập mô tả tiếng Việt hoặc tên EN tuỳ ý"
+                style="margin-top: 6px; display: none;"
+              />
+            </div>
+            <div style="margin-left: 12px;">
+              <button id="pdfMergeGenBtn" type="button">Gen tên EN</button>
             </div>
           </div>
-          <div style="margin-top: 10px;">
-            <button id="pdfRunMergeBtn">Nối PDF</button>
+          <div class="row" style="margin-top: 10px;">
+            <div style="flex: 1;">
+              <small id="pdfMergePreview" class="hint">Tên file output sẽ có dạng: [PREFIX] - [DOC_TYPE].pdf</small>
+            </div>
+            <div>
+              <button id="pdfRunMergeBtn">Nối PDF</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Đổi tên PDF theo chuẩn hồ sơ</h2>
+          <div class="hint">
+            Đặt lại tên file PDF theo chuẩn loại hồ sơ + loại giấy tờ (tiếng Anh, ngắn gọn). File được đổi tên trực tiếp trong <code>pdf/input</code>.
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label for="pdfRenameSourceFile">Chọn file PDF cần đổi tên</label>
+              <select id="pdfRenameSourceFile"></select>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px; align-items: flex-end;">
+            <div style="flex: 1; min-width: 180px;">
+              <label for="pdfRenamePrefix">Tiền tố loại hồ sơ</label>
+              <select id="pdfRenamePrefix"></select>
+            </div>
+            <div style="flex: 2; min-width: 220px; margin-left: 12px;">
+              <label for="pdfRenameDocType">Tên giấy tờ (EN, ngắn gọn)</label>
+              <select id="pdfRenameDocType"></select>
+              <input
+                id="pdfRenameDocTypeCustom"
+                type="text"
+                placeholder="Nhập mô tả tiếng Việt hoặc tên EN tuỳ ý"
+                style="margin-top: 6px; display: none;"
+              />
+            </div>
+            <div style="margin-left: 12px;">
+              <button id="pdfRenameGenBtn" type="button">Gen tên EN</button>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div style="flex: 1;">
+              <small id="pdfRenamePreview" class="hint">Tên mới sẽ có dạng: [PREFIX] - [DOC_TYPE].pdf</small>
+            </div>
+            <div>
+              <button id="pdfRunRenameBtn">Đổi tên file</button>
+            </div>
           </div>
         </section>
 
