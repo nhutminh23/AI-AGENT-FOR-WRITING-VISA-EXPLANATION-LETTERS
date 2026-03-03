@@ -10,7 +10,7 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from agents import (
+from core.agents import (
     build_summary_profile,
     detect_domain,
     extract_text_with_openai,
@@ -18,9 +18,10 @@ from agents import (
     itinerary_writer,
     letter_writer,
 )
-from file_classifier_agent import classify_files_in_folder
+from classifier.agent import classify_files_in_folder
 from pypdf import PdfReader, PdfWriter
-from state import GraphState
+from core.state import GraphState
+import database as db
 
 
 load_dotenv()
@@ -182,6 +183,53 @@ def _run_single_step(step: str, state: GraphState) -> GraphState:
 @app.get("/")
 def index():
     return send_from_directory("frontend", "index.html")
+
+
+# ==================== PROJECT ENDPOINTS ====================
+
+@app.post("/api/projects")
+def create_project():
+    payload = request.get_json(force=True) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Project name is required"}), 400
+    project = db.create_project(name)
+    return jsonify(project)
+
+
+@app.get("/api/projects")
+def list_projects():
+    projects = db.list_projects()
+    return jsonify({"projects": projects})
+
+
+@app.get("/api/projects/<int:project_id>")
+def get_project(project_id):
+    project = db.get_project(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    return jsonify(project)
+
+
+@app.put("/api/projects/<int:project_id>")
+def update_project(project_id):
+    payload = request.get_json(force=True) or {}
+    name = payload.get("name")
+    updates = {}
+    if name:
+        updates["name"] = name.strip()
+    project = db.update_project(project_id, **updates)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    return jsonify(project)
+
+
+@app.delete("/api/projects/<int:project_id>")
+def delete_project(project_id):
+    ok = db.delete_project(project_id)
+    if not ok:
+        return jsonify({"error": "Project not found"}), 404
+    return jsonify({"status": "deleted"})
 
 
 @app.get("/api/files")
@@ -502,6 +550,19 @@ def pdf_rename_suggest_name():
 
 @app.get("/api/steps")
 def list_steps():
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        state = db.get_latest_letter_state(project_id)
+        if state:
+            steps = [
+                {"name": "ingest", "done": state["step_ingest"]},
+                {"name": "summary", "done": state["step_summary"]},
+                {"name": "writer", "done": state["step_writer"]},
+            ]
+        else:
+            steps = [{"name": s, "done": False} for s in STEP_ORDER]
+        return jsonify({"steps": steps})
+    # Fallback to file-based
     output_path = request.args.get("output", os.path.join("output", "letter.txt"))
     cache_dir = _cache_dir(output_path)
     steps = [
@@ -512,6 +573,11 @@ def list_steps():
 
 @app.get("/api/summary")
 def get_summary():
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        state = db.get_latest_letter_state(project_id)
+        summary = state["summary_profile"] if state else ""
+        return jsonify({"summary_profile": summary})
     output_path = request.args.get("output", os.path.join("output", "letter.txt"))
     cache_dir = _cache_dir(output_path)
     state_cache = _load_state(cache_dir)
@@ -526,6 +592,10 @@ def get_summary():
 
 @app.get("/api/writer_context")
 def get_writer_context():
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        state = db.get_latest_letter_state(project_id)
+        return jsonify({"writer_context": state["writer_context"] if state else ""})
     output_path = request.args.get("output", os.path.join("output", "letter.txt"))
     cache_dir = _cache_dir(output_path)
     state_cache = _load_state(cache_dir)
@@ -538,6 +608,7 @@ def ingest_stream():
     output_path = request.args.get("output", os.path.join("output", "letter.txt"))
     model = request.args.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     force = request.args.get("force", "0") == "1"
+    project_id = request.args.get("project_id", type=int)
 
     llm = ChatOpenAI(model=model, temperature=0)
     cache_dir = _cache_dir(output_path)
@@ -572,6 +643,15 @@ def ingest_stream():
         }
         _save_state(cache_dir, state)
         _save_step_output(cache_dir, "ingest", state)
+
+        # Save to DB if project_id provided
+        if project_id:
+            db.save_letter_state(
+                project_id,
+                files_data=files,
+                step_ingest=True,
+            )
+
         yield sse({"type": "done"})
 
     return Response(generate(), mimetype="text/event-stream")
@@ -579,6 +659,10 @@ def ingest_stream():
 
 @app.get("/api/itinerary/latest")
 def get_itinerary_latest():
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        it = db.get_latest_itinerary(project_id)
+        return jsonify({"itinerary": it["html_content"] if it else ""})
     output_path = request.args.get("output", os.path.join("output", "itinerary.html"))
     cache_dir = _cache_dir(output_path)
     path = os.path.join(cache_dir, "itinerary.html")
@@ -590,6 +674,13 @@ def get_itinerary_latest():
 
 @app.get("/api/itinerary/context/latest")
 def get_itinerary_context_latest():
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        ctx = db.get_latest_itinerary_context(project_id)
+        if ctx:
+            summary = _build_itinerary_summary_from_form(ctx.get("form_data", {}))
+            return jsonify({"summary_profile": summary, "form_data": ctx.get("form_data", {})})
+        return jsonify({"summary_profile": "", "form_data": {}})
     output_path = request.args.get("output", os.path.join("output", "itinerary.html"))
     cache_dir = _cache_dir(output_path)
     summary_path = os.path.join(cache_dir, "itinerary_summary.txt")
@@ -649,6 +740,7 @@ def save_itinerary_context():
     payload = request.get_json(force=True) or {}
     output_path = payload.get("output", os.path.join("output", "itinerary.html"))
     form_data = payload.get("form_data") or {}
+    project_id = payload.get("project_id")
 
     if not isinstance(form_data, dict):
         return jsonify({"error": "invalid_form_data"}), 400
@@ -657,19 +749,17 @@ def save_itinerary_context():
     if not summary_profile:
         return jsonify({"error": "missing_context"}), 400
 
+    # Save to file cache
     cache_dir = _cache_dir(output_path)
     os.makedirs(cache_dir, exist_ok=True)
     with open(os.path.join(cache_dir, "itinerary_summary.txt"), "w", encoding="utf-8") as f:
         f.write(summary_profile)
     with open(os.path.join(cache_dir, "itinerary_summary_meta.json"), "w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "form_data": form_data,
-            },
-            f,
-            ensure_ascii=False,
-            indent=2,
-        )
+        json.dump({"form_data": form_data}, f, ensure_ascii=False, indent=2)
+
+    # Save to DB
+    if project_id:
+        db.save_itinerary_context(int(project_id), {"form_data": form_data})
 
     return jsonify(
         {
@@ -689,6 +779,7 @@ def run_step():
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     force = bool(payload.get("force", False))
     writer_context = (payload.get("writer_context") or "").strip()
+    project_id = payload.get("project_id", type=int) if isinstance(payload.get("project_id"), int) else None
 
     if step not in STEP_ORDER:
         return jsonify({"error": "invalid_step"}), 400
@@ -722,6 +813,16 @@ def run_step():
     _save_state(cache_dir, state)
     _save_step_output(cache_dir, step, state)
 
+    # Save to DB if project_id provided
+    if project_id:
+        db_updates = {f"step_{step}": True}
+        if step == "summary":
+            db_updates["summary_profile"] = state.get("summary_profile", "")
+        if step == "writer":
+            db_updates["writer_context"] = state.get("writer_context", "")
+            db_updates["letter_content"] = state.get("letter_full", "")
+        db.save_letter_state(project_id, **db_updates)
+
     response: Dict[str, Any] = {"status": "done", "step": step}
     if step == "summary":
         response["summary_profile"] = state.get("summary_profile", "")
@@ -740,6 +841,7 @@ def run_all():
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     force = bool(payload.get("force", False))
     writer_context = (payload.get("writer_context") or "").strip()
+    project_id = payload.get("project_id", type=int) if isinstance(payload.get("project_id"), int) else None
 
     cache_dir = _cache_dir(output_path)
     state_cache = _load_state(cache_dir)
@@ -762,6 +864,19 @@ def run_all():
         state = _run_single_step(step, state)
         _save_state(cache_dir, state)
         _save_step_output(cache_dir, step, state)
+
+    # Save final state to DB
+    if project_id:
+        db.save_letter_state(
+            project_id,
+            files_data=state.get("files", []),
+            summary_profile=state.get("summary_profile", ""),
+            writer_context=state.get("writer_context", ""),
+            letter_content=state.get("letter_full", ""),
+            step_ingest=True,
+            step_summary=True,
+            step_writer=True,
+        )
 
     return jsonify({"letter": state.get("letter_full", ""), "output_path": output_path})
 
@@ -833,6 +948,7 @@ def run_itinerary():
     flight_file = payload.get("flight_file")
     hotel_file = payload.get("hotel_file")
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    project_id = payload.get("project_id")
 
     if not flight_file or not hotel_file:
         return jsonify({"error": "missing_files"}), 400
@@ -858,6 +974,7 @@ def run_itinerary():
 
     itinerary = itinerary_writer(llm, flight_text, hotel_text, summary_profile)
 
+    # Save to file cache
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(itinerary)
@@ -865,19 +982,24 @@ def run_itinerary():
     with open(os.path.join(cache_dir, "itinerary.html"), "w", encoding="utf-8") as f:
         f.write(itinerary)
 
+    # Save to DB
+    if project_id:
+        ctx = db.get_latest_itinerary_context(int(project_id)) or {}
+        db.save_itinerary_html(int(project_id), ctx, itinerary)
+
     return jsonify({"itinerary": itinerary, "output_path": output_path})
 
 
 # ==================== BOOKING GENERATOR ENDPOINTS ====================
 
 from datetime import datetime, timedelta
-from booking_generator import (
+from booking.generator import (
     generate_all_bookings,
     fill_hotel_template,
     fill_flight_template,
     generate_bookings_from_ai,
 )
-from ai_booking_agent import (
+from booking.ai_agent import (
     DEFAULT_TRIP_INFO,
     extract_trip_info,
     ai_select_bookings,
@@ -922,15 +1044,15 @@ def generate_booking():
     # Hotel template path
     hotel_template_path = os.path.join(
         os.path.dirname(__file__), 
-        "Booking", 
-        "Confirmation_for_Booking_ID_#_1696039455.html"
+        "templates", 
+        "hotel_booking.html"
     )
     
     # Flight template path
     flight_template_path = os.path.join(
         os.path.dirname(__file__),
-        "Booking",
-        "flight.html"
+        "templates",
+        "flight_booking.html"
     )
     
     # Generate hotel HTMLs
@@ -975,14 +1097,14 @@ def generate_booking():
 @app.get("/api/booking/latest")
 def get_booking_latest():
     """Get the latest generated booking files."""
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        bk = db.get_latest_booking(project_id)
+        if bk:
+            return jsonify({"hotel_htmls": bk["hotel_htmls"], "flight_html": bk["flight_html"]})
+        return jsonify({"hotel_htmls": [], "flight_html": ""})
     output_dir = request.args.get("output_dir", "output")
-    
-    result = {
-        "hotel_htmls": [],
-        "flight_html": ""
-    }
-    
-    # Find hotel booking files
+    result = {"hotel_htmls": [], "flight_html": ""}
     i = 1
     while True:
         hotel_path = os.path.join(output_dir, f"booking_hotel_{i}.html")
@@ -992,13 +1114,10 @@ def get_booking_latest():
             i += 1
         else:
             break
-    
-    # Get flight booking
     flight_path = os.path.join(output_dir, "booking_flight.html")
     if os.path.exists(flight_path):
         with open(flight_path, "r", encoding="utf-8") as f:
             result["flight_html"] = f.read()
-    
     return jsonify(result)
 
 
@@ -1007,8 +1126,8 @@ def get_destinations():
     """Get available destinations from the hotels database."""
     from booking_generator import load_hotels_database
     
-    db = load_hotels_database()
-    destinations = [key for key in db.keys() if key != "flights"]
+    hotels_db = load_hotels_database()
+    destinations = [key for key in hotels_db.keys() if key != "flights"]
     
     return jsonify({"destinations": destinations})
 
@@ -1017,10 +1136,11 @@ def get_destinations():
 
 @app.post("/api/booking/extract_trip")
 def extract_trip():
-    """Extract trip information from input files - independent from Letter tab."""
+    """Extract trip information from input files."""
     payload = request.get_json(force=True) or {}
     input_dir = payload.get("input_dir", "input")
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    project_id = payload.get("project_id")
 
     llm = ChatOpenAI(model=model, temperature=0)
 
@@ -1032,15 +1152,21 @@ def extract_trip():
     if not isinstance(trip_info, dict):
         trip_info = dict(DEFAULT_TRIP_INFO)
 
-    # Cache trip info + clear old booking cache (force fresh AI gen next time)
+    # Cache trip info to file
     cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
     os.makedirs(cache_dir, exist_ok=True)
     with open(os.path.join(cache_dir, "booking_trip_info.json"), "w", encoding="utf-8") as f:
         json.dump(trip_info, f, ensure_ascii=False, indent=2)
-    # Clear booking cache so AI will regenerate
     booking_cache = os.path.join(cache_dir, "ai_booking_data.json")
     if os.path.exists(booking_cache):
         os.remove(booking_cache)
+
+    # Save to DB
+    if project_id:
+        db.save_trip_info(int(project_id), trip_info)
+        # Update input hash
+        input_hash = db.compute_input_hash(input_dir)
+        db.update_project(int(project_id), input_hash=input_hash)
 
     return jsonify({"status": "success", "trip_info": trip_info})
 
@@ -1048,6 +1174,11 @@ def extract_trip():
 @app.get("/api/booking/trip/latest")
 def get_booking_trip_latest():
     """Load cached trip info for editing in frontend."""
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        ti = db.get_latest_trip_info(project_id)
+        data = ti["data"] if ti else dict(DEFAULT_TRIP_INFO)
+        return jsonify({"trip_info": data})
     cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
     trip_path = os.path.join(cache_dir, "booking_trip_info.json")
     if not os.path.exists(trip_path):
@@ -1065,21 +1196,25 @@ def save_booking_trip():
     """Save edited trip info from frontend."""
     payload = request.get_json(force=True) or {}
     trip_info = payload.get("trip_info") or {}
+    project_id = payload.get("project_id")
     if not isinstance(trip_info, dict):
         return jsonify({"error": "invalid_trip_info"}), 400
 
     merged = dict(DEFAULT_TRIP_INFO)
     merged.update(trip_info)
 
+    # Save to file cache
     cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
     os.makedirs(cache_dir, exist_ok=True)
     with open(os.path.join(cache_dir, "booking_trip_info.json"), "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
-
-    # Clear booking cache so AI regenerate from latest edited trip info
     booking_cache = os.path.join(cache_dir, "ai_booking_data.json")
     if os.path.exists(booking_cache):
         os.remove(booking_cache)
+
+    # Save to DB
+    if project_id:
+        db.save_trip_info(int(project_id), merged)
 
     return jsonify({"status": "success", "trip_info": merged})
 
@@ -1093,6 +1228,7 @@ def ai_generate_booking():
     model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
     force_new = payload.get("force_new", False)
     trip_info_override = payload.get("trip_info")
+    project_id = payload.get("project_id")
 
     cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
     booking_cache_path = os.path.join(cache_dir, "ai_booking_data.json")
@@ -1145,13 +1281,13 @@ def ai_generate_booking():
     # Template paths
     hotel_template_path = os.path.join(
         os.path.dirname(__file__),
-        "Booking",
-        "Confirmation_for_Booking_ID_#_1696039455.html"
+        "templates",
+        "hotel_booking.html"
     )
     flight_template_path = os.path.join(
         os.path.dirname(__file__),
-        "Booking",
-        "flight.html"
+        "templates",
+        "flight_booking.html"
     )
 
     try:
@@ -1162,6 +1298,16 @@ def ai_generate_booking():
             flight_template_path=flight_template_path,
             output_dir=output_dir,
         )
+
+        # Save to DB
+        if project_id:
+            db.save_booking(
+                int(project_id),
+                booking_data=booking_data,
+                hotel_htmls=result["hotel_htmls"],
+                flight_html=result["flight_html"],
+                reasoning=booking_data.get("reasoning", ""),
+            )
 
         return jsonify({
             "status": "success",
@@ -1188,8 +1334,8 @@ import zipfile
 import threading
 from pathlib import Path as SplitterPath
 
-from pdf_splitter.pdf_service import pdf_to_images, get_page_count, create_output_files
-from pdf_splitter.ai_service import classify_all_pages
+from pdf_tools.pdf_service import pdf_to_images, get_page_count, create_output_files
+from pdf_tools.ai_service import classify_all_pages
 
 # Directories for AI splitter
 SPLITTER_UPLOAD_DIR = SplitterPath(__file__).parent / "splitter_uploads"

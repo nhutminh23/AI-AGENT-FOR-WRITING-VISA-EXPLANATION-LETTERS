@@ -9,6 +9,15 @@
   <body>
     <div class="container">
       <header>
+        <div id="projectBar" style="display:flex;align-items:center;gap:10px;padding:10px 0;margin-bottom:10px;flex-wrap:wrap;">
+          <label style="font-weight:600;white-space:nowrap;">📁 Hồ sơ:</label>
+          <select id="projectSelect" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;">
+            <option value="">-- Chọn hồ sơ --</option>
+          </select>
+          <button id="btnNewProject" class="btn btn-sm" style="white-space:nowrap;" title="Tạo hồ sơ mới">+ Hồ sơ mới</button>
+          <button id="btnRenameProject" class="btn btn-sm btn-outline" style="white-space:nowrap;display:none;" title="Đổi tên hồ sơ">✏️</button>
+          <button id="btnDeleteProject" class="btn btn-sm btn-outline btn-danger" style="white-space:nowrap;display:none;" title="Xóa hồ sơ">🗑️</button>
+        </div>
       </header>
 
       <div class="tabs">
