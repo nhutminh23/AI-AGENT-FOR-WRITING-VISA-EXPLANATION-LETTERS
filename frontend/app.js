@@ -114,6 +114,111 @@ let writerContextCache = "";
 let activeStepLog = null;
 let classifierFilesCache = [];
 let pdfFilesCache = [];
+let currentProjectId = null;
+
+// ==================== PROJECT MANAGEMENT ====================
+
+const projectSelectEl = document.getElementById("projectSelect");
+const btnNewProject = document.getElementById("btnNewProject");
+const btnRenameProject = document.getElementById("btnRenameProject");
+const btnDeleteProject = document.getElementById("btnDeleteProject");
+
+function getProjectId() {
+  return currentProjectId;
+}
+
+async function loadProjects() {
+  try {
+    const res = await fetch("/api/projects");
+    const data = await res.json();
+    projectSelectEl.innerHTML = '<option value="">-- Chọn hồ sơ --</option>';
+    (data.projects || []).forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name;
+      projectSelectEl.appendChild(opt);
+    });
+    if (currentProjectId) {
+      projectSelectEl.value = currentProjectId;
+    }
+  } catch (e) {
+    console.error("Failed to load projects:", e);
+  }
+}
+
+projectSelectEl.addEventListener("change", () => {
+  const val = projectSelectEl.value;
+  currentProjectId = val ? parseInt(val) : null;
+  btnRenameProject.style.display = currentProjectId ? "" : "none";
+  btnDeleteProject.style.display = currentProjectId ? "" : "none";
+  localStorage.setItem("currentProjectId", currentProjectId || "");
+});
+
+btnNewProject.addEventListener("click", async () => {
+  const name = prompt("Tên hồ sơ mới (VD: Hồ sơ Nguyễn Văn A - Úc):");
+  if (!name || !name.trim()) return;
+  try {
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    const project = await res.json();
+    currentProjectId = project.id;
+    localStorage.setItem("currentProjectId", currentProjectId);
+    await loadProjects();
+    projectSelectEl.value = currentProjectId;
+    btnRenameProject.style.display = "";
+    btnDeleteProject.style.display = "";
+  } catch (e) {
+    alert("Lỗi: " + e.message);
+  }
+});
+
+btnRenameProject.addEventListener("click", async () => {
+  if (!currentProjectId) return;
+  const name = prompt("Tên mới:");
+  if (!name || !name.trim()) return;
+  try {
+    await fetch(`/api/projects/${currentProjectId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    await loadProjects();
+  } catch (e) {
+    alert("Lỗi: " + e.message);
+  }
+});
+
+btnDeleteProject.addEventListener("click", async () => {
+  if (!currentProjectId) return;
+  if (!confirm("Xóa hồ sơ này? Dữ liệu sẽ mất!")) return;
+  try {
+    await fetch(`/api/projects/${currentProjectId}`, { method: "DELETE" });
+    currentProjectId = null;
+    localStorage.removeItem("currentProjectId");
+    btnRenameProject.style.display = "none";
+    btnDeleteProject.style.display = "none";
+    await loadProjects();
+  } catch (e) {
+    alert("Lỗi: " + e.message);
+  }
+});
+
+// Restore project from localStorage
+(async () => {
+  const saved = localStorage.getItem("currentProjectId");
+  if (saved) {
+    currentProjectId = parseInt(saved);
+  }
+  await loadProjects();
+  if (currentProjectId) {
+    projectSelectEl.value = currentProjectId;
+    btnRenameProject.style.display = "";
+    btnDeleteProject.style.display = "";
+  }
+})();
 
 const PDF_RENAME_PREFIX_OPTIONS = [
   { value: "PERSONAL", label: "HO SO CA NHAN / PERSONAL" },
@@ -1016,6 +1121,7 @@ async function runStep(step, force = false) {
       step,
       force,
       writer_context: getWriterContextValue(),
+      project_id: getProjectId(),
     }),
   });
 
@@ -1127,6 +1233,7 @@ async function runItinerary() {
       flight_file: flightFile,
       hotel_file: hotelFile,
       summary_profile: summaryProfile,
+      project_id: getProjectId(),
     }),
   });
   const data = await res.json();
@@ -1189,6 +1296,7 @@ async function saveItineraryContext() {
       body: JSON.stringify({
         output: outputPath,
         form_data: formData,
+        project_id: getProjectId(),
       }),
     });
 
@@ -1540,7 +1648,7 @@ async function extractTripInfo() {
     const res = await fetch("/api/booking/extract_trip", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input_dir: inputDir }),
+      body: JSON.stringify({ input_dir: inputDir, project_id: getProjectId() }),
     });
 
     const data = await res.json();
@@ -1569,7 +1677,7 @@ async function saveTripInfo() {
     const res = await fetch("/api/booking/trip/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trip_info: tripInfo }),
+      body: JSON.stringify({ trip_info: tripInfo, project_id: getProjectId() }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1588,7 +1696,7 @@ async function saveTripInfo() {
 
 async function loadLatestTripInfo() {
   try {
-    const res = await fetch("/api/booking/trip/latest");
+    const res = await fetch("/api/booking/trip/latest" + (getProjectId() ? `?project_id=${getProjectId()}` : ""));
     const data = await res.json();
     setTripInfoForm(data.trip_info || {});
   } catch (error) {
@@ -1618,6 +1726,7 @@ async function runAIBooking() {
         input_dir: inputDir,
         output_dir: outputDir,
         trip_info: editedTripInfo,
+        project_id: getProjectId(),
       }),
     });
 
