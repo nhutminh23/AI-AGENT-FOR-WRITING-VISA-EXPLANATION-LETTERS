@@ -396,7 +396,7 @@
 
         <section class="card">
           <h2>Kết quả phân loại</h2>
-          <pre id="classifierResult" class="summary">Chưa chạy.</pre>
+          <div id="classifierResult" class="summary" style="white-space:normal; overflow-x:auto;">Chưa chạy.</div>
           <div id="pipelineToInputBtns" style="margin-top:12px; display:none; gap:10px; flex-wrap:wrap;">
             <button id="sendToInputBtn" style="background:#2563eb;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;">➡️ Chuyển kết quả sang Input (Booking/Letter) → Tab ④</button>
           </div>
@@ -405,24 +405,68 @@
 
       <div id="pdfSection" class="section hidden">
         <section class="card">
-          <h2>Tách PDF thủ công</h2>
+          <h2>✂️ Tách PDF thủ công</h2>
           <div class="hint">
-            Chọn 1 file PDF trong <code>pdf/input</code> và nhập số file con + khoảng trang cho mỗi file. Kết quả sẽ được lưu vào <code>pdf/output</code>.
+            Chọn nguồn file PDF (upload từ máy hoặc lấy từ kết quả AI Splitter), nhập số file con + khoảng trang. Kết quả lưu chung với AI Splitter để chuyển sang phân loại 1 lượt.
           </div>
-          <div class="row" style="margin-top: 10px;">
-            <div>
-              <label for="pdfManualSourceFile">Chọn file nguồn (PDF)</label>
-              <select id="pdfManualSourceFile"></select>
-            </div>
-            <div>
-              <label for="pdfManualCount">Số file sau khi tách</label>
-              <input id="pdfManualCount" type="number" min="1" max="10" value="1" />
-            </div>
-            <button id="pdfBuildSplitFormBtn">Tạo form tách</button>
+
+          <!-- Source toggle -->
+          <div style="margin-top: 12px; display:flex; gap:16px; align-items:center;">
+            <label style="font-weight:600;">Nguồn file:</label>
+            <label style="cursor:pointer;">
+              <input type="radio" name="manualSplitSource" value="upload" checked /> 📤 Upload từ máy
+            </label>
+            <label style="cursor:pointer;">
+              <input type="radio" name="manualSplitSource" value="ai" /> 🤖 Lấy từ AI Splitter
+            </label>
           </div>
-          <div id="pdfManualSegments" style="margin-top: 10px;"></div>
-          <div style="margin-top: 10px;">
-            <button id="pdfRunSplitBtn">Thực hiện tách file</button>
+
+          <!-- Option A: Upload from computer -->
+          <div id="manualSplitUploadPanel" style="margin-top: 10px;">
+            <div class="row">
+              <div>
+                <label for="manualSplitFileInput">Chọn file PDF từ máy</label>
+                <input type="file" id="manualSplitFileInput" accept=".pdf" />
+              </div>
+              <button id="manualSplitUploadBtn" style="padding:8px 16px;">📄 Đọc file</button>
+            </div>
+            <div id="manualSplitUploadInfo" class="hint" style="margin-top:6px;"></div>
+          </div>
+
+          <!-- Option B: Pick from AI Splitter results -->
+          <div id="manualSplitAIPanel" style="margin-top: 10px; display:none;">
+            <div>
+              <label for="manualSplitAISearch">🔍 Tìm file (gõ tên người / tên file)</label>
+              <input type="text" id="manualSplitAISearch" placeholder="Ví dụ: NGUYEN, Passport, Hồ sơ con..." style="width:100%; margin-bottom:6px;" />
+            </div>
+            <div id="manualSplitAIFileList" style="max-height:300px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:6px; background:#fafafa;"></div>
+            <div id="manualSplitAIInfo" class="hint" style="margin-top:6px;"></div>
+          </div>
+
+          <!-- Split form -->
+          <div id="manualSplitFormArea" style="margin-top: 12px; display:none;">
+            <div class="row" style="align-items:flex-end;">
+              <div>
+                <label for="pdfManualCount">Số file sau khi tách</label>
+                <input id="pdfManualCount" type="number" min="1" max="20" value="1" />
+              </div>
+              <button id="pdfBuildSplitFormBtn">Tạo form tách</button>
+            </div>
+            <div id="pdfManualPageInfo" class="hint" style="margin-top:6px;"></div>
+            <div id="pdfManualSegments" style="margin-top: 10px;"></div>
+            <div style="margin-top: 10px;">
+              <button id="pdfRunSplitBtn" style="background:#4f46e5; padding:12px 24px; font-size:15px;">✂️ Thực hiện tách file</button>
+            </div>
+          </div>
+
+          <!-- Results area -->
+          <div id="manualSplitResultArea" style="margin-top:12px; display:none;">
+            <h3>✅ Kết quả tách thủ công</h3>
+            <div id="manualSplitResultList"></div>
+            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="manualSplitDownloadBtn" style="padding:8px 16px; background:#4f46e5; color:#fff; border:none; border-radius:6px; cursor:pointer;">📦 Download tất cả (ZIP)</button>
+              <button id="manualSplitToClassifierBtn" style="padding:8px 16px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer;">➡️ Chuyển sang Phân loại</button>
+            </div>
           </div>
         </section>
 
@@ -565,6 +609,18 @@
             <button id="splitterDownloadAllBtn">📦 Tải tất cả (ZIP)</button>
             <button id="sendToClassifierBtn" style="background:#2563eb;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;">➡️ Chuyển sang Phân loại file → Tab ③</button>
           </div>
+        </section>
+
+        <!-- Persistent output history (survives F5) -->
+        <section class="card" id="splitterOutputHistoryCard">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+            <h2 style="margin:0;">📂 Tất cả file đã tách (AI + Thủ công)</h2>
+            <button id="refreshOutputHistoryBtn" style="padding:6px 12px; font-size:12px;">🔄 Refresh</button>
+            <button id="clearAllOutputsBtn" style="padding:6px 14px; font-size:13px; background:#dc2626; color:#fff; border:none; border-radius:6px; cursor:pointer;">🗑️ Xóa tất cả kết quả</button>
+            <button id="sendAllToClassifierBtn" style="padding:6px 14px; font-size:13px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer;">➡️ Chuyển tất cả sang Phân loại</button>
+          </div>
+          <div class="hint">Danh sách tất cả file output (AI + thủ công) trong <code>splitter_outputs/</code>. Dữ liệu này không mất khi F5.</div>
+          <div id="splitterOutputHistoryList" style="margin-top:8px;">Đang tải...</div>
         </section>
       </div>
 
