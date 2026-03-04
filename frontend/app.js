@@ -307,7 +307,7 @@ function renderClassifierFiles(files) {
   }
   if (deleteAllBtn) deleteAllBtn.style.display = "inline-block";
   classifierFileListEl.classList.remove("empty");
-  classifierFileListEl.innerHTML = files
+  const fileRows = files
     .map(
       (f) => `<div class="file-row" style="align-items:center;">
         <div style="flex:1;">
@@ -321,6 +321,12 @@ function renderClassifierFiles(files) {
       </div>`
     )
     .join("");
+  classifierFileListEl.innerHTML = `<details style="border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+    <summary style="padding:10px 14px; background:#f0f4ff; cursor:pointer; font-weight:600; color:#1e40af; font-size:0.95em;">
+      📂 ${files.length} file trong thư mục input — click để xem
+    </summary>
+    <div style="max-height:300px; overflow-y:auto;">${fileRows}</div>
+  </details>`;
 }
 
 async function loadClassifierFiles() {
@@ -577,10 +583,215 @@ function buildManualSegments() {
   manualSplitSegmentsContainerEl.innerHTML = parts.join("");
 }
 
+// ==================== MANUAL PDF SPLIT (Tab ②) ====================
+
+// State for manual split
+let manualSplitState = {
+  source: "upload",       // "upload" or "ai"
+  pageCount: 0,
+  tempId: null,            // for uploaded files
+  tempPath: null,
+  uploadFilename: null,
+  aiFileId: null,          // for AI splitter files
+  aiFilename: null,
+  lastManualId: null,      // last manual split result ID
+};
+
+// Toggle source panels
+document.querySelectorAll('input[name="manualSplitSource"]').forEach((radio) => {
+  radio.addEventListener("change", (e) => {
+    manualSplitState.source = e.target.value;
+    const uploadPanel = document.getElementById("manualSplitUploadPanel");
+    const aiPanel = document.getElementById("manualSplitAIPanel");
+    const formArea = document.getElementById("manualSplitFormArea");
+    const resultArea = document.getElementById("manualSplitResultArea");
+    if (uploadPanel) uploadPanel.style.display = e.target.value === "upload" ? "block" : "none";
+    if (aiPanel) aiPanel.style.display = e.target.value === "ai" ? "block" : "none";
+    if (formArea) formArea.style.display = "none";
+    if (resultArea) resultArea.style.display = "none";
+    manualSplitState.pageCount = 0;
+    if (e.target.value === "ai") loadManualSplitAIFiles();
+  });
+});
+
+// Load AI splitter output files into searchable grouped list
+let _aiFileGroups = []; // cache for search filtering
+
+async function loadManualSplitAIFiles() {
+  const listEl = document.getElementById("manualSplitAIFileList");
+  if (!listEl) return;
+  listEl.innerHTML = '<div style="padding:12px; color:#888;">Đang tải...</div>';
+  try {
+    const res = await fetch("/api/ai-splitter/list-outputs");
+    const data = await res.json();
+    _aiFileGroups = data.groups || [];
+    renderAIFileList("");
+  } catch (e) {
+    listEl.innerHTML = `<div style="padding:12px; color:red;">Lỗi: ${e.message}</div>`;
+  }
+}
+
+function renderAIFileList(query) {
+  const listEl = document.getElementById("manualSplitAIFileList");
+  if (!listEl) return;
+  const q = (query || "").toLowerCase().trim();
+
+  if (_aiFileGroups.length === 0) {
+    listEl.innerHTML = '<div style="padding:12px; color:#888;">Chưa có file đã tách.</div>';
+    return;
+  }
+
+  let html = '';
+  let matchCount = 0;
+  for (const group of _aiFileGroups) {
+    const sourceLabel = group.source_filename || group.folder_id;
+    const typeIcon = group.source_type === "ai" ? "🤖" : "✂️";
+    const typeBg = group.source_type === "ai" ? "#e0e7ff" : "#fef3c7";
+
+    const filteredFiles = group.files.filter(f => {
+      if (!q) return true;
+      return f.filename.toLowerCase().includes(q) || sourceLabel.toLowerCase().includes(q);
+    });
+
+    if (filteredFiles.length === 0) continue;
+    matchCount += filteredFiles.length;
+
+    // Auto-open if searching, collapsed if not
+    const openAttr = q ? "open" : "";
+    html += `<details ${openAttr} style="border-bottom:1px solid #e5e7eb;">
+      <summary style="padding:8px 10px; background:${typeBg}; cursor:pointer; font-size:0.85em; font-weight:600; user-select:none;">
+        ${typeIcon} ${sourceLabel} (${filteredFiles.length} file)
+      </summary>`;
+    for (const f of filteredFiles) {
+      const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+      html += `<div class="ai-file-pick-row" data-file-id="${f.file_id}" data-filename="${f.filename}"
+        style="padding:8px 12px; padding-left:24px; border-bottom:1px solid #f0f0f0; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:background 0.15s;"
+        onmouseover="this.style.background='#e0e7ff'" onmouseout="this.style.background='transparent'">
+        <div>
+          <span style="font-size:0.9em;">${f.filename}</span>
+          <small style="color:#888; margin-left:4px;">(${sizeMB} MB)</small>
+        </div>
+        <span style="font-size:0.8em; color:#4f46e5;">📄 Chọn</span>
+      </div>`;
+    }
+    html += `</details>`;
+  }
+
+  if (matchCount === 0) {
+    html = `<div style="padding:12px; color:#888;">Không tìm thấy file khớp "${query}"</div>`;
+  }
+
+  listEl.innerHTML = html;
+}
+
+// Search filter
+const manualSplitAISearchEl = document.getElementById("manualSplitAISearch");
+if (manualSplitAISearchEl) {
+  manualSplitAISearchEl.addEventListener("input", (e) => {
+    renderAIFileList(e.target.value);
+  });
+}
+
+// Click to select file from list
+document.addEventListener("click", async (e) => {
+  const row = e.target.closest(".ai-file-pick-row");
+  if (!row) return;
+  const fileId = row.dataset.fileId;
+  const filename = row.dataset.filename;
+  if (!fileId || !filename) return;
+
+  const infoEl = document.getElementById("manualSplitAIInfo");
+  const formArea = document.getElementById("manualSplitFormArea");
+  const resultArea = document.getElementById("manualSplitResultArea");
+  if (infoEl) infoEl.textContent = `⏳ Đang đọc ${filename}...`;
+  if (resultArea) resultArea.style.display = "none";
+
+  // Highlight selected row
+  document.querySelectorAll(".ai-file-pick-row").forEach(r => r.style.background = "transparent");
+  row.style.background = "#c7d2fe";
+
+  try {
+    const res = await fetch("/api/manual-split/get-page-count", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_id: fileId, filename }),
+    });
+    const data = await res.json();
+    if (!res.ok) { if (infoEl) infoEl.textContent = `Lỗi: ${data.error}`; return; }
+    manualSplitState.pageCount = data.page_count;
+    manualSplitState.aiFileId = fileId;
+    manualSplitState.aiFilename = filename;
+    manualSplitState.tempId = null;
+    manualSplitState.tempPath = null;
+    manualSplitState.uploadFilename = null;
+    if (infoEl) infoEl.innerHTML = `<div style="font-size:1.1em; font-weight:700; color:#1e40af; padding:8px 0;">✅ ${filename} — ${data.page_count} trang</div>`;
+    if (data.page_count <= 1) {
+      if (infoEl) infoEl.innerHTML += `<div style="color:#dc2626; font-weight:600;">⚠️ File chỉ có 1 trang, không cần tách.</div>`;
+      if (formArea) formArea.style.display = "none";
+      return;
+    }
+    const maxSplits = data.page_count;
+    const pageInfoEl = document.getElementById("pdfManualPageInfo");
+    if (pageInfoEl) pageInfoEl.textContent = `File có ${data.page_count} trang. Tách tối đa ${maxSplits} file.`;
+    if (pdfManualCountEl) { pdfManualCountEl.max = maxSplits; pdfManualCountEl.value = Math.min(parseInt(pdfManualCountEl.value)||1, maxSplits); }
+    if (formArea) formArea.style.display = "block";
+  } catch (err) {
+    if (infoEl) infoEl.textContent = `Lỗi: ${err.message}`;
+  }
+});
+
+// Upload file from computer and get page count
+const manualSplitUploadBtn = document.getElementById("manualSplitUploadBtn");
+if (manualSplitUploadBtn) {
+  manualSplitUploadBtn.addEventListener("click", async () => {
+    const fileInput = document.getElementById("manualSplitFileInput");
+    const infoEl = document.getElementById("manualSplitUploadInfo");
+    const formArea = document.getElementById("manualSplitFormArea");
+    const resultArea = document.getElementById("manualSplitResultArea");
+    if (!fileInput || !fileInput.files || !fileInput.files.length) {
+      alert("Vui lòng chọn file PDF."); return;
+    }
+    manualSplitUploadBtn.disabled = true;
+    manualSplitUploadBtn.textContent = "⏳ Đang đọc...";
+    if (infoEl) infoEl.textContent = "Đang upload...";
+    if (resultArea) resultArea.style.display = "none";
+    try {
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      const res = await fetch("/api/manual-split/upload-get-page-count", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
+      manualSplitState.pageCount = data.page_count;
+      manualSplitState.tempId = data.temp_id;
+      manualSplitState.tempPath = data.temp_path;
+      manualSplitState.uploadFilename = data.filename;
+      manualSplitState.aiFileId = null;
+      manualSplitState.aiFilename = null;
+      if (infoEl) infoEl.innerHTML = `<div style="font-size:1.1em; font-weight:700; color:#1e40af; padding:8px 0;">✅ ${data.filename} — ${data.page_count} trang</div>`;
+      if (data.page_count <= 1) {
+        if (infoEl) infoEl.innerHTML += `<div style="color:#dc2626; font-weight:600;">⚠️ File chỉ có 1 trang, không cần tách.</div>`;
+        if (formArea) formArea.style.display = "none";
+        return;
+      }
+      const maxSplits = data.page_count;
+      const pageInfoEl = document.getElementById("pdfManualPageInfo");
+      if (pageInfoEl) pageInfoEl.textContent = `File có ${data.page_count} trang. Tách tối đa ${maxSplits} file.`;
+      if (pdfManualCountEl) { pdfManualCountEl.max = maxSplits; pdfManualCountEl.value = Math.min(parseInt(pdfManualCountEl.value)||1, maxSplits); }
+      if (formArea) formArea.style.display = "block";
+    } catch (e) {
+      if (infoEl) infoEl.textContent = `Lỗi: ${e.message}`;
+    } finally {
+      manualSplitUploadBtn.disabled = false;
+      manualSplitUploadBtn.textContent = "📄 Đọc file";
+    }
+  });
+}
+
 function buildPdfManualSegments() {
   if (!pdfManualCountEl || !pdfManualSegmentsEl) return;
   const count = parseInt(pdfManualCountEl.value || "0", 10) || 0;
-  const safeCount = Math.max(1, Math.min(count, 10));
+  const maxAllowed = Math.max(1, manualSplitState.pageCount || 20);
+  const safeCount = Math.max(1, Math.min(count, maxAllowed));
   pdfManualCountEl.value = safeCount;
   const parts = [];
   for (let i = 1; i <= safeCount; i++) {
@@ -593,11 +804,11 @@ function buildPdfManualSegments() {
           </div>
           <div>
             <label for="pdf-segmentStart-${i}">Từ trang</label>
-            <input id="pdf-segmentStart-${i}" type="number" min="1" />
+            <input id="pdf-segmentStart-${i}" type="number" min="1" max="${manualSplitState.pageCount}" />
           </div>
           <div>
             <label for="pdf-segmentEnd-${i}">Đến trang</label>
-            <input id="pdf-segmentEnd-${i}" type="number" min="1" />
+            <input id="pdf-segmentEnd-${i}" type="number" min="1" max="${manualSplitState.pageCount}" />
           </div>
         </div>
       </div>
@@ -607,17 +818,6 @@ function buildPdfManualSegments() {
 }
 
 async function runPdfManualSplit() {
-  const inputDir = "pdf/input";
-  const outputDir = "pdf/output";
-  if (!pdfManualSourceFileEl) {
-    alert("Không tìm thấy danh sách file nguồn.");
-    return;
-  }
-  const source = pdfManualSourceFileEl.value;
-  if (!source) {
-    alert("Vui lòng chọn file nguồn (PDF).");
-    return;
-  }
   const count = parseInt(pdfManualCountEl.value || "0", 10) || 0;
   const segments = [];
   for (let i = 1; i <= count; i++) {
@@ -627,61 +827,128 @@ async function runPdfManualSplit() {
     if (!nameEl || !startEl || !endEl) continue;
     const output_name = nameEl.value.trim();
     const start_page = parseInt(startEl.value || "0", 10);
-    const end_page = parseInt(endEl.value || "0", 10);
-    if (!output_name || !start_page || !end_page) continue;
+    const end_page = parseInt(endEl.value || "0", 10) || manualSplitState.pageCount;
+    if (!output_name || !start_page) continue;
     segments.push({ output_name, start_page, end_page });
   }
   if (!segments.length) {
     alert("Vui lòng nhập đầy đủ tên file và khoảng trang cho ít nhất 1 file con.");
     return;
   }
+
   const originalText = pdfRunSplitBtn.textContent;
   pdfRunSplitBtn.disabled = true;
-  pdfRunSplitBtn.textContent = "Đang tách...";
-  if (pdfToolsResultEl) {
-    pdfToolsResultEl.textContent = "Đang tách file PDF theo cấu hình bạn nhập...";
-  }
+  pdfRunSplitBtn.textContent = "⏳ Đang tách...";
+  const resultArea = document.getElementById("manualSplitResultArea");
+  const resultList = document.getElementById("manualSplitResultList");
+  if (resultArea) resultArea.style.display = "none";
+
   try {
-    const res = await fetch("/api/classifier/split_manual", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input_dir: inputDir, output_dir: outputDir, source, segments }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      if (pdfToolsResultEl) {
-        pdfToolsResultEl.textContent = `Lỗi tách file: ${data.error || "không xác định"}`;
+    let data;
+    if (manualSplitState.source === "upload" && manualSplitState.tempPath) {
+      // Upload source — use upload-and-split endpoint
+      const fileInput = document.getElementById("manualSplitFileInput");
+      if (!fileInput || !fileInput.files || !fileInput.files.length) {
+        alert("File upload không còn, vui lòng chọn lại."); return;
       }
-      return;
-    }
-    const lines = [];
-    lines.push("Tách file thủ công hoàn thành.");
-    lines.push(`- File nguồn: ${data.source}`);
-    lines.push(`- Tổng số trang file nguồn: ${data.total_pages}`);
-    lines.push(`- Số file con tạo ra: ${data.segments?.length || 0}`);
-    lines.push("");
-    lines.push("Chi tiết:");
-    (data.segments || []).forEach((seg) => {
-      lines.push(
-        `- ${seg.output_name}.pdf (trang ${seg.start_page}-${seg.end_page}) -> ${seg.to}`
-      );
-    });
-    if (pdfToolsResultEl) {
-      pdfToolsResultEl.textContent = lines.join("\n");
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      formData.append("segments", JSON.stringify(segments));
+      const res = await fetch("/api/manual-split/upload-and-split", { method: "POST", body: formData });
+      data = await res.json();
+      if (!res.ok) { alert(`Lỗi: ${data.error || "không xác định"}`); return; }
+    } else if (manualSplitState.source === "ai" && manualSplitState.aiFileId) {
+      // AI source — use existing split_manual endpoint
+      const res = await fetch("/api/classifier/split_manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_file_id: manualSplitState.aiFileId,
+          source_filename: manualSplitState.aiFilename,
+          segments,
+        }),
+      });
+      data = await res.json();
+      if (!res.ok) { alert(`Lỗi: ${data.error || "không xác định"}`); return; }
+    } else {
+      alert("Vui lòng chọn file nguồn trước."); return;
     }
 
-    // Đóng/clear form tách sau khi thực hiện xong
+    // Display results
+    manualSplitState.lastManualId = data.manual_id;
+    if (resultArea) resultArea.style.display = "block";
+    if (resultList) {
+      let html = `<div style="padding:8px 12px; background:#f0f4ff; border-radius:6px; margin-bottom:8px;">
+        <strong>📁 ${data.source}</strong> → ${data.segments?.length || 0} file (${data.total_pages} trang)
+        ${data.removed_original ? `<br><small style="color:#dc2626;">🗑️ Đã xóa file gốc: ${data.removed_original}</small>` : ""}
+      </div>`;
+      for (const seg of (data.segments || [])) {
+        html += `<div style="padding:6px 12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; padding-left:24px;">
+          <div>
+            <strong>${seg.output_name}.pdf</strong>
+            <br><small style="color:#666;">Trang ${seg.start_page}-${seg.end_page}</small>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <a href="/api/ai-splitter/view/${data.manual_id}/${encodeURIComponent(seg.to)}" target="_blank"
+               style="text-decoration:none; padding:4px 10px; background:#f59e0b; color:white; border-radius:4px; font-size:0.85em;">
+              👁 Xem
+            </a>
+            <a href="/api/ai-splitter/download/${data.manual_id}/${encodeURIComponent(seg.to)}"
+               style="text-decoration:none; padding:4px 10px; background:#4f46e5; color:white; border-radius:4px; font-size:0.85em;">
+              ⬇ Download
+            </a>
+          </div>
+        </div>`;
+      }
+      resultList.innerHTML = html;
+    }
+
+    // Clear form
     if (pdfManualSegmentsEl) pdfManualSegmentsEl.innerHTML = "";
     if (pdfManualCountEl) pdfManualCountEl.value = "1";
-    await loadPdfFiles();
   } catch (error) {
-    if (pdfToolsResultEl) {
-      pdfToolsResultEl.textContent = `Lỗi tách file: ${error.message}`;
-    }
+    alert(`Lỗi: ${error.message}`);
   } finally {
     pdfRunSplitBtn.disabled = false;
     pdfRunSplitBtn.textContent = originalText;
   }
+}
+
+// Download button for manual split results
+const manualSplitDownloadBtn = document.getElementById("manualSplitDownloadBtn");
+if (manualSplitDownloadBtn) {
+  manualSplitDownloadBtn.addEventListener("click", () => {
+    if (!manualSplitState.lastManualId) { alert("Chưa có kết quả tách."); return; }
+    // Download all files individually (no ZIP for manual splits)
+    const links = document.querySelectorAll("#manualSplitResultList a[href*='/download/']");
+    links.forEach((a) => { const w = window.open(a.href, "_blank"); if (w) w.focus(); });
+  });
+}
+
+// Send manual split results to classifier
+const manualSplitToClassifierBtn = document.getElementById("manualSplitToClassifierBtn");
+if (manualSplitToClassifierBtn) {
+  manualSplitToClassifierBtn.addEventListener("click", async () => {
+    if (!manualSplitState.lastManualId) { alert("Chưa có kết quả tách."); return; }
+    manualSplitToClassifierBtn.disabled = true;
+    manualSplitToClassifierBtn.textContent = "⏳ Đang chuyển...";
+    try {
+      const res = await fetch("/api/manual-split/send-to-classifier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manual_id: manualSplitState.lastManualId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
+      alert(`✅ Đã chuyển ${data.count} file sang ${data.target_dir}`);
+      setActiveTab("classifier");
+      loadClassifierFiles();
+    } catch (e) { alert(`Lỗi: ${e.message}`); }
+    finally {
+      manualSplitToClassifierBtn.disabled = false;
+      manualSplitToClassifierBtn.textContent = "➡️ Chuyển sang Phân loại";
+    }
+  });
 }
 
 async function runPdfMerge() {
@@ -919,34 +1186,179 @@ async function genPdfMergeDocType() {
 
 function formatClassifierResult(data) {
   const counts = data.person_counts || {};
-  const countLines = Object.keys(counts).map((k) => `- ${k}: ${counts[k]} file`);
-  const splitLogs = data.split_logs || [];
-  const splitLines = splitLogs.flatMap((x) => {
-    const outputs = (x.outputs || []).map(
-      (o) => `  - ${o.doc_type_en}.pdf (${o.person_name}, trang ${o.pages})`
-    );
-    return [`- ${x.source_file}: tách ${x.detected_documents} tài liệu`, ...outputs];
+  const copied = data.copied || [];
+  const skipped = data.skipped || [];
+  const totalFiles = (data.copied_count || 0) + (data.skipped_count || 0);
+  const unknownCount = counts["UNKNOWN PERSON"] || 0;
+  const knownCount = (data.copied_count || 0) - unknownCount;
+  const personCount = Object.keys(counts).filter(k => k !== "UNKNOWN PERSON").length;
+
+  // Compact summary bar
+  let html = `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+    <span style="padding:6px 14px; background:#4f46e5; color:white; border-radius:8px; font-weight:700; font-size:0.9em;">
+      📁 ${totalFiles} file
+    </span>
+    <span style="padding:6px 14px; background:#059669; color:white; border-radius:8px; font-weight:700; font-size:0.9em;">
+      ✅ ${knownCount} xác định • ${personCount} người
+    </span>
+    ${unknownCount > 0 ? `<span style="padding:6px 14px; background:#d97706; color:white; border-radius:8px; font-weight:700; font-size:0.9em;">
+      ⚠️ ${unknownCount} unknown
+    </span>` : ''}
+    ${(data.skipped_count || 0) > 0 ? `<span style="padding:6px 14px; background:#dc2626; color:white; border-radius:8px; font-weight:700; font-size:0.9em;">
+      ❌ ${data.skipped_count} bỏ qua
+    </span>` : ''}
+  </div>`;
+
+  // Group by person
+  const byPerson = {};
+  for (const item of copied) {
+    const person = item.person_name || "UNKNOWN PERSON";
+    if (!byPerson[person]) byPerson[person] = [];
+    byPerson[person].push(item);
+  }
+
+  const personsSorted = Object.keys(byPerson).sort((a, b) => {
+    if (a === "UNKNOWN PERSON") return 1;
+    if (b === "UNKNOWN PERSON") return -1;
+    return a.localeCompare(b);
   });
-  const copiedLines = (data.copied || []).map(
-    (m) => `- ${m.source} -> ${m.person_name}/${m.doc_type_en} (${m.to})`
-  );
-  return [
-    "Phân loại hoàn thành.",
-    `- Input: ${data.input_dir || ""}`,
-    `- Output: ${data.output_dir || ""}`,
-    `- Tổng file đã xử lý: ${data.copied_count || 0}`,
-    `- File bỏ qua/lỗi: ${data.skipped_count || 0}`,
-    "",
-    "Thống kê theo từng người:",
-    ...countLines,
-    "",
-    ...(splitLines.length > 0
-      ? ["PDF nhiều giấy tờ đã tách:", ...splitLines, ""]
-      : []),
-    "",
-    "Chi tiết:",
-    ...(copiedLines.length > 0 ? copiedLines : ["- Không có file nào được ghi ra output."]),
-  ].join("\n");
+
+  // All groups collapsed by default
+  for (const person of personsSorted) {
+    const items = byPerson[person];
+    const isUnknown = person === "UNKNOWN PERSON";
+    const borderColor = isUnknown ? "#f59e0b" : "#818cf8";
+    const headerBg = isUnknown ? "#fffbeb" : "#eef2ff";
+    const headerColor = isUnknown ? "#92400e" : "#1e40af";
+    const icon = isUnknown ? "⚠️" : "👤";
+
+    html += `<details style="margin-bottom:4px; border:1px solid ${borderColor}; border-radius:6px; overflow:hidden;">
+      <summary style="padding:8px 12px; background:${headerBg}; cursor:pointer; font-weight:600; color:${headerColor}; font-size:0.9em; user-select:none;">
+        ${icon} ${person} <span style="font-weight:400; color:#6b7280;">(${items.length})</span>
+      </summary>
+      <div style="max-height:250px; overflow-y:auto;">`;
+
+    for (const item of items) {
+      const escapedTo = (item.to || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
+      const escapedPerson = (item.person_name || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
+      const escapedDoc = (item.doc_type_en || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
+      html += `<div class="classifier-row" data-filepath="${escapedTo}" style="padding:5px 12px; border-bottom:1px solid #f3f4f6; font-size:0.85em;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;" title="${item.source}">📄 ${item.source}</span>
+          <span style="color:#94a3b8;">→</span>
+          <span class="cls-doctype" style="font-weight:600; color:${isUnknown ? '#fbbf24' : '#34d399'}; white-space:nowrap;">${item.doc_type_en}</span>
+          <span class="cls-destpath" style="color:#94a3b8; font-size:0.8em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;" title="${item.to}">${item.to}</span>
+          <button class="cls-rename-btn" data-old-path="${escapedTo}" data-person="${escapedPerson}" data-doctype="${escapedDoc}"
+                  style="margin-left:auto; flex-shrink:0; padding:2px 6px; background:transparent; color:#818cf8; border:1px solid #c7d2fe; border-radius:4px; cursor:pointer; font-size:0.85em;">
+            ✏️
+          </button>
+        </div>
+        <div class="cls-rename-form" style="display:none; margin-top:6px; padding:6px; background:#f8fafc; border-radius:4px; border:1px solid #e2e8f0;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+            <input class="cls-rename-person" value="${escapedPerson}" placeholder="Tên người" style="flex:1; min-width:120px; padding:3px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em;" />
+            <input class="cls-rename-doctype" value="${escapedDoc}" placeholder="Loại giấy tờ" style="flex:1; min-width:100px; padding:3px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em;" />
+            <button class="cls-rename-save" style="padding:3px 10px; background:#059669; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.85em;">💾</button>
+            <button class="cls-rename-cancel" style="padding:3px 10px; background:#9ca3af; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.85em;">✕</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    html += `</div></details>`;
+  }
+
+  // Skipped
+  if (skipped.length > 0) {
+    html += `<details style="margin-top:4px; border:1px solid #fca5a5; border-radius:6px; overflow:hidden;">
+      <summary style="padding:8px 12px; background:#fef2f2; cursor:pointer; font-weight:600; color:#991b1b; font-size:0.9em;">
+        ❌ Bỏ qua (${skipped.length})
+      </summary>
+      <div style="padding:6px 12px; color:#991b1b; font-size:0.85em;">
+        ${skipped.map(s => `<div>• ${s}</div>`).join("")}
+      </div>
+    </details>`;
+  }
+
+  return html;
+}
+function setupClassifierRename() {
+  const resultEl = classifierResultEl;
+  if (!resultEl) return;
+
+  // Toggle rename form
+  resultEl.addEventListener("click", (e) => {
+    const renameBtn = e.target.closest(".cls-rename-btn");
+    if (renameBtn) {
+      const row = renameBtn.closest(".classifier-row");
+      const form = row?.querySelector(".cls-rename-form");
+      if (form) form.style.display = form.style.display === "none" ? "block" : "none";
+      return;
+    }
+
+    // Cancel
+    const cancelBtn = e.target.closest(".cls-rename-cancel");
+    if (cancelBtn) {
+      const form = cancelBtn.closest(".cls-rename-form");
+      if (form) form.style.display = "none";
+      return;
+    }
+
+    // Save
+    const saveBtn = e.target.closest(".cls-rename-save");
+    const isEnterOnInput = e.type === "keydown" && e.key === "Enter" && (e.target.closest(".cls-rename-person") || e.target.closest(".cls-rename-doctype"));
+    if (saveBtn || isEnterOnInput) {
+      const row = (saveBtn || e.target).closest(".classifier-row");
+      const actualSaveBtn = row?.querySelector(".cls-rename-save");
+      if (!row) return;
+      const oldPath = row.dataset.filepath;
+      const personInput = row.querySelector(".cls-rename-person");
+      const docInput = row.querySelector(".cls-rename-doctype");
+      const newPerson = (personInput?.value || "").trim();
+      const newDoc = (docInput?.value || "").trim();
+      if (!newPerson) { alert("Vui lòng nhập tên người."); return; }
+
+      if (actualSaveBtn) { actualSaveBtn.disabled = true; actualSaveBtn.textContent = "⏳..."; }
+
+      fetch("/api/classifier/rename-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          old_path: oldPath,
+          new_person: newPerson,
+          new_doc_type: newDoc,
+          temp_output: window._classifierTempOutput || "phanloai/_temp_output",
+        }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === "renamed") {
+            // Update row in place
+            row.dataset.filepath = data.new_path;
+            const docEl = row.querySelector(".cls-doctype");
+            const destEl = row.querySelector(".cls-destpath");
+            const btn = row.querySelector(".cls-rename-btn");
+            if (docEl) { docEl.textContent = data.doc_type_en; docEl.style.color = "#059669"; }
+            if (destEl) destEl.textContent = data.new_path;
+            if (btn) { btn.dataset.oldPath = data.new_path; btn.dataset.person = data.person_name; btn.dataset.doctype = data.doc_type_en; }
+            row.style.background = "rgba(52, 211, 153, 0.15)";
+            row.style.borderLeft = "3px solid #34d399";
+            const form = row.querySelector(".cls-rename-form");
+            if (form) form.style.display = "none";
+          } else {
+            alert("Lỗi: " + (data.error || "Không thể đổi tên"));
+          }
+        })
+        .catch(() => alert("Lỗi kết nối server"))
+        .finally(() => { if (actualSaveBtn) { actualSaveBtn.disabled = false; actualSaveBtn.textContent = "💾"; } });
+    }
+  });
+
+  // Enter key on inputs triggers save
+  resultEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.target.closest(".cls-rename-person") || e.target.closest(".cls-rename-doctype"))) {
+      const row = e.target.closest(".classifier-row");
+      if (row) row.querySelector(".cls-rename-save")?.click();
+    }
+  });
 }
 
 async function runClassifier() {
@@ -955,7 +1367,7 @@ async function runClassifier() {
   const originalText = runClassifierBtn.textContent;
   runClassifierBtn.disabled = true;
   runClassifierBtn.textContent = "Đang phân loại...";
-  classifierResultEl.textContent = "AI đang phân tích và phân loại file...";
+  classifierResultEl.innerHTML = "<div style='padding:20px; text-align:center; color:#6b7280;'>⏳ AI đang phân tích và phân loại file...</div>";
   try {
     const res = await fetch("/api/classifier/run", {
       method: "POST",
@@ -964,14 +1376,17 @@ async function runClassifier() {
     });
     const data = await res.json();
     if (!res.ok) {
-      classifierResultEl.textContent = `Lỗi: ${data.error || "Không thể phân loại file."}`;
+      classifierResultEl.innerHTML = `<div style='padding:12px; color:#dc2626;'>❌ Lỗi: ${data.error || "Không thể phân loại file."}</div>`;
       return;
     }
-    classifierResultEl.textContent = formatClassifierResult(data);
+    classifierResultEl.innerHTML = formatClassifierResult(data);
+    setupClassifierRename();
     await loadClassifierFiles();
     // Store output paths for save button
     window._classifierTempOutput = data._temp_output;
     window._classifierFinalOutput = data._final_output;
+    // Persist result data for page refresh
+    try { localStorage.setItem("classifierLastResult", JSON.stringify(data)); } catch(e) {}
     // Show pipeline buttons
     const pipelineBtns = document.getElementById("pipelineToInputBtns");
     if (pipelineBtns) {
@@ -983,6 +1398,7 @@ async function runClassifier() {
         saveBtn.textContent = "💾 Lưu vào output folder";
         saveBtn.style.cssText = "background:#059669;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;";
         saveBtn.addEventListener("click", async () => {
+          const cleanInput = confirm("Sau khi lưu, xóa luôn file input gốc để tiết kiệm dung lượng?\n\n• OK = Lưu + xóa input\n• Cancel = Chỉ lưu, giữ input");
           saveBtn.disabled = true;
           saveBtn.textContent = "⏳ Đang lưu...";
           try {
@@ -992,11 +1408,14 @@ async function runClassifier() {
               body: JSON.stringify({
                 temp_output: window._classifierTempOutput,
                 output_dir: window._classifierFinalOutput,
+                clean_input: cleanInput,
+                input_dir: classifierInputDirEl.value.trim() || "phanloai/input",
               }),
             });
             const result = await res.json();
             if (res.ok) {
-              alert(`✅ Đã lưu ${result.file_count} file vào: ${result.output_dir}`);
+              alert(`✅ Đã lưu ${result.file_count} file vào: ${result.output_dir}\n🧹 Đã dọn temp output.${cleanInput ? '\n🗑️ Đã xóa file input gốc.' : ''}`);
+              await loadClassifierFiles();
             } else {
               alert(`Lỗi: ${result.error}`);
             }
@@ -1051,6 +1470,17 @@ async function sendToClassifier() {
 async function sendToInput() {
   const btn = document.getElementById("sendToInputBtn");
   if (!btn) return;
+
+  // Check if output has been saved first
+  try {
+    const checkRes = await fetch("/api/classifier/last-result");
+    const checkData = await checkRes.json();
+    if (checkData.exists) {
+      alert("⚠️ Vui lòng lưu kết quả phân loại trước khi chuyển!\n\nBấm nút '💾 Lưu vào output folder' trước.");
+      return;
+    }
+  } catch(e) {}
+
   const origText = btn.textContent;
   btn.disabled = true;
   btn.textContent = "Đang chuyển file...";
@@ -2365,6 +2795,7 @@ window.addEventListener("load", async () => {
   await loadDestinations();
   await loadClassifierFiles();
   syncCombinedPreviews();
+  await loadOutputHistory();
 });
 
 // ==================== AI PDF SPLITTER ====================
@@ -2572,10 +3003,16 @@ async function splitAllFiles() {
             <strong>${f.filename}</strong>
             <br><small style="color:#666;">${f.document_type} · 👤 ${f.person_name} · ${f.pages.length} trang (${pages})</small>
           </div>
-          <a href="/api/ai-splitter/download/${group.file_id}/${encodeURIComponent(f.filename)}"
-             style="text-decoration:none; padding:4px 10px; background:#4f46e5; color:white; border-radius:4px; font-size:0.8em;">
-            ⬇
-          </a>
+          <div style="display:flex; gap:6px;">
+            <a href="/api/ai-splitter/view/${group.file_id}/${encodeURIComponent(f.filename)}" target="_blank"
+               style="text-decoration:none; padding:4px 10px; background:#f59e0b; color:white; border-radius:4px; font-size:0.8em;">
+              👁 Xem
+            </a>
+            <a href="/api/ai-splitter/download/${group.file_id}/${encodeURIComponent(f.filename)}"
+               style="text-decoration:none; padding:4px 10px; background:#4f46e5; color:white; border-radius:4px; font-size:0.8em;">
+              ⬇
+            </a>
+          </div>
         </div>`;
       }
     }
@@ -2583,6 +3020,7 @@ async function splitAllFiles() {
   }
 
   if (splitAllBtn) { splitAllBtn.disabled = false; splitAllBtn.textContent = "✂️ Tách tất cả"; }
+  loadOutputHistory();
 }
 
 // Refresh button
@@ -2768,6 +3206,7 @@ document.addEventListener("click", async (e) => {
         progressText.textContent = "100%";
         statusText.textContent = `✅ Hoàn thành! Đã tách thành ${data.output_files.length} file.`;
         renderOutputFiles(data.output_files);
+        loadOutputHistory();
         uploadBtn.disabled = false;
         uploadBtn.textContent = "📤 Upload & Tách";
       } else if (data.status === "error") {
@@ -2805,10 +3244,16 @@ document.addEventListener("click", async (e) => {
           ${icon} <strong>${f.filename}</strong>
           <br><small style="color:#666;">${f.document_type} · 👤 ${f.person_name} · ${f.pages.length} trang (${pages})</small>
         </div>
-        <a href="/api/ai-splitter/download/${currentFileId}/${encodeURIComponent(f.filename)}"
-           style="text-decoration:none; padding:4px 12px; background:#4f46e5; color:white; border-radius:4px; font-size:0.85em;">
-          ⬇ Download
-        </a>
+        <div style="display:flex; gap:6px;">
+          <a href="/api/ai-splitter/view/${currentFileId}/${encodeURIComponent(f.filename)}" target="_blank"
+             style="text-decoration:none; padding:4px 12px; background:#f59e0b; color:white; border-radius:4px; font-size:0.85em;">
+            👁 Xem
+          </a>
+          <a href="/api/ai-splitter/download/${currentFileId}/${encodeURIComponent(f.filename)}"
+             style="text-decoration:none; padding:4px 12px; background:#4f46e5; color:white; border-radius:4px; font-size:0.85em;">
+            ⬇ Download
+          </a>
+        </div>
       </div>`;
     }).join("");
   }
@@ -2818,6 +3263,230 @@ document.addEventListener("click", async (e) => {
     window.location.href = `/api/ai-splitter/download-zip/${currentFileId}`;
   });
 })();
+
+// ==================== OUTPUT HISTORY (persistent across F5) ====================
+
+async function loadOutputHistory() {
+  const listEl = document.getElementById("splitterOutputHistoryList");
+  if (!listEl) return;
+  try {
+    const res = await fetch("/api/ai-splitter/list-outputs");
+    const data = await res.json();
+    const groups = data.groups || [];
+    if (groups.length === 0) {
+      listEl.innerHTML = '<div class="hint">Chưa có file nào đã tách. Hãy tách file ở Tab ① hoặc Tab ②.</div>';
+      return;
+    }
+    let html = '';
+    let totalFiles = 0;
+    // Merge toolbar
+    html += `<div id="mergeToolbar" style="display:none; padding:10px 12px; background:#fef3c7; border:2px solid #f59e0b; border-radius:8px; margin-bottom:10px; position:sticky; top:0; z-index:10;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span id="mergeCount" style="font-weight:600;">0 file đã chọn</span>
+        <input type="text" id="mergeOutputName" placeholder="Tên file sau khi gộp (mặc định = file đầu tiên)" style="flex:1; min-width:200px; padding:6px 10px; border:1px solid #d1d5db; border-radius:4px;" />
+        <button id="mergeSelectedBtn" style="padding:8px 16px; background:#4f46e5; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">📎 Gộp file</button>
+        <button id="clearMergeBtn" style="padding:8px 12px; background:#6b7280; color:#fff; border:none; border-radius:6px; cursor:pointer;">✕ Bỏ chọn</button>
+      </div>
+    </div>`;
+
+    for (const group of groups) {
+      const sourceLabel = group.source_filename || group.folder_id;
+      const typeLabel = group.source_type === 'ai'
+        ? `🤖 AI: ${sourceLabel}`
+        : `✂️ Thủ công: ${sourceLabel}`;
+      const typeBg = group.source_type === 'ai' ? '#e0e7ff' : '#fef3c7';
+      html += `<div style="padding:8px 12px; background:${typeBg}; border-radius:6px; margin-bottom:4px;">
+        <strong>${typeLabel}</strong> — ${group.files.length} file
+      </div>`;
+      for (const f of group.files) {
+        const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+        totalFiles++;
+        html += `<div style="padding:6px 12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; padding-left:12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" class="merge-check" data-file-id="${f.file_id}" data-filename="${f.filename}" style="width:18px; height:18px; cursor:pointer;" />
+            <span class="merge-order-badge" style="display:none; width:20px; height:20px; background:#4f46e5; color:white; border-radius:50%; font-size:0.7em; font-weight:700; align-items:center; justify-content:center;"></span>
+            <div>
+              <strong>${f.filename}</strong>
+              <small style="color:#888; margin-left:6px;">(${sizeMB} MB)</small>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <a href="/api/ai-splitter/view/${f.file_id}/${encodeURIComponent(f.filename)}" target="_blank"
+               style="text-decoration:none; padding:4px 10px; background:#f59e0b; color:white; border-radius:4px; font-size:0.8em;">
+              👁 Xem
+            </a>
+            <a href="/api/ai-splitter/download/${f.file_id}/${encodeURIComponent(f.filename)}"
+               style="text-decoration:none; padding:4px 10px; background:#4f46e5; color:white; border-radius:4px; font-size:0.8em;">
+              ⬇
+            </a>
+          </div>
+        </div>`;
+      }
+    }
+    listEl.innerHTML = `<div class="hint" style="margin-bottom:8px;">Tổng: ${totalFiles} file trong ${groups.length} nhóm · ☑️ Tick chọn file cần gộp</div>` + html;
+
+    // Wire up merge checkbox events
+    setupMergeCheckboxes();
+  } catch (e) {
+    listEl.innerHTML = `Lỗi: ${e.message}`;
+  }
+}
+
+function setupMergeCheckboxes() {
+  const toolbar = document.getElementById("mergeToolbar");
+  const countEl = document.getElementById("mergeCount");
+  const nameInput = document.getElementById("mergeOutputName");
+  if (!toolbar) return;
+
+  // Track click order (not DOM order)
+  let mergeOrder = [];
+
+  function updateToolbar() {
+    if (mergeOrder.length >= 2) {
+      toolbar.style.display = "block";
+      countEl.textContent = `${mergeOrder.length} file đã chọn`;
+      // Default name = first clicked file's name (without .pdf)
+      if (!nameInput.dataset.userEdited) {
+        nameInput.value = (mergeOrder[0]?.filename || "").replace(/\.pdf$/i, "");
+      }
+    } else {
+      toolbar.style.display = "none";
+    }
+    // Show order badges
+    document.querySelectorAll(".merge-check").forEach(cb => {
+      const badge = cb.parentElement.querySelector(".merge-order-badge");
+      const idx = mergeOrder.findIndex(m => m.fileId === cb.dataset.fileId && m.filename === cb.dataset.filename);
+      if (badge) {
+        if (idx >= 0) {
+          badge.textContent = idx + 1;
+          badge.style.display = "inline-flex";
+        } else {
+          badge.style.display = "none";
+        }
+      }
+    });
+  }
+
+  document.querySelectorAll(".merge-check").forEach(cb => {
+    cb.addEventListener("change", () => {
+      const entry = { fileId: cb.dataset.fileId, filename: cb.dataset.filename };
+      if (cb.checked) {
+        mergeOrder.push(entry);
+      } else {
+        mergeOrder = mergeOrder.filter(m => !(m.fileId === entry.fileId && m.filename === entry.filename));
+        // Reset name default when unchecking
+        if (mergeOrder.length > 0 && !nameInput.dataset.userEdited) {
+          nameInput.value = (mergeOrder[0]?.filename || "").replace(/\.pdf$/i, "");
+        }
+      }
+      updateToolbar();
+    });
+  });
+
+  // Track manual name edits
+  if (nameInput) {
+    nameInput.addEventListener("input", () => { nameInput.dataset.userEdited = "true"; });
+  }
+
+  // Clear selection
+  const clearBtn = document.getElementById("clearMergeBtn");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      document.querySelectorAll(".merge-check:checked").forEach(cb => { cb.checked = false; });
+      mergeOrder = [];
+      toolbar.style.display = "none";
+      if (nameInput) { nameInput.value = ""; delete nameInput.dataset.userEdited; }
+      updateToolbar();
+    });
+  }
+
+  // Merge button — uses mergeOrder (click order)
+  const mergeBtn = document.getElementById("mergeSelectedBtn");
+  if (mergeBtn) {
+    mergeBtn.addEventListener("click", async () => {
+      if (mergeOrder.length < 2) { alert("Chọn ít nhất 2 file để gộp."); return; }
+      const files = mergeOrder.map(m => ({ file_id: m.fileId, filename: m.filename }));
+      const outputName = (nameInput?.value || "").trim() || mergeOrder[0]?.filename?.replace(/\.pdf$/i, "") || "Merged";
+
+      const fileList = mergeOrder.map((m, i) => `  ${i+1}. ${m.filename}`).join("\n");
+      if (!confirm(`Gộp ${mergeOrder.length} file theo thứ tự:\n${fileList}\n\nTên file output: ${outputName}.pdf\n\nBấm OK để xác nhận.`)) return;
+
+      mergeBtn.disabled = true;
+      mergeBtn.textContent = "⏳ Đang gộp...";
+      try {
+        const res = await fetch("/api/ai-splitter/merge-outputs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files, output_name: outputName }),
+        });
+        const result = await res.json();
+        if (!res.ok) { alert(`Lỗi: ${result.error}`); return; }
+        alert(`✅ Đã gộp ${mergeOrder.length} file → ${result.merged_file} (${result.total_pages} trang)`);
+        mergeOrder = [];
+        if (nameInput) { nameInput.value = ""; delete nameInput.dataset.userEdited; }
+        await loadOutputHistory();
+      } catch (e) { alert(`Lỗi: ${e.message}`); }
+      finally {
+        mergeBtn.disabled = false;
+        mergeBtn.textContent = "📎 Gộp file";
+      }
+    });
+  }
+}
+
+// Refresh output history
+const refreshOutputHistoryBtn = document.getElementById("refreshOutputHistoryBtn");
+if (refreshOutputHistoryBtn) {
+  refreshOutputHistoryBtn.addEventListener("click", loadOutputHistory);
+}
+
+// Clear all outputs
+const clearAllOutputsBtn = document.getElementById("clearAllOutputsBtn");
+if (clearAllOutputsBtn) {
+  clearAllOutputsBtn.addEventListener("click", async () => {
+    if (!confirm("Xóa TẤT CẢ kết quả đã tách (AI + thủ công)?\nHành động này không thể hoàn tác!")) return;
+    clearAllOutputsBtn.disabled = true;
+    clearAllOutputsBtn.textContent = "⏳ Đang xóa...";
+    try {
+      const res = await fetch("/api/ai-splitter/clear-outputs", { method: "POST" });
+      const data = await res.json();
+      alert(`✅ Đã xóa ${data.deleted_count} mục.`);
+      await loadOutputHistory();
+      // Also hide the current results card
+      const resultsCard = document.getElementById("splitterResultsCard");
+      if (resultsCard) resultsCard.style.display = "none";
+    } catch (e) { alert(`Lỗi: ${e.message}`); }
+    finally {
+      clearAllOutputsBtn.disabled = false;
+      clearAllOutputsBtn.textContent = "🗑️ Xóa tất cả kết quả";
+    }
+  });
+}
+
+// Send all outputs to classifier
+const sendAllToClassifierBtn = document.getElementById("sendAllToClassifierBtn");
+if (sendAllToClassifierBtn) {
+  sendAllToClassifierBtn.addEventListener("click", async () => {
+    sendAllToClassifierBtn.disabled = true;
+    sendAllToClassifierBtn.textContent = "⏳ Đang chuyển...";
+    try {
+      const res = await fetch("/api/pipeline/send-to-classifier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
+      alert(`✅ Đã chuyển ${data.count} file sang ${data.target_dir}`);
+      setActiveTab("classifier");
+      loadClassifierFiles();
+    } catch (e) { alert(`Lỗi: ${e.message}`); }
+    finally {
+      sendAllToClassifierBtn.disabled = false;
+      sendAllToClassifierBtn.textContent = "➡️ Chuyển tất cả sang Phân loại";
+    }
+  });
+}
 
 // ==================== PIPELINE BUTTON LISTENERS ====================
 const sendToClassifierBtn = document.getElementById("sendToClassifierBtn");
@@ -2842,3 +3511,81 @@ const sendCleanToClassifierBtn = document.getElementById("sendCleanToClassifierB
 if (sendCleanToClassifierBtn) {
   sendCleanToClassifierBtn.addEventListener("click", sendCleanToClassifier);
 }
+
+// Restore last classifier result on page load
+(async function restoreClassifierResult() {
+  try {
+    // Try fetching from server (scans _temp_output folder)
+    let data = null;
+    try {
+      const res = await fetch("/api/classifier/last-result");
+      const json = await res.json();
+      if (json.exists && json.copied && json.copied.length > 0) {
+        data = json;
+      }
+    } catch(e) {}
+
+    // Fallback: try localStorage
+    if (!data) {
+      const saved = localStorage.getItem("classifierLastResult");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.copied && parsed.copied.length > 0) data = parsed;
+      }
+    }
+
+    if (!data) return;
+
+    // Render result
+    classifierResultEl.innerHTML = formatClassifierResult(data);
+    setupClassifierRename();
+
+    // Restore global vars
+    window._classifierTempOutput = data._temp_output;
+    window._classifierFinalOutput = data._final_output;
+
+    // Show pipeline buttons + save button
+    const pipelineBtns = document.getElementById("pipelineToInputBtns");
+    if (pipelineBtns) {
+      pipelineBtns.style.display = "flex";
+      if (!document.getElementById("saveClassifierOutputBtn")) {
+        const saveBtn = document.createElement("button");
+        saveBtn.id = "saveClassifierOutputBtn";
+        saveBtn.textContent = "💾 Lưu vào output folder";
+        saveBtn.style.cssText = "background:#059669;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;";
+        saveBtn.addEventListener("click", async () => {
+          const cleanInput = confirm("Sau khi lưu, xóa luôn file input gốc để tiết kiệm dung lượng?\n\n• OK = Lưu + xóa input\n• Cancel = Chỉ lưu, giữ input");
+          saveBtn.disabled = true;
+          saveBtn.textContent = "⏳ Đang lưu...";
+          try {
+            const res = await fetch("/api/classifier/save-output", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                temp_output: window._classifierTempOutput,
+                output_dir: window._classifierFinalOutput,
+                clean_input: cleanInput,
+                input_dir: classifierInputDirEl.value.trim() || "phanloai/input",
+              }),
+            });
+            const result = await res.json();
+            if (res.ok) {
+              alert(`✅ Đã lưu ${result.file_count} file vào: ${result.output_dir}\n🧹 Đã dọn temp output.${cleanInput ? '\n🗑️ Đã xóa file input gốc.' : ''}`);
+              localStorage.removeItem("classifierLastResult");
+              classifierResultEl.innerHTML = "<div style='padding:12px; color:#34d399;'>✅ Đã lưu thành công. Chạy phân loại mới để xem kết quả.</div>";
+              await loadClassifierFiles();
+            } else {
+              alert(`Lỗi: ${result.error}`);
+            }
+          } catch (e) {
+            alert(`Lỗi: ${e.message}`);
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "💾 Lưu vào output folder";
+          }
+        });
+        pipelineBtns.appendChild(saveBtn);
+      }
+    }
+  } catch (e) { /* ignore restore errors */ }
+})();

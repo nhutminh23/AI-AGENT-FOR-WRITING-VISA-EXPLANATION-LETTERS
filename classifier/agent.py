@@ -20,6 +20,65 @@ def _sanitize_name(value: str, fallback: str) -> str:
     return text or fallback
 
 
+# Known Vietnamese document type keywords (used to separate person name from doc type in filename)
+_FILENAME_DOC_KEYWORDS = [
+    "Power_of_Attorney", "Contract", "Passport", "Visa", "Birth_Certificate",
+    "Marriage_Certificate", "Identity_Card", "CCCD", "CMND", "License",
+    "Account_Statement", "Bank_Statement", "Social_Insurance", "Receipt",
+    "Land_Certificate", "Property", "Decision", "Registration_Form",
+    "Price_Quotation", "Agreement", "Certificate", "Other", "Driver",
+    "Application_Form", "Photo", "Booking", "Itinerary", "Insurance",
+    "Notification", "Voucher", "Tax", "Salary", "Transcript",
+]
+
+
+def _extract_name_from_filename(filename: str) -> str:
+    """Try to extract person name from structured filename.
+    e.g. 'NGUYEN_LE_KIM_NGAN_Contract.pdf' -> 'NGUYEN LE KIM NGAN'
+    e.g. 'THACH_NGUYEN_PHONG_Birth_Certificate.pdf' -> 'THACH NGUYEN PHONG'
+    Returns empty string if no name found."""
+    stem = os.path.splitext(filename)[0]  # remove extension
+    # Remove trailing numbers like (1), (2)
+    stem = re.sub(r'\s*\(\d+\)\s*$', '', stem).strip()
+    # Remove trailing dots and spaces
+    stem = stem.rstrip(". ")
+
+    # Non-name prefixes that should be rejected
+    _NON_NAME_PREFIXES = ["IMMI", "FORM", "GRANT", "SCAN", "DOC", "FILE", "PAGE", "COPY"]
+
+    def _is_valid_name(name: str) -> bool:
+        """Check if extracted name looks like a real person name."""
+        words = name.split()
+        if len(words) < 2:
+            return False
+        # Reject if starts with known non-name words
+        if words[0] in _NON_NAME_PREFIXES:
+            return False
+        # All words should be alphabetic (Vietnamese names after removing diacritics)
+        return all(re.match(r'^[A-Z]+$', w) for w in words)
+
+    # Try to find where the doc-type part starts
+    for kw in _FILENAME_DOC_KEYWORDS:
+        idx = stem.lower().find(kw.lower())
+        if idx > 0:
+            name_part = stem[:idx].rstrip("_- ")
+            name = name_part.replace("_", " ").replace("-", " ").strip().upper()
+            if _is_valid_name(name):
+                return name
+
+    # Also try patterns like IMMI-Grant-Notification_NGUYEN-LE-KIM-NGAN
+    # where person name follows a doc keyword
+    for kw in _FILENAME_DOC_KEYWORDS:
+        pattern = re.compile(re.escape(kw) + r'[_\-\s]+(.+)', re.IGNORECASE)
+        m = pattern.search(stem)
+        if m:
+            name_part = m.group(1).strip()
+            name = name_part.replace("_", " ").replace("-", " ").strip().upper()
+            if _is_valid_name(name):
+                return name
+    return ""
+
+
 def _pick_unique_destination(dest_dir: str, stem: str, ext: str) -> str:
     candidate = os.path.join(dest_dir, f"{stem}{ext}")
     idx = 1
@@ -75,8 +134,16 @@ Quy tắc:
   LABOR CONTRACT, BUSINESS LICENSE, SOCIAL INSURANCE RECORD,
   HOTEL BOOKING, FLIGHT BOOKING, TRAVEL ITINERARY, TRAVEL INSURANCE,
   VISA GRANT NOTICE, IMMIGRATION RECORD, PROPERTY CERTIFICATE,
-  DRIVER LICENSE, ACADEMIC TRANSCRIPT, APPLICATION FORM, PHOTO, COVER LETTER
+  DRIVER LICENSE, ACADEMIC TRANSCRIPT, APPLICATION FORM, PHOTO, COVER LETTER,
+  POWER OF ATTORNEY, RECEIPT VOUCHER, AGREEMENT, PRICE QUOTATION,
+  REGISTRATION FORM, LAND CERTIFICATE, DECISION
 - Chỉ trả JSON, không giải thích.
+
+RẤT QUAN TRỌNG VỀ person_name:
+- TÊN FILE rất quan trọng! Nếu tên file có dạng "NGUYEN_LE_KIM_NGAN_Contract.pdf" thì person_name = "NGUYEN LE KIM NGAN".
+- Nếu tên file có dạng "Hộ chiếu của mẹ chồng.pdf" hoặc tên Việt, vẫn cố gắng tìm tên trong NỘI DUNG.
+- Nếu nội dung chứa tên người (trong phần chủ sở hữu, bên ủy quyền, bên được ủy quyền, v.v.), PHẢI dùng tên đó.
+- CHỈ dùng "UNKNOWN PERSON" khi THẬT SỰ không thể tìm ra tên từ cả tên file lẫn nội dung.
 
 Tên file: {filename}
 Nội dung:
@@ -118,9 +185,14 @@ Trả về JSON duy nhất:
 Quy tắc:
 - Nếu TẤT CẢ trang cùng 1 loại + cùng 1 người → trả 1 mục duy nhất.
 - person_name: IN HOA, không dấu. Không rõ thì "UNKNOWN PERSON".
-- doc_type_en: tiếng Anh, IN HOA, ngắn gọn (PASSPORT, BANK STATEMENT, ...).
+- doc_type_en: tiếng Anh, IN HOA, ngắn gọn (PASSPORT, BANK STATEMENT, LABOR CONTRACT, POWER OF ATTORNEY, ...).
 - Không overlap trang. Thứ tự tăng dần.
 - Chỉ trả JSON, không giải thích.
+
+RẤT QUAN TRỌNG VỀ person_name:
+- TÊN FILE rất quan trọng! Nếu tên file có dạng "NGUYEN_LE_KIM_NGAN_Contract.pdf" thì person_name = "NGUYEN LE KIM NGAN".
+- Ưu tiên tìm tên TRONG NỘI DUNG trang. Nếu không rõ, dùng tên từ tên file.
+- CHỈ dùng "UNKNOWN PERSON" khi THẬT SỰ không thể xác định từ cả tên file lẫn nội dung.
 
 Tên file: {filename}
 {pages_text}"""
@@ -138,9 +210,16 @@ def _classify_single(llm: Any, filename: str, text: str) -> Optional[Dict[str, s
             parsed = json.loads(match.group())
         else:
             parsed = json.loads(raw)
+        person = _sanitize_name(str(parsed.get("person_name", "")), "UNKNOWN PERSON")
+        doc_type = _sanitize_name(str(parsed.get("doc_type_en", "")), "DOCUMENT")
+        # Fallback: if AI returned UNKNOWN PERSON, try extracting from filename
+        if person == "UNKNOWN PERSON":
+            fname_name = _extract_name_from_filename(filename)
+            if fname_name:
+                person = fname_name
         return {
-            "person_name": _sanitize_name(str(parsed.get("person_name", "")), "UNKNOWN PERSON"),
-            "doc_type_en": _sanitize_name(str(parsed.get("doc_type_en", "")), "DOCUMENT"),
+            "person_name": person,
+            "doc_type_en": doc_type,
         }
     except Exception:
         return None
@@ -167,6 +246,7 @@ def _classify_multi_page_pdf(llm: Any, filename: str, page_texts: List[str]) -> 
 
     max_page = len(page_texts)
     output: List[Dict[str, Any]] = []
+    fname_name = _extract_name_from_filename(filename)
     for item in docs:
         if not isinstance(item, dict):
             continue
@@ -179,8 +259,12 @@ def _classify_multi_page_pdf(llm: Any, filename: str, page_texts: List[str]) -> 
         e = max(1, min(max_page, e))
         if s > e:
             s, e = e, s
+        person = _sanitize_name(str(item.get("person_name", "")), "UNKNOWN PERSON")
+        # Fallback: if AI returned UNKNOWN PERSON, try filename
+        if person == "UNKNOWN PERSON" and fname_name:
+            person = fname_name
         output.append({
-            "person_name": _sanitize_name(str(item.get("person_name", "")), "UNKNOWN PERSON"),
+            "person_name": person,
             "doc_type_en": _sanitize_name(str(item.get("doc_type_en", "")), "DOCUMENT"),
             "start_page": s,
             "end_page": e,
@@ -200,7 +284,8 @@ _DOMAIN_KEYWORDS = {
     "FINANCIAL": [
         "BANK", "STATEMENT", "BALANCE", "SAVINGS", "DEPOSIT",
         "TAX", "INCOME", "SALARY", "PAYSLIP", "PROPERTY",
-        "LAND", "STOCK", "INVESTMENT",
+        "LAND", "STOCK", "INVESTMENT", "PRICE QUOTATION",
+        "RECEIPT", "VOUCHER", "ACCOUNT",
     ],
     "EMPLOYMENT": [
         "LABOR CONTRACT", "EMPLOYMENT", "BUSINESS LICENSE",
@@ -216,6 +301,10 @@ _DOMAIN_KEYWORDS = {
         "VISA", "GRANT", "IMMI", "TRAVEL HISTORY", "ENTRY", "EXIT",
         "STAMP", "IMMIGRATION",
     ],
+    "LEGAL": [
+        "CONTRACT", "AGREEMENT", "POWER OF ATTORNEY", "DECISION",
+        "REGISTRATION FORM", "NOTARY", "AUTHORIZATION",
+    ],
     "OVERVIEW": [
         "OVERVIEW", "SUMMARY", "COVER LETTER", "EXPLANATION",
     ],
@@ -228,7 +317,10 @@ def _resolve_domain_prefix(doc_type_en: str) -> str:
         for kw in keywords:
             if kw in upper:
                 return domain
-    return ""
+    # Default: if truly unrecognized, use OTHER
+    if upper in ["UNKNOWN", "DOCUMENT", "OTHER", "UNKNOWN DOCUMENT"]:
+        return "OTHER"
+    return "OTHER"
 
 
 def _copy_to_output(
@@ -238,9 +330,10 @@ def _copy_to_output(
     os.makedirs(person_dir, exist_ok=True)
     ext = os.path.splitext(src_path)[1] or ""
     domain = _resolve_domain_prefix(doc_type_en)
-    stem = _sanitize_name(doc_type_en, "DOCUMENT")
-    if domain:
-        stem = f"{domain}_{stem}"
+    doc = _sanitize_name(doc_type_en, "DOCUMENT")
+    pname = _sanitize_name(person_name, "UNKNOWN").replace(" ", "_")
+    # Format: DOMAIN_PersonName_DocType.ext
+    stem = f"{domain}_{pname}_{doc}"
     target = _pick_unique_destination(person_dir, stem, ext)
     shutil.copy2(src_path, target)
     return target
@@ -265,9 +358,10 @@ def _split_and_copy_pdf(
         person_dir = os.path.join(output_dir, _sanitize_name(item["person_name"], "UNKNOWN PERSON"))
         os.makedirs(person_dir, exist_ok=True)
         domain = _resolve_domain_prefix(item["doc_type_en"])
-        stem = _sanitize_name(item["doc_type_en"], "DOCUMENT")
-        if domain:
-            stem = f"{domain}_{stem}"
+        doc = _sanitize_name(item["doc_type_en"], "DOCUMENT")
+        pname = _sanitize_name(item["person_name"], "UNKNOWN").replace(" ", "_")
+        # Format: DOMAIN_PersonName_DocType.pdf
+        stem = f"{domain}_{pname}_{doc}"
         out_path = _pick_unique_destination(person_dir, stem, ".pdf")
         with open(out_path, "wb") as f:
             writer.write(f)
@@ -315,9 +409,11 @@ def classify_files_in_folder(
         if ext in [".docx", ".doc"]:
             text = _read_docx_text(src_path)
             if not text.strip():
-                # Filename-based fallback (no API call needed)
+                # Try to get name from filename first, then fallback
+                fname_name = _extract_name_from_filename(filename)
                 return {"type": "copied", "filename": filename,
-                        "person_name": "UNKNOWN PERSON", "doc_type_en": "WORD DOCUMENT"}
+                        "person_name": fname_name or "UNKNOWN PERSON",
+                        "doc_type_en": "APPLICATION FORM"}
             identified = _classify_single(llm, filename, text)
             if not identified:
                 return {"type": "skipped", "filename": filename}
@@ -355,9 +451,15 @@ def classify_files_in_folder(
         total_pages = len(page_texts)
         non_empty = sum(1 for t in page_texts if len(t.strip()) > 30)
 
-        # Scanned PDF (no text) → classify from filename only
+        # Scanned PDF (mostly no text) → still try to use any available text
         if non_empty < max(1, total_pages * 0.3):
-            identified = _classify_single(llm, filename, f"[Scanned PDF: {filename}, {total_pages} pages]")
+            # Collect whatever partial text exists
+            partial_text = "\n".join(t for t in page_texts if t.strip())
+            if partial_text.strip():
+                context = f"[Scanned PDF, nhưng có một phần text:]\n{partial_text[:3000]}"
+            else:
+                context = f"[Scanned PDF: {filename}, {total_pages} trang, không có text. Hãy phân loại từ tên file.]"
+            identified = _classify_single(llm, filename, context)
             if not identified:
                 return {"type": "skipped", "filename": filename}
             return {"type": "copied", "filename": filename, **identified}

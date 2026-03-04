@@ -536,6 +536,57 @@ def run_classifier():
     result["_final_output"] = output_dir
     return jsonify({"status": "done", **result})
 
+@app.get("/api/classifier/last-result")
+def classifier_last_result():
+    """Scan _temp_output to reconstruct last classification result."""
+    temp_output = os.path.join("phanloai", "_temp_output")
+    if not os.path.isdir(temp_output):
+        return jsonify({"exists": False})
+
+    copied = []
+    person_counts = {}
+    for person_dir in sorted(os.listdir(temp_output)):
+        person_path = os.path.join(temp_output, person_dir)
+        if not os.path.isdir(person_path):
+            continue
+        count = 0
+        for fname in sorted(os.listdir(person_path)):
+            fpath = os.path.join(person_path, fname)
+            if not os.path.isfile(fpath):
+                continue
+            count += 1
+            # Try to extract doc_type from filename: DOMAIN_PERSON_DOCTYPE.ext
+            stem = os.path.splitext(fname)[0]
+            parts = stem.split("_", 2)  # DOMAIN_PERSON_DOCTYPE or just name
+            doc_type = parts[-1] if len(parts) >= 3 else stem
+            # Remove trailing (1), (2) etc
+            import re
+            doc_type = re.sub(r'\s*\(\d+\)$', '', doc_type).strip()
+
+            rel_path = os.path.join(person_dir, fname).replace("\\", "/")
+            copied.append({
+                "source": fname,
+                "person_name": person_dir,
+                "doc_type_en": doc_type,
+                "to": rel_path,
+            })
+        if count > 0:
+            person_counts[person_dir] = count
+
+    if not copied:
+        return jsonify({"exists": False})
+
+    return jsonify({
+        "exists": True,
+        "status": "done",
+        "copied": copied,
+        "copied_count": len(copied),
+        "skipped_count": 0,
+        "person_counts": person_counts,
+        "_temp_output": temp_output,
+        "_final_output": os.path.join("phanloai", "output"),
+    })
+
 
 @app.post("/api/classifier/save-output")
 def classifier_save_output():
@@ -559,22 +610,88 @@ def classifier_save_output():
             shutil.copy2(src, dst)
             count += 1
 
+    # Auto-cleanup: delete temp output to save disk space
+    try:
+        shutil.rmtree(temp_output)
+    except Exception:
+        pass
+
+    # Optional: clean input files too
+    clean_input = payload.get("clean_input", False)
+    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    if clean_input and os.path.isdir(input_dir):
+        try:
+            shutil.rmtree(input_dir)
+            os.makedirs(input_dir, exist_ok=True)
+        except Exception:
+            pass
+
     return jsonify({"status": "saved", "output_dir": final_output, "file_count": count})
+
+
+@app.post("/api/classifier/rename-file")
+def classifier_rename_file():
+    """Rename/move a classified output file to a different person or doc_type."""
+    payload = request.get_json(force=True) or {}
+    old_path = payload.get("old_path", "")  # relative path like "UNKNOWN PERSON/FINANCIAL_BANK STATEMENT.pdf"
+    new_person = payload.get("new_person", "").strip()
+    new_doc_type = payload.get("new_doc_type", "").strip()
+    temp_output = payload.get("temp_output", os.path.join("phanloai", "_temp_output"))
+
+    if not old_path or not new_person:
+        return jsonify({"error": "old_path and new_person are required"}), 400
+
+    full_old = os.path.join(temp_output, old_path)
+    if not os.path.isfile(full_old):
+        return jsonify({"error": f"File not found: {old_path}"}), 404
+
+    ext = os.path.splitext(full_old)[1] or ".pdf"
+
+    # Import domain resolver from classifier
+    from classifier.agent import _resolve_domain_prefix, _sanitize_name, _pick_unique_destination
+
+    doc_type = _sanitize_name(new_doc_type, "DOCUMENT") if new_doc_type else "DOCUMENT"
+    person_clean = _sanitize_name(new_person, "UNKNOWN PERSON")
+    domain = _resolve_domain_prefix(doc_type)
+    pname = person_clean.replace(" ", "_")
+    stem = f"{domain}_{pname}_{doc_type}"
+
+    # Create new person directory
+    new_person_dir = os.path.join(temp_output, person_clean)
+    os.makedirs(new_person_dir, exist_ok=True)
+    new_path = _pick_unique_destination(new_person_dir, stem, ext)
+
+    # Move file
+    shutil.move(full_old, new_path)
+
+    # Clean up empty old directory
+    old_dir = os.path.dirname(full_old)
+    if os.path.isdir(old_dir) and not os.listdir(old_dir):
+        os.rmdir(old_dir)
+
+    new_rel = os.path.relpath(new_path, temp_output).replace("\\", "/")
+    return jsonify({
+        "status": "renamed",
+        "old_path": old_path,
+        "new_path": new_rel,
+        "person_name": person_clean,
+        "doc_type_en": doc_type,
+    })
 
 
 # ==================== PIPELINE CONNECTION ENDPOINTS ====================
 
 @app.post("/api/pipeline/send-to-classifier")
 def pipeline_send_to_classifier():
-    """Copy AI splitter output files → classifier input folder."""
+    """Copy ALL splitter output files (AI + manual) → classifier input folder.
+    Walks splitter_outputs/ recursively, skipping .zip files."""
     payload = request.get_json(force=True) or {}
     file_id = payload.get("file_id", "")
     target_dir = payload.get("target_dir", os.path.join("phanloai", "input"))
 
-    # Find source: splitter_outputs/{file_id}/
+    # Find source: specific file_id or all outputs
     source_dir = os.path.join("splitter_outputs", file_id) if file_id else ""
     if not source_dir or not os.path.isdir(source_dir):
-        # If no file_id, try all splitter outputs
         source_dir = "splitter_outputs"
         if not os.path.isdir(source_dir):
             return jsonify({"error": "no_splitter_output"}), 404
@@ -584,6 +701,8 @@ def pipeline_send_to_classifier():
     for root, _, files in os.walk(source_dir):
         for fname in files:
             if fname.endswith(".zip"):
+                continue
+            if not fname.lower().endswith(".pdf"):
                 continue
             src = os.path.join(root, fname)
             dst = os.path.join(target_dir, fname)
@@ -635,26 +754,37 @@ def _safe_join(base: str, rel_path: str) -> str:
 
 @app.post("/api/classifier/split_manual")
 def split_manual():
+    """Manual PDF splitting. Outputs go to splitter_outputs/manual_<uuid>/.
+    If source_file_id + source_filename are provided (from AI results),
+    the original AI file is removed from splitter_outputs so it won't be
+    transferred to classifier (only the manually split files will be)."""
     payload = request.get_json(force=True) or {}
+    # Source can be from AI results or from uploaded file
+    source_file_id = (payload.get("source_file_id") or "").strip()
+    source_filename = (payload.get("source_filename") or "").strip()
+    # Legacy support: direct source path
     input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
-    output_dir = payload.get("output_dir", os.path.join("phanloai", "output"))
     source = (payload.get("source") or "").strip()
     segments = payload.get("segments") or []
 
-    if not os.path.isdir(input_dir):
-        return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
-    os.makedirs(output_dir, exist_ok=True)
-    if not source:
-        return jsonify({"error": "missing_source"}), 400
     if not isinstance(segments, list) or not segments:
         return jsonify({"error": "missing_segments"}), 400
 
-    try:
-        src_path = _safe_join(input_dir, source)
-    except ValueError:
-        return jsonify({"error": "invalid_source"}), 400
+    # Determine source PDF path
+    src_path = None
+    if source_file_id and source_filename:
+        # Source from AI splitter output
+        candidate = SPLITTER_OUTPUT_DIR / source_file_id / source_filename
+        if candidate.is_file():
+            src_path = str(candidate)
+    if not src_path and source:
+        # Legacy: from input_dir
+        try:
+            src_path = _safe_join(input_dir, source)
+        except ValueError:
+            return jsonify({"error": "invalid_source"}), 400
 
-    if not os.path.exists(src_path):
+    if not src_path or not os.path.exists(src_path):
         return jsonify({"error": "source_not_found"}), 404
     if os.path.splitext(src_path)[1].lower() != ".pdf":
         return jsonify({"error": "source_not_pdf"}), 400
@@ -665,6 +795,12 @@ def split_manual():
         return jsonify({"error": "read_pdf_failed", "detail": str(exc)}), 500
 
     total_pages = len(reader.pages)
+
+    # Output goes to splitter_outputs/manual_<uuid>/
+    manual_id = f"manual_{uuid.uuid4().hex[:8]}"
+    output_dir = str(SPLITTER_OUTPUT_DIR / manual_id)
+    os.makedirs(output_dir, exist_ok=True)
+
     created: list[dict[str, Any]] = []
 
     def _sanitize_name(value: str, fallback: str) -> str:
@@ -712,14 +848,31 @@ def split_manual():
             }
         )
 
+    # If splitting from AI result, remove the original AI file so it won't be
+    # transferred to classifier (only the new manual splits will be transferred).
+    removed_original = None
+    if source_file_id and source_filename and created:
+        original_path = SPLITTER_OUTPUT_DIR / source_file_id / source_filename
+        if original_path.is_file():
+            os.remove(str(original_path))
+            removed_original = source_filename
+
+    # Save source metadata for persistent display
+    if created:
+        src_display = source_filename or source or "unknown"
+        source_meta = {"source_filename": src_display, "source_type": "manual"}
+        with open(os.path.join(output_dir, "_source.json"), "w", encoding="utf-8") as mf:
+            json.dump(source_meta, mf, ensure_ascii=False)
+
     return jsonify(
         {
             "status": "done",
-            "input_dir": input_dir,
+            "manual_id": manual_id,
             "output_dir": output_dir,
-            "source": source,
+            "source": source or source_filename,
             "total_pages": total_pages,
             "segments": created,
+            "removed_original": removed_original,
         }
     )
 
@@ -1757,6 +1910,11 @@ async def _process_splitter_job(file_id: str):
         )
         job["output_files"] = output_files
 
+        # Save source metadata for persistent display
+        source_meta = {"source_filename": job["filename"], "source_type": "ai"}
+        with open(os.path.join(job_output_dir, "_source.json"), "w", encoding="utf-8") as mf:
+            json.dump(source_meta, mf, ensure_ascii=False)
+
         # Step 4: Create ZIP
         zip_path = str(SPLITTER_OUTPUT_DIR / f"{file_id}.zip")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -1942,13 +2100,22 @@ def splitter_status(file_id: str):
 
 @app.get("/api/ai-splitter/download/<file_id>/<filename>")
 def splitter_download_single(file_id: str, filename: str):
-    if file_id not in splitter_jobs:
-        return jsonify({"error": "not_found"}), 404
+    # Check both splitter_jobs (AI) and filesystem (manual splits)
     file_path = SPLITTER_OUTPUT_DIR / file_id / filename
     if not file_path.exists():
         return jsonify({"error": "file_not_found"}), 404
     return send_from_directory(str(SPLITTER_OUTPUT_DIR / file_id), filename,
                                 as_attachment=True, mimetype="application/pdf")
+
+
+@app.get("/api/ai-splitter/view/<file_id>/<filename>")
+def splitter_view_single(file_id: str, filename: str):
+    """Serve PDF for in-browser viewing (as_attachment=False)."""
+    file_path = SPLITTER_OUTPUT_DIR / file_id / filename
+    if not file_path.exists():
+        return jsonify({"error": "file_not_found"}), 404
+    return send_from_directory(str(SPLITTER_OUTPUT_DIR / file_id), filename,
+                                as_attachment=False, mimetype="application/pdf")
 
 
 @app.get("/api/ai-splitter/download-zip/<file_id>")
@@ -1963,6 +2130,336 @@ def splitter_download_zip(file_id: str):
                                 as_attachment=True, mimetype="application/zip")
 
 
+@app.get("/api/ai-splitter/list-outputs")
+def splitter_list_outputs():
+    """List ALL split output files across all splitter job folders (AI + manual).
+    Used by Tab ② to pick a file to re-split manually."""
+    output_dir = str(SPLITTER_OUTPUT_DIR)
+    if not os.path.isdir(output_dir):
+        return jsonify({"groups": []})
+
+    groups = []
+    for folder_name in sorted(os.listdir(output_dir)):
+        folder_path = os.path.join(output_dir, folder_name)
+        if not os.path.isdir(folder_path):
+            continue
+        files = []
+        for fname in sorted(os.listdir(folder_path)):
+            fpath = os.path.join(folder_path, fname)
+            if os.path.isfile(fpath) and fname.lower().endswith(".pdf"):
+                files.append({
+                    "filename": fname,
+                    "size": os.path.getsize(fpath),
+                    "file_id": folder_name,
+                })
+        if files:
+            is_manual = folder_name.startswith("manual_")
+            # Read persistent source metadata
+            source_name = ""
+            source_meta_path = os.path.join(folder_path, "_source.json")
+            if os.path.isfile(source_meta_path):
+                try:
+                    with open(source_meta_path, "r", encoding="utf-8") as mf:
+                        meta = json.load(mf)
+                    source_name = meta.get("source_filename", "")
+                except Exception:
+                    pass
+            # Fallback to in-memory splitter_jobs
+            if not source_name and not is_manual and folder_name in splitter_jobs:
+                source_name = splitter_jobs[folder_name].get("filename", "")
+            groups.append({
+                "folder_id": folder_name,
+                "source_type": "manual" if is_manual else "ai",
+                "source_filename": source_name,
+                "files": files,
+            })
+    return jsonify({"groups": groups})
+
+
+@app.post("/api/manual-split/upload-and-split")
+def manual_split_upload_and_split():
+    """Upload a PDF from computer and split it manually.
+    The uploaded file is stored temporarily, split into segments,
+    and results go to splitter_outputs/manual_<uuid>/."""
+    if "file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+    file = request.files["file"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "not_pdf"}), 400
+
+    segments_json = request.form.get("segments", "[]")
+    try:
+        segments = json.loads(segments_json)
+    except Exception:
+        return jsonify({"error": "invalid_segments"}), 400
+    if not isinstance(segments, list) or not segments:
+        return jsonify({"error": "missing_segments"}), 400
+
+    # Save uploaded file to temp location
+    manual_id = f"manual_{uuid.uuid4().hex[:8]}"
+    output_dir = str(SPLITTER_OUTPUT_DIR / manual_id)
+    os.makedirs(output_dir, exist_ok=True)
+
+    import tempfile
+    tmp_dir = tempfile.mkdtemp()
+    tmp_path = os.path.join(tmp_dir, file.filename)
+    file.save(tmp_path)
+
+    try:
+        reader = PdfReader(tmp_path)
+    except Exception as exc:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return jsonify({"error": "read_pdf_failed", "detail": str(exc)}), 500
+
+    total_pages = len(reader.pages)
+    created: list[dict[str, Any]] = []
+
+    def _sanitize_name(value: str, fallback: str) -> str:
+        text = (value or "").strip()
+        text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text or fallback
+
+    def _pick_unique(dest_dir: str, stem: str, ext: str) -> str:
+        candidate = os.path.join(dest_dir, f"{stem}{ext}")
+        idx = 1
+        while os.path.exists(candidate):
+            candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
+            idx += 1
+        return candidate
+
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        name = _sanitize_name(seg.get("output_name") or "", "DOCUMENT")
+        try:
+            s = int(seg.get("start_page"))
+            e = int(seg.get("end_page"))
+        except Exception:
+            continue
+        if s < 1 or e < 1 or s > total_pages or e > total_pages:
+            continue
+        if s > e:
+            s, e = e, s
+        writer = PdfWriter()
+        for i in range(s - 1, e):
+            writer.add_page(reader.pages[i])
+        out_path = _pick_unique(output_dir, name, ".pdf")
+        try:
+            with open(out_path, "wb") as f:
+                writer.write(f)
+        except Exception:
+            continue
+        created.append(
+            {
+                "output_name": name,
+                "start_page": s,
+                "end_page": e,
+                "to": os.path.relpath(out_path, output_dir).replace("\\", "/"),
+                "file_id": manual_id,
+            }
+        )
+
+    # Clean up temp
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # Save source metadata for persistent display
+    if created:
+        source_meta = {"source_filename": file.filename, "source_type": "manual"}
+        with open(os.path.join(output_dir, "_source.json"), "w", encoding="utf-8") as mf:
+            json.dump(source_meta, mf, ensure_ascii=False)
+
+    return jsonify(
+        {
+            "status": "done",
+            "manual_id": manual_id,
+            "output_dir": output_dir,
+            "source": file.filename,
+            "total_pages": total_pages,
+            "segments": created,
+        }
+    )
+
+
+@app.post("/api/manual-split/send-to-classifier")
+def manual_split_send_to_classifier():
+    """Send specific manual split results directly to classifier input.
+    Use this when user uploads a file from computer and wants to send
+    directly to classifier without going through the full pipeline."""
+    payload = request.get_json(force=True) or {}
+    manual_id = payload.get("manual_id", "")
+    target_dir = payload.get("target_dir", os.path.join("phanloai", "input"))
+
+    if not manual_id:
+        return jsonify({"error": "missing_manual_id"}), 400
+
+    source_dir = str(SPLITTER_OUTPUT_DIR / manual_id)
+    if not os.path.isdir(source_dir):
+        return jsonify({"error": "not_found"}), 404
+
+    os.makedirs(target_dir, exist_ok=True)
+    copied = []
+    for fname in os.listdir(source_dir):
+        fpath = os.path.join(source_dir, fname)
+        if not os.path.isfile(fpath) or not fname.lower().endswith(".pdf"):
+            continue
+        dst = os.path.join(target_dir, fname)
+        base, ext = os.path.splitext(fname)
+        idx = 1
+        while os.path.exists(dst):
+            dst = os.path.join(target_dir, f"{base} ({idx}){ext}")
+            idx += 1
+        shutil.copy2(fpath, dst)
+        copied.append(fname)
+
+    return jsonify({"status": "done", "copied": copied, "count": len(copied), "target_dir": target_dir})
+
+
+@app.post("/api/manual-split/get-page-count")
+def manual_split_get_page_count():
+    """Get page count of a file in splitter_outputs (for re-splitting from AI results)."""
+    payload = request.get_json(force=True) or {}
+    file_id = payload.get("file_id", "")
+    filename = payload.get("filename", "")
+    if not file_id or not filename:
+        return jsonify({"error": "missing_params"}), 400
+    file_path = SPLITTER_OUTPUT_DIR / file_id / filename
+    if not file_path.is_file():
+        return jsonify({"error": "file_not_found"}), 404
+    try:
+        count = get_page_count(str(file_path))
+    except Exception as exc:
+        return jsonify({"error": "read_failed", "detail": str(exc)}), 500
+    return jsonify({"page_count": count, "filename": filename, "file_id": file_id})
+
+
+@app.post("/api/manual-split/upload-get-page-count")
+def manual_split_upload_get_page_count():
+    """Upload a PDF and return its page count (for building split form)."""
+    if "file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+    file = request.files["file"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "not_pdf"}), 400
+
+    # Save to a temp location under splitter_uploads
+    temp_id = f"temp_{uuid.uuid4().hex[:8]}"
+    temp_dir = SPLITTER_UPLOAD_DIR / temp_id
+    temp_dir.mkdir(exist_ok=True)
+    file_path = temp_dir / file.filename
+    file.save(str(file_path))
+
+    try:
+        count = get_page_count(str(file_path))
+    except Exception as exc:
+        shutil.rmtree(str(temp_dir), ignore_errors=True)
+        return jsonify({"error": "read_failed", "detail": str(exc)}), 500
+
+    return jsonify({
+        "page_count": count,
+        "filename": file.filename,
+        "temp_id": temp_id,
+        "temp_path": str(file_path),
+    })
+
+
+
+@app.post("/api/ai-splitter/merge-outputs")
+def splitter_merge_outputs():
+    """Merge multiple output PDF files into one.
+    Expects JSON: { files: [{file_id, filename}, ...], output_name: "optional" }
+    Merges in order, saves into the first file's folder, deletes originals."""
+    payload = request.get_json(force=True) or {}
+    files = payload.get("files", [])
+    output_name = (payload.get("output_name") or "").strip()
+
+    if not isinstance(files, list) or len(files) < 2:
+        return jsonify({"error": "need_at_least_2_files"}), 400
+
+    # Validate all files exist
+    paths = []
+    for f in files:
+        fid = f.get("file_id", "")
+        fname = f.get("filename", "")
+        fpath = SPLITTER_OUTPUT_DIR / fid / fname
+        if not fpath.is_file():
+            return jsonify({"error": f"file_not_found: {fid}/{fname}"}), 404
+        paths.append((fid, fname, str(fpath)))
+
+    # Default output name = first file's name (without .pdf)
+    if not output_name:
+        first_name = os.path.splitext(files[0]["filename"])[0]
+        output_name = first_name
+
+    # Sanitize
+    output_name = re.sub(r'[\\/:*?"<>|]+', ' ', output_name)
+    output_name = re.sub(r'\s+', ' ', output_name).strip() or "Merged"
+
+    # Merge PDFs
+    writer = PdfWriter()
+    for _, _, fpath in paths:
+        try:
+            reader = PdfReader(fpath)
+            for page in reader.pages:
+                writer.add_page(page)
+        except Exception as exc:
+            return jsonify({"error": f"read_failed: {fpath}", "detail": str(exc)}), 500
+
+    # Save to first file's folder
+    target_dir = str(SPLITTER_OUTPUT_DIR / files[0]["file_id"])
+    out_filename = f"{output_name}.pdf"
+    out_path = os.path.join(target_dir, out_filename)
+    # Avoid overwriting
+    idx = 1
+    while os.path.exists(out_path):
+        out_path = os.path.join(target_dir, f"{output_name} ({idx}).pdf")
+        out_filename = f"{output_name} ({idx}).pdf"
+        idx += 1
+
+    try:
+        with open(out_path, "wb") as f:
+            writer.write(f)
+    except Exception as exc:
+        return jsonify({"error": "write_failed", "detail": str(exc)}), 500
+
+    # Delete originals
+    deleted = []
+    for fid, fname, fpath in paths:
+        try:
+            os.remove(fpath)
+            deleted.append(f"{fid}/{fname}")
+        except Exception:
+            pass
+
+    return jsonify({
+        "status": "done",
+        "merged_file": out_filename,
+        "file_id": files[0]["file_id"],
+        "total_pages": len(writer.pages),
+        "deleted": deleted,
+    })
+
+
+@app.post("/api/ai-splitter/clear-outputs")
+def splitter_clear_outputs():
+    """Delete ALL output folders in splitter_outputs/ (AI + manual).
+    Also clears in-memory splitter_jobs."""
+    output_dir = str(SPLITTER_OUTPUT_DIR)
+    deleted_count = 0
+    if os.path.isdir(output_dir):
+        for name in os.listdir(output_dir):
+            path = os.path.join(output_dir, name)
+            if os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+                deleted_count += 1
+            elif os.path.isfile(path):
+                os.remove(path)  # remove .zip files etc.
+                deleted_count += 1
+    splitter_jobs.clear()
+    return jsonify({"status": "done", "deleted_count": deleted_count})
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=True)
+
 
