@@ -346,3 +346,13 @@ input[type="number"] {
 .export-pdf-btn.export-all:hover {
   background: #b45309;
 }
+
+/* Spinner animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.tabs {
+  flex-wrap: wrap;
+}

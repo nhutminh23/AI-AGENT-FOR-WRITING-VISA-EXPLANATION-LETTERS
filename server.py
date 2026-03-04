@@ -29,6 +29,16 @@ load_dotenv()
 app = Flask(__name__, static_folder="frontend", static_url_path="")
 
 
+def get_text_model() -> str:
+    """Model for text reasoning/writing tasks (gpt-5-mini default)."""
+    return os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
+
+def get_vision_model() -> str:
+    """Model for image/OCR tasks (gpt-4o-mini default — cheaper, good at vision)."""
+    return os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
+
+
 def _list_input_files(input_dir: str) -> List[Dict[str, str]]:
     items: List[Dict[str, str]] = []
     for root, _, filenames in os.walk(input_dir):
@@ -239,6 +249,229 @@ def list_files():
     return jsonify({"input_dir": input_dir, "files": files})
 
 
+# ==================== PRE-CHECK ENDPOINTS ====================
+
+def _vision_detect_pdf_documents(llm, pdf_path: str, filename: str, total_pages: int):
+    """Quick vision check: does this scanned PDF contain 1 document type or multiple?
+    Only samples 3 pages (first, middle, last) at low DPI for speed."""
+    import fitz  # PyMuPDF
+    import base64
+    
+    doc = fitz.open(pdf_path)
+    actual_pages = len(doc)
+    
+    # Only sample 3 pages: first, middle, last (fast & cheap)
+    if actual_pages <= 3:
+        sample_indices = list(range(actual_pages))
+    else:
+        mid = actual_pages // 2
+        sample_indices = [0, mid, actual_pages - 1]
+    
+    # Render sampled pages as tiny thumbnails
+    content_parts = [
+        {"type": "text", "text": f"""Look at these {len(sample_indices)} sampled pages from "{filename}" ({actual_pages} pages total).
+
+Quick check: Do these pages contain MULTIPLE DIFFERENT types of documents (e.g., passport + bank statement + birth certificate mixed together)?
+
+Answer in this JSON format ONLY:
+{{"mixed": true, "doc_count": 5, "doc_types": ["PASSPORT", "BANK STATEMENT", "BIRTH CERTIFICATE", ...]}}
+
+OR if all pages look like the SAME document type:
+{{"mixed": false, "doc_count": 1, "doc_types": ["BANK STATEMENT"]}}
+
+Return ONLY JSON, nothing else."""}
+    ]
+    
+    for idx in sample_indices:
+        page = doc[idx]
+        pix = page.get_pixmap(dpi=72)  # Very low DPI, just enough to identify doc type
+        img_bytes = pix.tobytes("png")
+        b64 = base64.b64encode(img_bytes).decode()
+        content_parts.append({"type": "text", "text": f"Page {idx + 1}/{actual_pages}:"})
+        content_parts.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}})
+    
+    doc.close()
+    
+    from langchain_core.messages import HumanMessage, SystemMessage
+    result = llm.invoke([
+        SystemMessage(content="You are a document classifier. Answer only with JSON."),
+        HumanMessage(content=content_parts),
+    ])
+    
+    # Parse response
+    import re
+    text = (result.content or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+        text = re.sub(r"\n?```\s*$", "", text)
+    
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        match = re.search(r"\{[\s\S]*\}", text)
+        if match:
+            try:
+                parsed = json.loads(match.group())
+            except Exception:
+                return []
+        else:
+            return []
+    
+    is_mixed = parsed.get("mixed", False)
+    doc_count = int(parsed.get("doc_count", 1))
+    doc_types = parsed.get("doc_types", ["UNKNOWN"])
+    
+    if not is_mixed or doc_count <= 1:
+        # Single document - return 1 item
+        return [{"doc_type_en": doc_types[0] if doc_types else "UNKNOWN",
+                 "person_name": "UNKNOWN", "start_page": 1, "end_page": actual_pages}]
+    else:
+        # Multiple documents - return dummy items just to flag as needs_split
+        return [{"doc_type_en": dt, "person_name": "UNKNOWN", "start_page": 0, "end_page": 0}
+                for dt in doc_types]
+
+
+@app.post("/api/precheck/scan")
+def precheck_scan():
+    """Scan all files in a folder to detect multi-document files."""
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", "input")
+    model = payload.get("model") or get_vision_model()
+
+    if not os.path.isdir(input_dir):
+        return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
+
+    from langchain_openai import ChatOpenAI
+    from classifier.agent import _extract_pdf_pages_text, _classify_multi_page_pdf
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    llm = ChatOpenAI(model=model, temperature=0)
+
+    # Collect all files first
+    all_files = []
+    for root, _, filenames in os.walk(input_dir):
+        for fname in sorted(filenames):
+            path = os.path.join(root, fname)
+            ext = os.path.splitext(fname)[1].lower()
+            rel_path = os.path.relpath(path, input_dir).replace("\\", "/")
+            all_files.append((fname, path, ext, rel_path))
+
+    def _scan_one_file(fname, path, ext, rel_path):
+        """Scan a single file — runs in a thread."""
+        if ext != ".pdf":
+            return {
+                "filename": fname, "rel_path": rel_path, "path": path, "ext": ext,
+                "page_count": 1, "doc_count": 1, "doc_types": ["SINGLE FILE"],
+                "needs_split": False,
+            }
+        try:
+            page_texts = _extract_pdf_pages_text(path)
+            total_pages = len(page_texts)
+            non_empty = sum(1 for t in page_texts if len(t.strip()) > 30)
+            has_text = non_empty >= max(1, total_pages * 0.3)
+
+            if has_text:
+                docs = _classify_multi_page_pdf(llm, fname, page_texts)
+            else:
+                docs = _vision_detect_pdf_documents(llm, path, fname, total_pages)
+
+            doc_count = len(docs) if docs else 1
+            doc_types = [d.get("doc_type_en", "UNKNOWN") for d in docs] if docs else ["UNKNOWN"]
+            return {
+                "filename": fname, "rel_path": rel_path, "path": path, "ext": ext,
+                "page_count": total_pages, "doc_count": doc_count, "doc_types": doc_types,
+                "needs_split": doc_count >= 2, "documents": docs if docs else [],
+                "scan_method": "text" if has_text else "vision",
+            }
+        except Exception as e:
+            return {
+                "filename": fname, "rel_path": rel_path, "path": path, "ext": ext,
+                "page_count": 0, "doc_count": 1, "doc_types": ["ERROR"],
+                "needs_split": False, "error": str(e),
+            }
+
+    # Process files in parallel (5 workers)
+    results = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(_scan_one_file, fname, path, ext, rel_path): fname
+            for fname, path, ext, rel_path in all_files
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    # Sort by filename for consistent display
+    results.sort(key=lambda r: r["filename"])
+
+    multi_count = sum(1 for r in results if r.get("needs_split"))
+    clean_count = len(results) - multi_count
+
+    return jsonify({
+        "status": "done",
+        "input_dir": input_dir,
+        "total_files": len(results),
+        "multi_doc_count": multi_count,
+        "clean_count": clean_count,
+        "files": results,
+    })
+
+
+@app.post("/api/pipeline/send-to-splitter")
+def pipeline_send_to_splitter():
+    """Copy selected multi-doc files → splitter_uploads for AI splitting."""
+    payload = request.get_json(force=True) or {}
+    file_paths = payload.get("file_paths", [])
+
+    if not file_paths:
+        return jsonify({"error": "no_files_selected"}), 400
+
+    target_dir = os.path.join("splitter_uploads")
+    os.makedirs(target_dir, exist_ok=True)
+    copied = []
+    for src in file_paths:
+        if not os.path.isfile(src):
+            continue
+        fname = os.path.basename(src)
+        dst = os.path.join(target_dir, fname)
+        base, ext = os.path.splitext(fname)
+        idx = 1
+        while os.path.exists(dst):
+            dst = os.path.join(target_dir, f"{base} ({idx}){ext}")
+            idx += 1
+        shutil.copy2(src, dst)
+        copied.append(fname)
+
+    return jsonify({"status": "done", "copied": copied, "count": len(copied)})
+
+
+@app.post("/api/pipeline/send-clean-to-classifier")
+def pipeline_send_clean_to_classifier():
+    """Copy clean (single-doc) files directly → classifier input folder."""
+    payload = request.get_json(force=True) or {}
+    file_paths = payload.get("file_paths", [])
+    target_dir = payload.get("target_dir", os.path.join("phanloai", "input"))
+
+    if not file_paths:
+        return jsonify({"error": "no_files_selected"}), 400
+
+    os.makedirs(target_dir, exist_ok=True)
+    copied = []
+    for src in file_paths:
+        if not os.path.isfile(src):
+            continue
+        fname = os.path.basename(src)
+        dst = os.path.join(target_dir, fname)
+        base, ext = os.path.splitext(fname)
+        idx = 1
+        while os.path.exists(dst):
+            dst = os.path.join(target_dir, f"{base} ({idx}){ext}")
+            idx += 1
+        shutil.copy2(src, dst)
+        copied.append(fname)
+
+    return jsonify({"status": "done", "copied": copied, "count": len(copied), "target_dir": target_dir})
+
+
 @app.get("/api/classifier/files")
 def list_classifier_files():
     input_dir = request.args.get("input_dir", os.path.join("phanloai", "input"))
@@ -254,19 +487,143 @@ def list_classifier_files():
     )
 
 
+@app.post("/api/classifier/delete")
+def classifier_delete_file():
+    """Delete a single file from classifier input folder."""
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    filename = payload.get("filename", "")
+    if not filename:
+        return jsonify({"error": "no_filename"}), 400
+    file_path = os.path.join(input_dir, filename)
+    if not os.path.isfile(file_path):
+        return jsonify({"error": "file_not_found"}), 404
+    os.remove(file_path)
+    return jsonify({"deleted": filename})
+
+
+@app.post("/api/classifier/delete-all")
+def classifier_delete_all():
+    """Delete all files from classifier input folder."""
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    count = 0
+    if os.path.isdir(input_dir):
+        for fname in os.listdir(input_dir):
+            fpath = os.path.join(input_dir, fname)
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+                count += 1
+    return jsonify({"deleted_count": count})
+
+
 @app.post("/api/classifier/run")
 def run_classifier():
     payload = request.get_json(force=True) or {}
     input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
     output_dir = payload.get("output_dir", os.path.join("phanloai", "output"))
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    save_output = payload.get("save_output", False)  # Don't auto-save by default
+    model = payload.get("model") or get_vision_model()  # classifier reads images
 
     if not os.path.isdir(input_dir):
         return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
 
-    result = classify_files_in_folder(input_dir=input_dir, output_dir=output_dir, model=model)
+    # If save_output is False, use a temp dir so classifier doesn't write to real output
+    actual_output = output_dir if save_output else os.path.join("phanloai", "_temp_output")
+    result = classify_files_in_folder(input_dir=input_dir, output_dir=actual_output, model=model)
+    # Store the temp dir in result so save-output can use it
+    result["_temp_output"] = actual_output
+    result["_final_output"] = output_dir
     return jsonify({"status": "done", **result})
 
+
+@app.post("/api/classifier/save-output")
+def classifier_save_output():
+    """Copy classified results from temp to final output folder."""
+    payload = request.get_json(force=True) or {}
+    temp_output = payload.get("temp_output", os.path.join("phanloai", "_temp_output"))
+    final_output = payload.get("output_dir", os.path.join("phanloai", "output"))
+
+    if not os.path.isdir(temp_output):
+        return jsonify({"error": "no_results_to_save"}), 404
+
+    os.makedirs(final_output, exist_ok=True)
+    count = 0
+    for root, dirs, files in os.walk(temp_output):
+        rel = os.path.relpath(root, temp_output)
+        dest_dir = os.path.join(final_output, rel) if rel != "." else final_output
+        os.makedirs(dest_dir, exist_ok=True)
+        for fname in files:
+            src = os.path.join(root, fname)
+            dst = os.path.join(dest_dir, fname)
+            shutil.copy2(src, dst)
+            count += 1
+
+    return jsonify({"status": "saved", "output_dir": final_output, "file_count": count})
+
+
+# ==================== PIPELINE CONNECTION ENDPOINTS ====================
+
+@app.post("/api/pipeline/send-to-classifier")
+def pipeline_send_to_classifier():
+    """Copy AI splitter output files → classifier input folder."""
+    payload = request.get_json(force=True) or {}
+    file_id = payload.get("file_id", "")
+    target_dir = payload.get("target_dir", os.path.join("phanloai", "input"))
+
+    # Find source: splitter_outputs/{file_id}/
+    source_dir = os.path.join("splitter_outputs", file_id) if file_id else ""
+    if not source_dir or not os.path.isdir(source_dir):
+        # If no file_id, try all splitter outputs
+        source_dir = "splitter_outputs"
+        if not os.path.isdir(source_dir):
+            return jsonify({"error": "no_splitter_output"}), 404
+
+    os.makedirs(target_dir, exist_ok=True)
+    copied = []
+    for root, _, files in os.walk(source_dir):
+        for fname in files:
+            if fname.endswith(".zip"):
+                continue
+            src = os.path.join(root, fname)
+            dst = os.path.join(target_dir, fname)
+            # Avoid overwriting: add suffix if exists
+            base, ext = os.path.splitext(fname)
+            idx = 1
+            while os.path.exists(dst):
+                dst = os.path.join(target_dir, f"{base} ({idx}){ext}")
+                idx += 1
+            shutil.copy2(src, dst)
+            copied.append(fname)
+
+    return jsonify({"status": "done", "copied": copied, "count": len(copied), "target_dir": target_dir})
+
+
+@app.post("/api/pipeline/send-to-input")
+def pipeline_send_to_input():
+    """Copy classifier output files → letter/booking input folder."""
+    payload = request.get_json(force=True) or {}
+    source_dir = payload.get("source_dir", os.path.join("phanloai", "output"))
+    target_dir = payload.get("target_dir", "input")
+
+    if not os.path.isdir(source_dir):
+        return jsonify({"error": "no_classifier_output"}), 404
+
+    os.makedirs(target_dir, exist_ok=True)
+    copied = []
+    for root, _, files in os.walk(source_dir):
+        for fname in files:
+            src = os.path.join(root, fname)
+            dst = os.path.join(target_dir, fname)
+            base, ext = os.path.splitext(fname)
+            idx = 1
+            while os.path.exists(dst):
+                dst = os.path.join(target_dir, f"{base} ({idx}){ext}")
+                idx += 1
+            shutil.copy2(src, dst)
+            copied.append(fname)
+
+    return jsonify({"status": "done", "copied": copied, "count": len(copied), "target_dir": target_dir})
 
 def _safe_join(base: str, rel_path: str) -> str:
     base_abs = os.path.abspath(base)
@@ -513,7 +870,7 @@ def rename_pdf():
 def pdf_rename_suggest_name():
     payload = request.get_json(force=True) or {}
     input_text = (payload.get("input_text") or "").strip()
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = payload.get("model") or get_text_model()  # text analysis
 
     if not input_text:
         return jsonify({"error": "missing_input_text"}), 400
@@ -606,7 +963,7 @@ def get_writer_context():
 def ingest_stream():
     input_dir = request.args.get("input_dir", "input")
     output_path = request.args.get("output", os.path.join("output", "letter.txt"))
-    model = request.args.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = request.args.get("model") or get_vision_model()  # ingest reads images
     force = request.args.get("force", "0") == "1"
     project_id = request.args.get("project_id", type=int)
 
@@ -776,7 +1133,7 @@ def run_step():
     input_dir = payload.get("input_dir", "input")
     output_path = payload.get("output", os.path.join("output", "letter.txt"))
     step = payload.get("step")
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = payload.get("model") or get_vision_model()  # ingest step reads images
     force = bool(payload.get("force", False))
     writer_context = (payload.get("writer_context") or "").strip()
     project_id = payload.get("project_id", type=int) if isinstance(payload.get("project_id"), int) else None
@@ -838,7 +1195,7 @@ def run_all():
     payload = request.get_json(force=True) or {}
     input_dir = payload.get("input_dir", "input")
     output_path = payload.get("output", os.path.join("output", "letter.txt"))
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = payload.get("model") or get_vision_model()  # pipeline includes ingest (images)
     force = bool(payload.get("force", False))
     writer_context = (payload.get("writer_context") or "").strip()
     project_id = payload.get("project_id", type=int) if isinstance(payload.get("project_id"), int) else None
@@ -887,7 +1244,7 @@ def run_add_file():
     input_dir = payload.get("input_dir", "input")
     output_path = payload.get("output", os.path.join("output", "letter.txt"))
     file_ref = payload.get("file")
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = payload.get("model") or get_vision_model()  # reads input files (images/PDFs)
     writer_context = (payload.get("writer_context") or "").strip()
 
     if not file_ref:
@@ -947,7 +1304,7 @@ def run_itinerary():
     output_path = payload.get("output", os.path.join("output", "itinerary.html"))
     flight_file = payload.get("flight_file")
     hotel_file = payload.get("hotel_file")
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = payload.get("model") or get_text_model()  # itinerary generation (text reasoning)
     project_id = payload.get("project_id")
 
     if not flight_file or not hotel_file:
@@ -1124,7 +1481,7 @@ def get_booking_latest():
 @app.get("/api/booking/destinations")
 def get_destinations():
     """Get available destinations from the hotels database."""
-    from booking_generator import load_hotels_database
+    from booking.generator import load_hotels_database
     
     hotels_db = load_hotels_database()
     destinations = [key for key in hotels_db.keys() if key != "flights"]
@@ -1139,7 +1496,7 @@ def extract_trip():
     """Extract trip information from input files."""
     payload = request.get_json(force=True) or {}
     input_dir = payload.get("input_dir", "input")
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = payload.get("model") or get_vision_model()  # reads input files (may contain images)
     project_id = payload.get("project_id")
 
     llm = ChatOpenAI(model=model, temperature=0)
@@ -1225,7 +1582,7 @@ def ai_generate_booking():
     payload = request.get_json(force=True) or {}
     input_dir = payload.get("input_dir", "input")
     output_dir = payload.get("output_dir", "output")
-    model = payload.get("model") or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = payload.get("model") or get_text_model()  # booking uses text reasoning
     force_new = payload.get("force_new", False)
     trip_info_override = payload.get("trip_info")
     project_id = payload.get("project_id")
@@ -1414,6 +1771,90 @@ async def _process_splitter_job(file_id: str):
         print(f"[AI Splitter] Error processing {file_id}: {e}")
 
 
+@app.get("/api/ai-splitter/list")
+def splitter_list_files():
+    """List PDF files already in splitter_uploads folder."""
+    upload_dir = str(SPLITTER_UPLOAD_DIR)
+    if not os.path.isdir(upload_dir):
+        return jsonify({"files": []})
+    files = []
+    for fname in sorted(os.listdir(upload_dir)):
+        path = os.path.join(upload_dir, fname)
+        if os.path.isfile(path) and fname.lower().endswith(".pdf"):
+            files.append({"filename": fname, "size": os.path.getsize(path)})
+    return jsonify({"files": files})
+
+
+@app.post("/api/ai-splitter/delete")
+def splitter_delete_file():
+    """Delete a single file from splitter_uploads."""
+    payload = request.get_json(force=True) or {}
+    filename = payload.get("filename", "")
+    if not filename:
+        return jsonify({"error": "no_filename"}), 400
+    file_path = SPLITTER_UPLOAD_DIR / filename
+    if not file_path.is_file():
+        return jsonify({"error": "file_not_found"}), 404
+    os.remove(str(file_path))
+    return jsonify({"deleted": filename})
+
+
+@app.post("/api/ai-splitter/delete-all")
+def splitter_delete_all():
+    """Delete all PDF files from splitter_uploads."""
+    upload_dir = str(SPLITTER_UPLOAD_DIR)
+    count = 0
+    if os.path.isdir(upload_dir):
+        for fname in os.listdir(upload_dir):
+            fpath = os.path.join(upload_dir, fname)
+            if os.path.isfile(fpath) and fname.lower().endswith(".pdf"):
+                os.remove(fpath)
+                count += 1
+    return jsonify({"deleted_count": count})
+
+
+@app.post("/api/ai-splitter/process-local")
+def splitter_process_local():
+    """Process a PDF already in splitter_uploads (no upload needed)."""
+    payload = request.get_json(force=True) or {}
+    filename = payload.get("filename", "")
+    if not filename:
+        return jsonify({"error": "no_filename"}), 400
+
+    src_path = SPLITTER_UPLOAD_DIR / filename
+    if not src_path.is_file():
+        return jsonify({"error": "file_not_found"}), 404
+
+    import threading
+
+    file_id = uuid.uuid4().hex[:8]
+    # Copy to sub-folder (same structure as upload flow)
+    job_dir = SPLITTER_UPLOAD_DIR / file_id
+    job_dir.mkdir(exist_ok=True)
+    file_path = job_dir / filename
+    shutil.copy2(str(src_path), str(file_path))
+
+    page_count = get_page_count(str(file_path))
+
+    splitter_jobs[file_id] = {
+        "status": "uploaded",
+        "filename": filename,
+        "file_path": str(file_path),
+        "page_count": page_count,
+        "current_page": 0,
+        "classifications": [],
+        "output_files": [],
+        "error": None,
+        "zip_path": None,
+    }
+
+    # Run in background thread (same as upload flow)
+    thread = threading.Thread(target=_run_splitter_job, args=(file_id,), daemon=True)
+    thread.start()
+
+    return jsonify({"file_id": file_id, "filename": filename, "page_count": page_count})
+
+
 @app.post("/api/ai-splitter/upload")
 def splitter_upload():
     if "file" not in request.files:
@@ -1523,5 +1964,5 @@ def splitter_download_zip(file_id: str):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8000, debug=False)
+    app.run(host="127.0.0.1", port=8000, debug=True)
 
