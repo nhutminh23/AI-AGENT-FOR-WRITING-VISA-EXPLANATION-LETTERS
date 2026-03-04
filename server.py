@@ -28,6 +28,39 @@ load_dotenv()
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
 
+# ── Per-project directory helpers ──
+PROJECTS_ROOT = os.path.join(os.path.dirname(__file__), "projects")
+
+
+def _project_base_dir(project_id):
+    """Return the base directory for a project: projects/{project_id}/"""
+    if not project_id:
+        return None
+    base = os.path.join(PROJECTS_ROOT, str(project_id))
+    os.makedirs(base, exist_ok=True)
+    return base
+
+
+def _get_project_dirs(project_id):
+    """Return dict of project-scoped directory paths. Creates them if needed."""
+    base = _project_base_dir(project_id)
+    if not base:
+        return {
+            "input": "input",
+            "output": "output",
+            "splitter_uploads": "splitter_uploads",
+            "splitter_outputs": "splitter_outputs",
+        }
+    dirs = {
+        "input": os.path.join(base, "input"),
+        "output": os.path.join(base, "output"),
+        "splitter_uploads": os.path.join(base, "splitter_uploads"),
+        "splitter_outputs": os.path.join(base, "splitter_outputs"),
+    }
+    for d in dirs.values():
+        os.makedirs(d, exist_ok=True)
+    return dirs
+
 
 def get_text_model() -> str:
     """Model for text reasoning/writing tasks (gpt-5-mini default)."""
@@ -236,10 +269,27 @@ def update_project(project_id):
 
 @app.delete("/api/projects/<int:project_id>")
 def delete_project(project_id):
+    # Clean up project directory on disk
+    import shutil as _shutil
+    project_dir = _project_base_dir(project_id)
+    if project_dir and os.path.isdir(project_dir):
+        _shutil.rmtree(project_dir, ignore_errors=True)
     ok = db.delete_project(project_id)
     if not ok:
         return jsonify({"error": "Project not found"}), 404
     return jsonify({"status": "deleted"})
+
+
+@app.get("/api/project/dirs")
+def get_project_dirs():
+    """Return project-scoped directory paths for frontend."""
+    project_id = request.args.get("project_id")
+    if not project_id:
+        return jsonify({"input": "input", "output": "output",
+                        "splitter_uploads": "splitter_uploads",
+                        "splitter_outputs": "splitter_outputs"})
+    dirs = _get_project_dirs(int(project_id))
+    return jsonify(dirs)
 
 
 @app.get("/api/files")
@@ -1457,11 +1507,9 @@ def run_itinerary():
     output_path = payload.get("output", os.path.join("output", "itinerary.html"))
     flight_file = payload.get("flight_file")
     hotel_file = payload.get("hotel_file")
+    from_db = payload.get("from_db", False)
     model = payload.get("model") or get_text_model()  # itinerary generation (text reasoning)
     project_id = payload.get("project_id")
-
-    if not flight_file or not hotel_file:
-        return jsonify({"error": "missing_files"}), 400
 
     cache_dir = _cache_dir(output_path)
     summary_profile = (payload.get("summary_profile") or "").strip()
@@ -1470,17 +1518,55 @@ def run_itinerary():
         if os.path.exists(summary_path):
             with open(summary_path, "r", encoding="utf-8") as f:
                 summary_profile = f.read().strip()
+    # If still empty, try to build from trip info (make it optional)
+    if not summary_profile and project_id:
+        ti = db.get_latest_trip_info(int(project_id))
+        if ti and ti.get("data"):
+            d = ti["data"]
+            parts = []
+            if d.get("guest_names"):
+                names = d["guest_names"] if isinstance(d["guest_names"], list) else [d["guest_names"]]
+                parts.append("- participants: " + ", ".join(str(n) for n in names))
+            if d.get("travel_start_date"):
+                parts.append(f"- travel_start_date: {d['travel_start_date']}")
+            if d.get("travel_end_date"):
+                parts.append(f"- travel_end_date: {d['travel_end_date']}")
+            if d.get("travel_purpose"):
+                parts.append(f"- travel_purpose: {d['travel_purpose']}")
+            if parts:
+                summary_profile = "\n".join(parts)
     if not summary_profile:
-        return jsonify({"error": "missing_itinerary_summary"}), 400
+        summary_profile = "Create itinerary from the provided flight and hotel booking data."
 
     llm = ChatOpenAI(model=model, temperature=0)
-    flight_path = _resolve_input_file_path(input_dir, str(flight_file))
-    hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
-    if not flight_path or not hotel_path:
-        return jsonify({"error": "missing_files"}), 400
 
-    flight_text = extract_text_with_openai(llm, flight_path)
-    hotel_text = extract_text_with_openai(llm, hotel_path)
+    # ── Load flight/hotel text from DB or files ──
+    if from_db and project_id:
+        booking = db.get_latest_booking(int(project_id))
+        if not booking:
+            return jsonify({"error": "no_booking_in_db", "message": "Không tìm thấy booking trong database. Hãy tạo booking AI trước."}), 400
+        # Extract text from HTML (strip tags for AI processing)
+        import re as _re_it
+        def _html_to_text(html_str):
+            text = _re_it.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=_re_it.DOTALL)
+            text = _re_it.sub(r'<script[^>]*>.*?</script>', '', text, flags=_re_it.DOTALL)
+            text = _re_it.sub(r'<[^>]+>', ' ', text)
+            text = _re_it.sub(r'\s+', ' ', text).strip()
+            return text
+
+        flight_text = _html_to_text(booking.get("flight_html", ""))
+        # Combine all hotel HTMLs
+        hotel_htmls = booking.get("hotel_htmls", [])
+        hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in hotel_htmls)
+    else:
+        if not flight_file or not hotel_file:
+            return jsonify({"error": "missing_files"}), 400
+        flight_path = _resolve_input_file_path(input_dir, str(flight_file))
+        hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
+        if not flight_path or not hotel_path:
+            return jsonify({"error": "missing_files"}), 400
+        flight_text = extract_text_with_openai(llm, flight_path)
+        hotel_text = extract_text_with_openai(llm, hotel_path)
 
     itinerary = itinerary_writer(llm, flight_text, hotel_text, summary_profile)
 
@@ -1498,6 +1584,142 @@ def run_itinerary():
         db.save_itinerary_html(int(project_id), ctx, itinerary)
 
     return jsonify({"itinerary": itinerary, "output_path": output_path})
+
+
+@app.post("/api/itinerary/run_stream")
+def run_itinerary_stream():
+    """Generate itinerary with SSE progress streaming."""
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", "input")
+    output_path = payload.get("output", os.path.join("output", "itinerary.html"))
+    flight_file = payload.get("flight_file")
+    hotel_file = payload.get("hotel_file")
+    from_db = payload.get("from_db", False)
+    model = payload.get("model") or get_text_model()
+    project_id = payload.get("project_id")
+
+    def generate():
+        def send_event(step, msg, data=None):
+            evt = {"step": step, "msg": msg}
+            if data is not None:
+                evt["data"] = data
+            yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+
+        # Build summary profile
+        cache_dir = _cache_dir(output_path)
+        summary_profile = (payload.get("summary_profile") or "").strip()
+        if not summary_profile:
+            summary_path = os.path.join(cache_dir, "itinerary_summary.txt")
+            if os.path.exists(summary_path):
+                with open(summary_path, "r", encoding="utf-8") as f:
+                    summary_profile = f.read().strip()
+        if not summary_profile and project_id:
+            ti = db.get_latest_trip_info(int(project_id))
+            if ti and ti.get("data"):
+                d = ti["data"]
+                parts = []
+                if d.get("guest_names"):
+                    names = d["guest_names"] if isinstance(d["guest_names"], list) else [d["guest_names"]]
+                    parts.append("- participants: " + ", ".join(str(n) for n in names))
+                if d.get("travel_start_date"):
+                    parts.append(f"- travel_start_date: {d['travel_start_date']}")
+                if d.get("travel_end_date"):
+                    parts.append(f"- travel_end_date: {d['travel_end_date']}")
+                if d.get("travel_purpose"):
+                    parts.append(f"- travel_purpose: {d['travel_purpose']}")
+                if parts:
+                    summary_profile = "\n".join(parts)
+        if not summary_profile:
+            summary_profile = "Create itinerary from the provided flight and hotel booking data."
+
+        llm = ChatOpenAI(model=model, temperature=0)
+
+        try:
+            # Step 1: Load booking data
+            yield from send_event(1, "⏳ Đang tải dữ liệu booking...")
+
+            import re as _re_it
+            def _html_to_text(html_str):
+                text = _re_it.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=_re_it.DOTALL)
+                text = _re_it.sub(r'<script[^>]*>.*?</script>', '', text, flags=_re_it.DOTALL)
+                text = _re_it.sub(r'<[^>]+>', ' ', text)
+                text = _re_it.sub(r'\s+', ' ', text).strip()
+                return text
+
+            if from_db and project_id:
+                booking = db.get_latest_booking(int(project_id))
+                if not booking:
+                    yield from send_event(-1, "❌ Không tìm thấy booking trong database")
+                    return
+                yield from send_event(1, "✅ Đã tải booking từ database")
+
+                # Step 2: Extract text
+                yield from send_event(2, "⏳ Đang trích xuất nội dung booking...")
+                flight_text = _html_to_text(booking.get("flight_html", ""))
+                hotel_htmls = booking.get("hotel_htmls", [])
+                hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in hotel_htmls)
+                yield from send_event(2, "✅ Trích xuất nội dung hoàn tất")
+            else:
+                if not flight_file or not hotel_file:
+                    yield from send_event(-1, "❌ Vui lòng chọn đủ file vé máy bay và khách sạn")
+                    return
+                flight_path = _resolve_input_file_path(input_dir, str(flight_file))
+                hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
+                if not flight_path or not hotel_path:
+                    yield from send_event(-1, "❌ Không tìm thấy file đã chọn")
+                    return
+                yield from send_event(1, "✅ Đã tìm thấy file")
+
+                yield from send_event(2, "⏳ AI đang đọc vé máy bay & khách sạn...")
+                flight_text = extract_text_with_openai(llm, flight_path)
+                hotel_text = extract_text_with_openai(llm, hotel_path)
+                yield from send_event(2, "✅ Đọc nội dung file hoàn tất")
+
+            # Step 3: Generate itinerary
+            yield from send_event(3, "⏳ AI đang viết lịch trình chi tiết...")
+            itinerary = itinerary_writer(llm, flight_text, hotel_text, summary_profile)
+            yield from send_event(3, "✅ Viết lịch trình hoàn tất")
+
+            # Step 4: Save
+            yield from send_event(4, "⏳ Đang lưu kết quả...")
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(itinerary)
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(os.path.join(cache_dir, "itinerary.html"), "w", encoding="utf-8") as f:
+                f.write(itinerary)
+            if project_id:
+                ctx = db.get_latest_itinerary_context(int(project_id)) or {}
+                db.save_itinerary_html(int(project_id), ctx, itinerary)
+            yield from send_event(4, "✅ Đã lưu")
+
+            # Final result
+            yield from send_event(5, "✅ Hoàn tất!", {"itinerary": itinerary, "output_path": output_path})
+
+        except Exception as e:
+            yield from send_event(-1, f"❌ Lỗi: {str(e)}")
+
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+
+
+@app.get("/api/booking/latest_html")
+def get_latest_booking_html():
+    """Return the latest booking HTML from DB for use in itinerary creation."""
+    project_id = request.args.get("project_id")
+    if not project_id:
+        return jsonify({"error": "project_id required"}), 400
+    booking = db.get_latest_booking(int(project_id))
+    if not booking:
+        return jsonify({"has_booking": False})
+    return jsonify({
+        "has_booking": True,
+        "hotel_htmls": booking.get("hotel_htmls", []),
+        "flight_html": booking.get("flight_html", ""),
+        "created_at": booking.get("created_at"),
+    })
 
 
 # ==================== BOOKING GENERATOR ENDPOINTS ====================
@@ -1643,6 +1865,43 @@ def get_destinations():
 
 
 # ==================== AI BOOKING ENDPOINTS ====================
+
+@app.get("/api/booking/filtered-files")
+def booking_filtered_files():
+    """List files in input dir, categorized by trip-info prefix."""
+    input_dir = request.args.get("input_dir", "input")
+    if not os.path.isdir(input_dir):
+        return jsonify({"files": [], "matched": [], "other": []})
+
+    PREFIXES = {
+        "OVERVIEW": "🌍 Tổng quan",
+        "TONG QUAN": "🌍 Tổng quan",
+        "PERSONAL": "👤 Hồ sơ cá nhân",
+        "HO SO CA NHAN": "👤 Hồ sơ cá nhân",
+        "PURPOSE": "🎯 Mục đích",
+        "MUC DICH CHUYEN DI": "🎯 Mục đích",
+    }
+    matched = []
+    other = []
+    for root, _, filenames in os.walk(input_dir):
+        for fname in sorted(filenames):
+            stem = os.path.splitext(fname)[0]
+            normalized = __import__("re").sub(r"[\s\-_]+", " ", stem.upper()).strip()
+            rel = os.path.relpath(os.path.join(root, fname), input_dir).replace("\\", "/")
+            found_prefix = None
+            found_label = None
+            for prefix, label in PREFIXES.items():
+                if normalized.startswith(prefix):
+                    found_prefix = prefix
+                    found_label = label
+                    break
+            if found_prefix:
+                matched.append({"filename": fname, "path": rel, "prefix": found_prefix, "label": found_label})
+            else:
+                other.append({"filename": fname, "path": rel})
+
+    return jsonify({"matched": matched, "other": other, "total": len(matched) + len(other)})
+
 
 @app.post("/api/booking/extract_trip")
 def extract_trip():
@@ -1836,6 +2095,151 @@ def ai_generate_booking():
         import traceback
         return jsonify({"error": "Lỗi khi tạo HTML: " + str(e), "traceback": traceback.format_exc()}), 500
 
+
+@app.post("/api/booking/ai_generate_stream")
+def ai_generate_booking_stream():
+    """Generate bookings using AI with SSE progress streaming."""
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", "input")
+    output_dir = payload.get("output_dir", "output")
+    model = payload.get("model") or get_text_model()
+    force_new = payload.get("force_new", False)
+    trip_info_override = payload.get("trip_info")
+    project_id = payload.get("project_id")
+
+    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    booking_cache_path = os.path.join(cache_dir, "ai_booking_data.json")
+    trip_cache_path = os.path.join(cache_dir, "booking_trip_info.json")
+
+    def generate():
+        import time as _time
+
+        def send_event(step, msg, data=None):
+            evt = {"step": step, "msg": msg}
+            if data is not None:
+                evt["data"] = data
+            yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+
+        nonlocal force_new
+
+        # If user edited trip info on frontend, persist and force new booking.
+        if isinstance(trip_info_override, dict):
+            merged_trip = dict(DEFAULT_TRIP_INFO)
+            merged_trip.update(trip_info_override)
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(trip_cache_path, "w", encoding="utf-8") as f:
+                json.dump(merged_trip, f, ensure_ascii=False, indent=2)
+            force_new = True
+            if os.path.exists(booking_cache_path):
+                os.remove(booking_cache_path)
+
+        booking_data = None
+        trip_info = None
+        used_cache = False
+
+        # Check cache
+        if not force_new and os.path.exists(booking_cache_path):
+            yield from send_event(1, "✅ Đã tìm thấy dữ liệu cache, bỏ qua AI")
+            with open(booking_cache_path, "r", encoding="utf-8") as f:
+                booking_data = json.load(f)
+            if os.path.exists(trip_cache_path):
+                with open(trip_cache_path, "r", encoding="utf-8") as f:
+                    trip_info = json.load(f)
+            used_cache = True
+
+        # If no cache, call AI with progress
+        if not booking_data:
+            if os.path.exists(trip_cache_path):
+                with open(trip_cache_path, "r", encoding="utf-8") as f:
+                    trip_info = json.load(f)
+
+            llm = ChatOpenAI(model=model, temperature=0)
+
+            def progress_cb(step, msg):
+                pass  # Can't yield inside callback; we handle steps inline
+
+            try:
+                # Step 1: Extract or load trip info
+                if not trip_info:
+                    yield from send_event(1, "⏳ Đang trích xuất thông tin chuyến đi từ file...")
+                    trip_info = extract_trip_info(llm, input_dir)
+                    yield from send_event(1, "✅ Trích xuất thông tin chuyến đi hoàn tất")
+                else:
+                    yield from send_event(1, "✅ Đã có thông tin chuyến đi")
+
+                if not trip_info or not trip_info.get("destination_country"):
+                    yield from send_event(-1, "❌ Không thể trích xuất thông tin chuyến đi")
+                    return
+
+                # Step 2: AI select bookings (use mini model for cost savings)
+                yield from send_event(2, "⏳ AI đang chọn khách sạn & chuyến bay...")
+                booking_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+                booking_data = ai_select_bookings(booking_llm, trip_info)
+                yield from send_event(2, "✅ AI đã chọn xong khách sạn & chuyến bay")
+
+                if not booking_data or not booking_data.get("hotels"):
+                    yield from send_event(-1, "❌ AI không thể tạo booking")
+                    return
+
+                # Cache
+                os.makedirs(cache_dir, exist_ok=True)
+                with open(booking_cache_path, "w", encoding="utf-8") as f:
+                    json.dump(booking_data, f, ensure_ascii=False, indent=2)
+
+            except Exception as e:
+                yield from send_event(-1, f"❌ Lỗi AI: {str(e)}")
+                return
+
+        # Step 3: Generate HTML
+        yield from send_event(3, "⏳ Đang tạo file HTML booking...")
+
+        hotel_template_path = os.path.join(os.path.dirname(__file__), "templates", "hotel_booking.html")
+        flight_template_path = os.path.join(os.path.dirname(__file__), "templates", "flight_booking.html")
+
+        try:
+            result = generate_bookings_from_ai(
+                ai_booking_data=booking_data,
+                hotel_template_path=hotel_template_path,
+                flight_template_path=flight_template_path,
+                output_dir=output_dir,
+            )
+
+            if project_id:
+                db.save_booking(
+                    int(project_id),
+                    booking_data=booking_data,
+                    hotel_htmls=result["hotel_htmls"],
+                    flight_html=result["flight_html"],
+                    reasoning=booking_data.get("reasoning", ""),
+                )
+
+            yield from send_event(3, "✅ Tạo HTML booking hoàn tất")
+
+            # Final result
+            final = {
+                "status": "success",
+                "used_cache": used_cache,
+                "trip_info": trip_info,
+                "booking_data": {
+                    "hotels": result["hotel_data"],
+                    "reasoning": booking_data.get("reasoning", ""),
+                },
+                "hotel_htmls": result["hotel_htmls"],
+                "hotel_paths": result["hotel_paths"],
+                "flight_html": result["flight_html"],
+                "flight_path": result["flight_path"],
+            }
+            yield from send_event(4, "✅ Hoàn tất!", final)
+
+        except Exception as e:
+            import traceback
+            yield from send_event(-1, f"❌ Lỗi tạo HTML: {str(e)}")
+
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+
 # ==================== AI PDF SPLITTER ENDPOINTS ====================
 
 import uuid
@@ -1847,11 +2251,32 @@ from pathlib import Path as SplitterPath
 from pdf_tools.pdf_service import pdf_to_images, get_page_count, create_output_files
 from pdf_tools.ai_service import classify_all_pages
 
-# Directories for AI splitter
+# Directories for AI splitter (defaults, used as fallback)
 SPLITTER_UPLOAD_DIR = SplitterPath(__file__).parent / "splitter_uploads"
 SPLITTER_OUTPUT_DIR = SplitterPath(__file__).parent / "splitter_outputs"
 SPLITTER_UPLOAD_DIR.mkdir(exist_ok=True)
 SPLITTER_OUTPUT_DIR.mkdir(exist_ok=True)
+
+
+def _splitter_upload_dir(project_id=None):
+    """Return project-scoped or global splitter upload directory."""
+    if project_id:
+        dirs = _get_project_dirs(project_id)
+        d = SplitterPath(dirs["splitter_uploads"])
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    return SPLITTER_UPLOAD_DIR
+
+
+def _splitter_output_dir(project_id=None):
+    """Return project-scoped or global splitter output directory."""
+    if project_id:
+        dirs = _get_project_dirs(project_id)
+        d = SplitterPath(dirs["splitter_outputs"])
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    return SPLITTER_OUTPUT_DIR
+
 
 # In-memory job tracking for AI splitter
 splitter_jobs: Dict[str, Dict] = {}
@@ -1904,7 +2329,9 @@ async def _process_splitter_job(file_id: str):
 
         # Step 3: Create output files
         job["status"] = "splitting"
-        job_output_dir = str(SPLITTER_OUTPUT_DIR / file_id)
+        _out_base = SplitterPath(job.get("output_dir") or str(SPLITTER_OUTPUT_DIR))
+        _out_base.mkdir(parents=True, exist_ok=True)
+        job_output_dir = str(_out_base / file_id)
         output_files = create_output_files(
             job["file_path"], classifications, job_output_dir
         )
@@ -1916,7 +2343,7 @@ async def _process_splitter_job(file_id: str):
             json.dump(source_meta, mf, ensure_ascii=False)
 
         # Step 4: Create ZIP
-        zip_path = str(SPLITTER_OUTPUT_DIR / f"{file_id}.zip")
+        zip_path = str(_out_base / f"{file_id}.zip")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for f in output_files:
                 zf.write(f["path"], f["filename"])
@@ -1932,7 +2359,8 @@ async def _process_splitter_job(file_id: str):
 @app.get("/api/ai-splitter/list")
 def splitter_list_files():
     """List PDF files already in splitter_uploads folder."""
-    upload_dir = str(SPLITTER_UPLOAD_DIR)
+    pid = request.args.get("project_id")
+    upload_dir = str(_splitter_upload_dir(int(pid) if pid else None))
     if not os.path.isdir(upload_dir):
         return jsonify({"files": []})
     files = []
@@ -1948,9 +2376,11 @@ def splitter_delete_file():
     """Delete a single file from splitter_uploads."""
     payload = request.get_json(force=True) or {}
     filename = payload.get("filename", "")
+    pid = payload.get("project_id")
     if not filename:
         return jsonify({"error": "no_filename"}), 400
-    file_path = SPLITTER_UPLOAD_DIR / filename
+    upload_dir = _splitter_upload_dir(int(pid) if pid else None)
+    file_path = upload_dir / filename
     if not file_path.is_file():
         return jsonify({"error": "file_not_found"}), 404
     os.remove(str(file_path))
@@ -1960,7 +2390,9 @@ def splitter_delete_file():
 @app.post("/api/ai-splitter/delete-all")
 def splitter_delete_all():
     """Delete all PDF files from splitter_uploads."""
-    upload_dir = str(SPLITTER_UPLOAD_DIR)
+    payload = request.get_json(force=True) or {}
+    pid = payload.get("project_id")
+    upload_dir = str(_splitter_upload_dir(int(pid) if pid else None))
     count = 0
     if os.path.isdir(upload_dir):
         for fname in os.listdir(upload_dir):
@@ -1976,10 +2408,12 @@ def splitter_process_local():
     """Process a PDF already in splitter_uploads (no upload needed)."""
     payload = request.get_json(force=True) or {}
     filename = payload.get("filename", "")
+    pid = payload.get("project_id")
     if not filename:
         return jsonify({"error": "no_filename"}), 400
 
-    src_path = SPLITTER_UPLOAD_DIR / filename
+    upload_dir = _splitter_upload_dir(int(pid) if pid else None)
+    src_path = upload_dir / filename
     if not src_path.is_file():
         return jsonify({"error": "file_not_found"}), 404
 
@@ -1987,13 +2421,15 @@ def splitter_process_local():
 
     file_id = uuid.uuid4().hex[:8]
     # Copy to sub-folder (same structure as upload flow)
-    job_dir = SPLITTER_UPLOAD_DIR / file_id
+    job_dir = upload_dir / file_id
     job_dir.mkdir(exist_ok=True)
     file_path = job_dir / filename
     shutil.copy2(str(src_path), str(file_path))
 
     page_count = get_page_count(str(file_path))
 
+    # Store project_id in job so output goes to the right place
+    output_dir = _splitter_output_dir(int(pid) if pid else None)
     splitter_jobs[file_id] = {
         "status": "uploaded",
         "filename": filename,
@@ -2004,6 +2440,7 @@ def splitter_process_local():
         "output_files": [],
         "error": None,
         "zip_path": None,
+        "output_dir": str(output_dir),
     }
 
     # Run in background thread (same as upload flow)
@@ -2021,8 +2458,12 @@ def splitter_upload():
     if not file.filename.lower().endswith(".pdf"):
         return jsonify({"error": "not_pdf"}), 400
 
+    pid = request.form.get("project_id")
+    upload_dir = _splitter_upload_dir(int(pid) if pid else None)
+    output_dir = _splitter_output_dir(int(pid) if pid else None)
+
     file_id = uuid.uuid4().hex[:8]
-    job_dir = SPLITTER_UPLOAD_DIR / file_id
+    job_dir = upload_dir / file_id
     job_dir.mkdir(exist_ok=True)
     file_path = job_dir / file.filename
     file.save(str(file_path))
@@ -2033,6 +2474,7 @@ def splitter_upload():
         "status": "uploaded",
         "filename": file.filename,
         "file_path": str(file_path),
+        "output_dir": str(output_dir),
         "page_count": page_count,
         "current_page": 0,
         "classifications": [],
@@ -2100,21 +2542,41 @@ def splitter_status(file_id: str):
 
 @app.get("/api/ai-splitter/download/<file_id>/<filename>")
 def splitter_download_single(file_id: str, filename: str):
-    # Check both splitter_jobs (AI) and filesystem (manual splits)
-    file_path = SPLITTER_OUTPUT_DIR / file_id / filename
+    # Check job's output_dir first (project-scoped), then fall back to global
+    out_dir = None
+    if file_id in splitter_jobs:
+        out_dir = SplitterPath(splitter_jobs[file_id].get("output_dir", str(SPLITTER_OUTPUT_DIR)))
+    else:
+        # Try project-scoped dir from query param
+        pid = request.args.get("project_id")
+        out_dir = _splitter_output_dir(int(pid) if pid else None)
+    file_path = out_dir / file_id / filename
+    if not file_path.exists():
+        # Fallback: try global
+        file_path = SPLITTER_OUTPUT_DIR / file_id / filename
+        out_dir = SPLITTER_OUTPUT_DIR
     if not file_path.exists():
         return jsonify({"error": "file_not_found"}), 404
-    return send_from_directory(str(SPLITTER_OUTPUT_DIR / file_id), filename,
+    return send_from_directory(str(out_dir / file_id), filename,
                                 as_attachment=True, mimetype="application/pdf")
 
 
 @app.get("/api/ai-splitter/view/<file_id>/<filename>")
 def splitter_view_single(file_id: str, filename: str):
     """Serve PDF for in-browser viewing (as_attachment=False)."""
-    file_path = SPLITTER_OUTPUT_DIR / file_id / filename
+    out_dir = None
+    if file_id in splitter_jobs:
+        out_dir = SplitterPath(splitter_jobs[file_id].get("output_dir", str(SPLITTER_OUTPUT_DIR)))
+    else:
+        pid = request.args.get("project_id")
+        out_dir = _splitter_output_dir(int(pid) if pid else None)
+    file_path = out_dir / file_id / filename
+    if not file_path.exists():
+        file_path = SPLITTER_OUTPUT_DIR / file_id / filename
+        out_dir = SPLITTER_OUTPUT_DIR
     if not file_path.exists():
         return jsonify({"error": "file_not_found"}), 404
-    return send_from_directory(str(SPLITTER_OUTPUT_DIR / file_id), filename,
+    return send_from_directory(str(out_dir / file_id), filename,
                                 as_attachment=False, mimetype="application/pdf")
 
 
@@ -2134,7 +2596,8 @@ def splitter_download_zip(file_id: str):
 def splitter_list_outputs():
     """List ALL split output files across all splitter job folders (AI + manual).
     Used by Tab ② to pick a file to re-split manually."""
-    output_dir = str(SPLITTER_OUTPUT_DIR)
+    pid = request.args.get("project_id")
+    output_dir = str(_splitter_output_dir(int(pid) if pid else None))
     if not os.path.isdir(output_dir):
         return jsonify({"groups": []})
 
@@ -2444,7 +2907,9 @@ def splitter_merge_outputs():
 def splitter_clear_outputs():
     """Delete ALL output folders in splitter_outputs/ (AI + manual).
     Also clears in-memory splitter_jobs."""
-    output_dir = str(SPLITTER_OUTPUT_DIR)
+    payload = request.get_json(force=True) or {}
+    pid = payload.get("project_id")
+    output_dir = str(_splitter_output_dir(int(pid) if pid else None))
     deleted_count = 0
     if os.path.isdir(output_dir):
         for name in os.listdir(output_dir):

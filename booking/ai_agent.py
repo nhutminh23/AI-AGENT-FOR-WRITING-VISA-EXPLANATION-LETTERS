@@ -111,6 +111,12 @@ QUY TẮC BẮT BUỘC CHO KHÁCH SẠN:
 7. Loại phòng phải có thật tại khách sạn đó. ⚠️ Tên loại phòng phải NGẮN GỌN (tối đa 2-3 từ, ví dụ: "Superior King", "Deluxe Twin", "Premier Suite"). KHÔNG dùng tên dài quá 20 ký tự.
 8. Ngày check-in khách sạn đầu tiên = ngày đến nước sở tại (sau khi bay)
 9. Ngày check-out khách sạn cuối = ngày về
+10. CHIA PHÒNG ĐÚNG QUY TẮC:
+    - Mỗi phòng tối đa 2 NGƯỜI LỚN + 1 TRẺ EM
+    - Trong guest_names, tên có "[child]" hoặc "[tre em]" cuối cùng là trẻ em, còn lại là người lớn
+    - Ví dụ 5 khách: 3 người lớn + 2 trẻ em → 2 phòng (phòng 1: 2 lớn + 1 em, phòng 2: 1 lớn + 1 em)
+    - Ví dụ 4 khách: 4 người lớn → 2 phòng (mỗi phòng 2 lớn)
+    - Set num_rooms, num_adults, num_children cho TỪNG khách sạn theo quy tắc trên
 
 QUY TẮC BẮT BUỘC CHO CHUYẾN BAY:
 
@@ -472,7 +478,7 @@ def _extract_text_from_file(llm: Any, path: str) -> str:
 
 
 def _extract_pdf_with_openai(llm: Any, path: str) -> str:
-    """Extract text from PDF using OpenAI vision."""
+    """Extract text from PDF. Uses text extraction first, falls back to vision OCR."""
     try:
         text = read_pdf(path)
         if text and len(text.strip()) > 50:
@@ -480,24 +486,25 @@ def _extract_pdf_with_openai(llm: Any, path: str) -> str:
     except Exception:
         pass
 
-    # Fallback: render pages as images
+    # Fallback: render pages as images and batch into one LLM call
     try:
         import fitz  # PyMuPDF
         import base64
         doc = fitz.open(path)
-        all_text = []
-        for page in doc:
-            pix = page.get_pixmap(dpi=200)
+        page_count = min(len(doc), 5)  # Limit to 5 pages for speed
+        content_parts = [
+            {"type": "text", "text": f"Trích xuất toàn bộ văn bản từ {page_count} trang PDF. Giữ nguyên format, số, ngày tháng. Tách rõ từng trang."}
+        ]
+        for i in range(page_count):
+            pix = doc[i].get_pixmap(dpi=150)  # 150dpi is enough
             img_bytes = pix.tobytes("png")
             b64 = base64.b64encode(img_bytes).decode()
-            msg = HumanMessage(content=[
-                {"type": "text", "text": "Trích xuất toàn bộ văn bản từ hình ảnh này. Giữ nguyên format, số, ngày tháng."},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
-            ])
-            resp = llm.invoke([msg])
-            all_text.append(resp.content)
+            content_parts.append(
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}
+            )
         doc.close()
-        return "\n\n".join(all_text)
+        resp = llm.invoke([HumanMessage(content=content_parts)])
+        return resp.content
     except ImportError:
         return ""
 
@@ -544,25 +551,34 @@ def _safe_json_loads(text: str) -> dict:
 
 def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
     """
-    Read only files prefixed with "THONG TIN CHUYEN DI" and extract trip information.
-    This is the Booking tab's own extraction - independent from the Letter tab.
-
-    Args:
-        llm: Language model instance
-        input_dir: Path to input directory containing documents
-
-    Returns:
-        Dictionary with trip information
+    Read only files prefixed with trip-info keywords and extract trip information.
+    Uses parallel file reading for speed.
     """
-    # Collect text from files prefixed with "THONG TIN CHUYEN DI"
-    all_texts = []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # Collect matching file paths
+    file_paths = []
     for root, _, filenames in os.walk(input_dir):
         for fname in sorted(filenames):
-            if not _is_trip_info_filename(fname):
-                continue
-            path = os.path.join(root, fname)
-            text = _extract_text_from_file(llm, path)
-            if text:
+            if _is_trip_info_filename(fname):
+                file_paths.append((fname, os.path.join(root, fname)))
+
+    if not file_paths:
+        return dict(DEFAULT_TRIP_INFO)
+
+    # Extract text from all files in parallel
+    all_texts = []
+    def _extract(args):
+        fname, path = args
+        text = _extract_text_from_file(llm, path)
+        return (fname, text) if text else None
+
+    with ThreadPoolExecutor(max_workers=min(len(file_paths), 5)) as executor:
+        futures = {executor.submit(_extract, fp): fp for fp in file_paths}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                fname, text = result
                 all_texts.append(f"--- FILE: {fname} ---\n{text}")
 
     if not all_texts:
@@ -773,11 +789,23 @@ def ai_select_bookings(llm: Any, trip_info: Dict[str, Any]) -> Dict[str, Any]:
         # Enforce passenger list from extracted trip info.
         guest_names = trip_info.get("guest_names", [])
         if isinstance(guest_names, list) and guest_names:
-            flight["passengers"] = [
-                {"name": _to_passport_name(str(name)), "type": "Adult"}
-                for name in guest_names
-                if str(name).strip()
-            ]
+            pax_list = []
+            for name in guest_names:
+                name_str = str(name).strip()
+                if not name_str:
+                    continue
+                # Detect [child] / [tre em] tag
+                is_child = False
+                for tag in ["[child]", "[tre em]", "[trẻ em]"]:
+                    if tag in name_str.lower():
+                        is_child = True
+                        name_str = name_str[:name_str.lower().index(tag)].strip()
+                        break
+                pax_list.append({
+                    "name": _to_passport_name(name_str),
+                    "type": "Child" if is_child else "Adult"
+                })
+            flight["passengers"] = pax_list
 
         # Enforce route based on origin -> destination -> return_point.
         origin_airport = (trip_info.get("origin_airport") or "").strip().upper()
@@ -907,6 +935,7 @@ def generate_ai_booking(
     llm: Any,
     input_dir: str,
     trip_info: Optional[Dict] = None,
+    progress_callback: Optional[Any] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Full AI booking generation pipeline:
@@ -918,21 +947,33 @@ def generate_ai_booking(
         llm: Language model instance
         input_dir: Path to input directory
         trip_info: Optional pre-extracted trip info (skip extraction if provided)
+        progress_callback: Optional callable(step, message) for progress updates
 
     Returns:
         Tuple of (trip_info, booking_data)
     """
+    def _progress(step, msg):
+        if progress_callback:
+            progress_callback(step, msg)
+
     # Step 1: Extract trip info if not provided
     if not trip_info:
+        _progress(1, "Đang trích xuất thông tin chuyến đi từ file...")
         trip_info = extract_trip_info(llm, input_dir)
+    else:
+        _progress(1, "Đã có thông tin chuyến đi (bỏ qua trích xuất)")
 
     if not trip_info or not trip_info.get("destination_country"):
         raise ValueError("Không thể trích xuất thông tin chuyến đi từ các file input.")
+
+    _progress(2, "AI đang chọn khách sạn & chuyến bay phù hợp...")
 
     # Step 2: AI select bookings
     booking_data = ai_select_bookings(llm, trip_info)
 
     if not booking_data or not booking_data.get("hotels"):
         raise ValueError("AI không thể tạo booking. Vui lòng thử lại.")
+
+    _progress(3, "Đang tạo file HTML booking...")
 
     return trip_info, booking_data

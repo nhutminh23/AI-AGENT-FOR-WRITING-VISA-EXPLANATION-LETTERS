@@ -73,6 +73,14 @@
           </div>
         </section>
 
+        <section class="card">
+          <h2 style="display:flex; align-items:center; gap:8px;">
+            📂 File sẽ dùng để trích xuất
+            <span id="filteredFilesStatus" style="color:#6b7280; font-size:0.7em; font-weight:normal;"></span>
+          </h2>
+          <div id="filteredFilesTable"></div>
+        </section>
+
         <!-- Step 1: Extract Trip Info -->
         <section class="card">
           <h2>📋 Bước 1: Trích xuất thông tin chuyến đi</h2>
@@ -82,8 +90,8 @@
           </div>
           <div class="row" style="margin-top:10px;">
             <div>
-              <label for="tripGuestNames">Hành khách (mỗi dòng 1 người)</label>
-              <textarea id="tripGuestNames" rows="3"></textarea>
+              <label for="tripGuestNames">Hành khách (mỗi dòng 1 người — thêm <code>[child]</code> sau tên nếu là trẻ em)</label>
+              <textarea id="tripGuestNames" rows="4" placeholder="VD:&#10;NGUYEN LE KIM NGAN&#10;THACH NGUYEN PHONG&#10;THACH THI THU THUY [child]"></textarea>
             </div>
           </div>
           <div class="row" style="margin-top:10px;">
@@ -232,9 +240,47 @@
       </div>
 
       <div id="itinerarySection" class="section hidden">
+        <!-- Step 1: Booking Source + Extract -->
         <section class="card">
-          <h2>Thông tin đầu vào lịch trình</h2>
-          <pre id="summaryItinerary" class="summary">Chưa có dữ liệu.</pre>
+          <h2>Bước 1: Chọn nguồn booking & trích xuất</h2>
+          <div style="margin-bottom: 10px;">
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+              <label style="display:flex; align-items:center; gap:4px; cursor:pointer; padding:8px 14px; border:2px solid #e2e8f0; border-radius:8px; font-size:0.9em; transition:all 0.2s;" id="srcDbLabel">
+                <input type="radio" name="bookingSource" value="db" id="bookingSourceDb" checked />
+                📦 Từ AI Booking (Database)
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; cursor:pointer; padding:8px 14px; border:2px solid #e2e8f0; border-radius:8px; font-size:0.9em; transition:all 0.2s;" id="srcFileLabel">
+                <input type="radio" name="bookingSource" value="file" id="bookingSourceFile" />
+                📁 Chọn file thủ công
+              </label>
+            </div>
+            <div id="dbBookingStatus" style="margin-top:6px; font-size:0.85em; color:#64748b;"></div>
+          </div>
+          <div class="row" id="fileSelectRow" style="display:none;">
+            <div>
+              <label for="flightFile">File vé máy bay</label>
+              <select id="flightFile"></select>
+            </div>
+            <div>
+              <label for="hotelFile">File booking khách sạn</label>
+              <select id="hotelFile"></select>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <button id="extractItineraryBtn" style="background:#2563eb; color:#fff; padding:8px 20px; border:none; border-radius:6px; cursor:pointer; font-size:0.95em;">
+              🔍 Trích xuất thông tin lịch trình
+            </button>
+            <div id="extractStatus" style="font-size:0.85em; color:#64748b; margin-left:10px; display:flex; align-items:center;"></div>
+          </div>
+        </section>
+
+        <!-- Step 2: Itinerary Info (auto-filled, editable) + Generate -->
+        <section class="card">
+          <h2>Bước 2: Thông tin lịch trình</h2>
+          <div class="hint" style="margin-bottom:8px;">
+            Thông tin được trích xuất tự động từ booking. Bạn có thể chỉnh sửa hoặc bổ sung thêm.
+          </div>
+          <pre id="summaryItinerary" class="summary" style="display:none;">Chưa có dữ liệu.</pre>
           <div class="row" style="margin-top: 10px;">
             <div>
               <label for="itParticipants">Participant(s)</label>
@@ -256,31 +302,19 @@
             </div>
           </div>
           <div class="row" style="margin-top: 10px;">
-            <button id="saveItineraryContextBtn">Lưu thông tin lịch trình</button>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="row">
-            <div>
-              <label for="flightFile">File vé máy bay</label>
-              <select id="flightFile"></select>
-            </div>
-            <div>
-              <label for="hotelFile">File booking khách sạn</label>
-              <select id="hotelFile"></select>
-            </div>
             <div>
               <label for="itineraryOutput">File output</label>
               <input id="itineraryOutput" type="text" value="output/itinerary.html" />
             </div>
-            <button id="runItineraryBtn">Tạo lịch trình</button>
+            <button id="runItineraryBtn" style="background:#16a34a; color:#fff; padding:8px 20px; border:none; border-radius:6px; cursor:pointer; font-size:0.95em;">
+              ✅ Lưu & Tạo lịch trình
+            </button>
           </div>
-          <div class="hint">
-            Lịch trình được tạo từ file vé máy bay + booking khách sạn + thông tin bạn đã nhập ở trên.
-          </div>
+          <!-- Hidden save button (kept for backward compat, triggered internally) -->
+          <button id="saveItineraryContextBtn" style="display:none;">Lưu thông tin lịch trình</button>
         </section>
 
+        <!-- Step 3: Result -->
         <section class="card">
           <div class="card-header-row">
             <h2>Kết quả lịch trình</h2>
