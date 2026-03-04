@@ -28,39 +28,6 @@ load_dotenv()
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
 
-# ── Per-project directory helpers ──
-PROJECTS_ROOT = os.path.join(os.path.dirname(__file__), "projects")
-
-
-def _project_base_dir(project_id):
-    """Return the base directory for a project: projects/{project_id}/"""
-    if not project_id:
-        return None
-    base = os.path.join(PROJECTS_ROOT, str(project_id))
-    os.makedirs(base, exist_ok=True)
-    return base
-
-
-def _get_project_dirs(project_id):
-    """Return dict of project-scoped directory paths. Creates them if needed."""
-    base = _project_base_dir(project_id)
-    if not base:
-        return {
-            "input": "input",
-            "output": "output",
-            "splitter_uploads": "splitter_uploads",
-            "splitter_outputs": "splitter_outputs",
-        }
-    dirs = {
-        "input": os.path.join(base, "input"),
-        "output": os.path.join(base, "output"),
-        "splitter_uploads": os.path.join(base, "splitter_uploads"),
-        "splitter_outputs": os.path.join(base, "splitter_outputs"),
-    }
-    for d in dirs.values():
-        os.makedirs(d, exist_ok=True)
-    return dirs
-
 
 def get_text_model() -> str:
     """Model for text reasoning/writing tasks (gpt-5-mini default)."""
@@ -269,27 +236,10 @@ def update_project(project_id):
 
 @app.delete("/api/projects/<int:project_id>")
 def delete_project(project_id):
-    # Clean up project directory on disk
-    import shutil as _shutil
-    project_dir = _project_base_dir(project_id)
-    if project_dir and os.path.isdir(project_dir):
-        _shutil.rmtree(project_dir, ignore_errors=True)
     ok = db.delete_project(project_id)
     if not ok:
         return jsonify({"error": "Project not found"}), 404
     return jsonify({"status": "deleted"})
-
-
-@app.get("/api/project/dirs")
-def get_project_dirs():
-    """Return project-scoped directory paths for frontend."""
-    project_id = request.args.get("project_id")
-    if not project_id:
-        return jsonify({"input": "input", "output": "output",
-                        "splitter_uploads": "splitter_uploads",
-                        "splitter_outputs": "splitter_outputs"})
-    dirs = _get_project_dirs(int(project_id))
-    return jsonify(dirs)
 
 
 @app.get("/api/files")
@@ -2251,32 +2201,11 @@ from pathlib import Path as SplitterPath
 from pdf_tools.pdf_service import pdf_to_images, get_page_count, create_output_files
 from pdf_tools.ai_service import classify_all_pages
 
-# Directories for AI splitter (defaults, used as fallback)
+# Directories for AI splitter
 SPLITTER_UPLOAD_DIR = SplitterPath(__file__).parent / "splitter_uploads"
 SPLITTER_OUTPUT_DIR = SplitterPath(__file__).parent / "splitter_outputs"
 SPLITTER_UPLOAD_DIR.mkdir(exist_ok=True)
 SPLITTER_OUTPUT_DIR.mkdir(exist_ok=True)
-
-
-def _splitter_upload_dir(project_id=None):
-    """Return project-scoped or global splitter upload directory."""
-    if project_id:
-        dirs = _get_project_dirs(project_id)
-        d = SplitterPath(dirs["splitter_uploads"])
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-    return SPLITTER_UPLOAD_DIR
-
-
-def _splitter_output_dir(project_id=None):
-    """Return project-scoped or global splitter output directory."""
-    if project_id:
-        dirs = _get_project_dirs(project_id)
-        d = SplitterPath(dirs["splitter_outputs"])
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-    return SPLITTER_OUTPUT_DIR
-
 
 # In-memory job tracking for AI splitter
 splitter_jobs: Dict[str, Dict] = {}
@@ -2329,9 +2258,7 @@ async def _process_splitter_job(file_id: str):
 
         # Step 3: Create output files
         job["status"] = "splitting"
-        _out_base = SplitterPath(job.get("output_dir") or str(SPLITTER_OUTPUT_DIR))
-        _out_base.mkdir(parents=True, exist_ok=True)
-        job_output_dir = str(_out_base / file_id)
+        job_output_dir = str(SPLITTER_OUTPUT_DIR / file_id)
         output_files = create_output_files(
             job["file_path"], classifications, job_output_dir
         )
@@ -2343,7 +2270,7 @@ async def _process_splitter_job(file_id: str):
             json.dump(source_meta, mf, ensure_ascii=False)
 
         # Step 4: Create ZIP
-        zip_path = str(_out_base / f"{file_id}.zip")
+        zip_path = str(SPLITTER_OUTPUT_DIR / f"{file_id}.zip")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for f in output_files:
                 zf.write(f["path"], f["filename"])
@@ -2359,8 +2286,7 @@ async def _process_splitter_job(file_id: str):
 @app.get("/api/ai-splitter/list")
 def splitter_list_files():
     """List PDF files already in splitter_uploads folder."""
-    pid = request.args.get("project_id")
-    upload_dir = str(_splitter_upload_dir(int(pid) if pid else None))
+    upload_dir = str(SPLITTER_UPLOAD_DIR)
     if not os.path.isdir(upload_dir):
         return jsonify({"files": []})
     files = []
@@ -2376,11 +2302,9 @@ def splitter_delete_file():
     """Delete a single file from splitter_uploads."""
     payload = request.get_json(force=True) or {}
     filename = payload.get("filename", "")
-    pid = payload.get("project_id")
     if not filename:
         return jsonify({"error": "no_filename"}), 400
-    upload_dir = _splitter_upload_dir(int(pid) if pid else None)
-    file_path = upload_dir / filename
+    file_path = SPLITTER_UPLOAD_DIR / filename
     if not file_path.is_file():
         return jsonify({"error": "file_not_found"}), 404
     os.remove(str(file_path))
@@ -2390,9 +2314,7 @@ def splitter_delete_file():
 @app.post("/api/ai-splitter/delete-all")
 def splitter_delete_all():
     """Delete all PDF files from splitter_uploads."""
-    payload = request.get_json(force=True) or {}
-    pid = payload.get("project_id")
-    upload_dir = str(_splitter_upload_dir(int(pid) if pid else None))
+    upload_dir = str(SPLITTER_UPLOAD_DIR)
     count = 0
     if os.path.isdir(upload_dir):
         for fname in os.listdir(upload_dir):
@@ -2408,12 +2330,10 @@ def splitter_process_local():
     """Process a PDF already in splitter_uploads (no upload needed)."""
     payload = request.get_json(force=True) or {}
     filename = payload.get("filename", "")
-    pid = payload.get("project_id")
     if not filename:
         return jsonify({"error": "no_filename"}), 400
 
-    upload_dir = _splitter_upload_dir(int(pid) if pid else None)
-    src_path = upload_dir / filename
+    src_path = SPLITTER_UPLOAD_DIR / filename
     if not src_path.is_file():
         return jsonify({"error": "file_not_found"}), 404
 
@@ -2421,15 +2341,13 @@ def splitter_process_local():
 
     file_id = uuid.uuid4().hex[:8]
     # Copy to sub-folder (same structure as upload flow)
-    job_dir = upload_dir / file_id
+    job_dir = SPLITTER_UPLOAD_DIR / file_id
     job_dir.mkdir(exist_ok=True)
     file_path = job_dir / filename
     shutil.copy2(str(src_path), str(file_path))
 
     page_count = get_page_count(str(file_path))
 
-    # Store project_id in job so output goes to the right place
-    output_dir = _splitter_output_dir(int(pid) if pid else None)
     splitter_jobs[file_id] = {
         "status": "uploaded",
         "filename": filename,
@@ -2440,7 +2358,6 @@ def splitter_process_local():
         "output_files": [],
         "error": None,
         "zip_path": None,
-        "output_dir": str(output_dir),
     }
 
     # Run in background thread (same as upload flow)
@@ -2458,12 +2375,8 @@ def splitter_upload():
     if not file.filename.lower().endswith(".pdf"):
         return jsonify({"error": "not_pdf"}), 400
 
-    pid = request.form.get("project_id")
-    upload_dir = _splitter_upload_dir(int(pid) if pid else None)
-    output_dir = _splitter_output_dir(int(pid) if pid else None)
-
     file_id = uuid.uuid4().hex[:8]
-    job_dir = upload_dir / file_id
+    job_dir = SPLITTER_UPLOAD_DIR / file_id
     job_dir.mkdir(exist_ok=True)
     file_path = job_dir / file.filename
     file.save(str(file_path))
@@ -2474,7 +2387,6 @@ def splitter_upload():
         "status": "uploaded",
         "filename": file.filename,
         "file_path": str(file_path),
-        "output_dir": str(output_dir),
         "page_count": page_count,
         "current_page": 0,
         "classifications": [],
@@ -2542,41 +2454,21 @@ def splitter_status(file_id: str):
 
 @app.get("/api/ai-splitter/download/<file_id>/<filename>")
 def splitter_download_single(file_id: str, filename: str):
-    # Check job's output_dir first (project-scoped), then fall back to global
-    out_dir = None
-    if file_id in splitter_jobs:
-        out_dir = SplitterPath(splitter_jobs[file_id].get("output_dir", str(SPLITTER_OUTPUT_DIR)))
-    else:
-        # Try project-scoped dir from query param
-        pid = request.args.get("project_id")
-        out_dir = _splitter_output_dir(int(pid) if pid else None)
-    file_path = out_dir / file_id / filename
-    if not file_path.exists():
-        # Fallback: try global
-        file_path = SPLITTER_OUTPUT_DIR / file_id / filename
-        out_dir = SPLITTER_OUTPUT_DIR
+    # Check both splitter_jobs (AI) and filesystem (manual splits)
+    file_path = SPLITTER_OUTPUT_DIR / file_id / filename
     if not file_path.exists():
         return jsonify({"error": "file_not_found"}), 404
-    return send_from_directory(str(out_dir / file_id), filename,
+    return send_from_directory(str(SPLITTER_OUTPUT_DIR / file_id), filename,
                                 as_attachment=True, mimetype="application/pdf")
 
 
 @app.get("/api/ai-splitter/view/<file_id>/<filename>")
 def splitter_view_single(file_id: str, filename: str):
     """Serve PDF for in-browser viewing (as_attachment=False)."""
-    out_dir = None
-    if file_id in splitter_jobs:
-        out_dir = SplitterPath(splitter_jobs[file_id].get("output_dir", str(SPLITTER_OUTPUT_DIR)))
-    else:
-        pid = request.args.get("project_id")
-        out_dir = _splitter_output_dir(int(pid) if pid else None)
-    file_path = out_dir / file_id / filename
-    if not file_path.exists():
-        file_path = SPLITTER_OUTPUT_DIR / file_id / filename
-        out_dir = SPLITTER_OUTPUT_DIR
+    file_path = SPLITTER_OUTPUT_DIR / file_id / filename
     if not file_path.exists():
         return jsonify({"error": "file_not_found"}), 404
-    return send_from_directory(str(out_dir / file_id), filename,
+    return send_from_directory(str(SPLITTER_OUTPUT_DIR / file_id), filename,
                                 as_attachment=False, mimetype="application/pdf")
 
 
@@ -2596,8 +2488,7 @@ def splitter_download_zip(file_id: str):
 def splitter_list_outputs():
     """List ALL split output files across all splitter job folders (AI + manual).
     Used by Tab ② to pick a file to re-split manually."""
-    pid = request.args.get("project_id")
-    output_dir = str(_splitter_output_dir(int(pid) if pid else None))
+    output_dir = str(SPLITTER_OUTPUT_DIR)
     if not os.path.isdir(output_dir):
         return jsonify({"groups": []})
 
@@ -2907,9 +2798,7 @@ def splitter_merge_outputs():
 def splitter_clear_outputs():
     """Delete ALL output folders in splitter_outputs/ (AI + manual).
     Also clears in-memory splitter_jobs."""
-    payload = request.get_json(force=True) or {}
-    pid = payload.get("project_id")
-    output_dir = str(_splitter_output_dir(int(pid) if pid else None))
+    output_dir = str(SPLITTER_OUTPUT_DIR)
     deleted_count = 0
     if os.path.isdir(output_dir):
         for name in os.listdir(output_dir):

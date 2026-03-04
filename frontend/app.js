@@ -1,28 +1,3 @@
-// ── Per-project directory paths (loaded from server) ──
-let projectDirs = { input: "input", output: "output", splitter_uploads: "splitter_uploads", splitter_outputs: "splitter_outputs" };
-
-async function loadProjectDirs() {
-  const pid = currentProjectId;
-  if (!pid) {
-    projectDirs = { input: "input", output: "output", splitter_uploads: "splitter_uploads", splitter_outputs: "splitter_outputs" };
-    return;
-  }
-  try {
-    const res = await fetch(`/api/project/dirs?project_id=${pid}`);
-    projectDirs = await res.json();
-  } catch (e) {
-    console.error("Failed to load project dirs:", e);
-  }
-}
-
-function getInputDir() {
-  return projectDirs.input || "input";
-}
-
-function getOutputDir() {
-  return projectDirs.output || "output";
-}
-
 const fileListEl = document.getElementById("fileList");
 const resultEl = document.getElementById("result");
 const summaryEl = document.getElementById("summary");
@@ -237,116 +212,13 @@ async function loadProjects() {
   }
 }
 
-projectSelectEl.addEventListener("change", async () => {
+projectSelectEl.addEventListener("change", () => {
   const val = projectSelectEl.value;
   currentProjectId = val ? parseInt(val) : null;
   btnRenameProject.style.display = currentProjectId ? "" : "none";
   btnDeleteProject.style.display = currentProjectId ? "" : "none";
   localStorage.setItem("currentProjectId", currentProjectId || "");
-  await loadProjectDirs();
-  clearAllUI();
 });
-
-/**
- * Reset ALL UI sections to empty/default state.
- * Called when switching or creating a new project.
- */
-function clearAllUI() {
-  // Mark project data as stale — prevents tab switch from reloading shared filesystem data
-  _lastLoadedProjectId = Symbol('cleared');
-
-  // Update input dir field to project-scoped path
-  if (inputDirEl) inputDirEl.value = getInputDir();
-  // Booking section
-  if (typeof hotelBookingResultEl !== "undefined" && hotelBookingResultEl)
-    hotelBookingResultEl.srcdoc = "";
-  if (typeof flightBookingResultEl !== "undefined" && flightBookingResultEl)
-    flightBookingResultEl.srcdoc = "";
-  if (typeof aiBookingStatusEl !== "undefined" && aiBookingStatusEl)
-    aiBookingStatusEl.innerHTML = "";
-  if (typeof tripInfoPanelEl !== "undefined" && tripInfoPanelEl)
-    tripInfoPanelEl.textContent = "Chưa có dữ liệu.";
-
-  // Booking form fields
-  const bookingFields = [
-    "guestNames", "destinationCountry", "departureAirport",
-    "travelStartDate", "travelEndDate", "travelPurpose"
-  ];
-  bookingFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
-
-  // Hotel tabs
-  const hotelTabsEl = document.getElementById("hotelTabs");
-  if (hotelTabsEl) hotelTabsEl.innerHTML = "";
-
-  // AI reasoning
-  const aiReasoningSectionEl = document.getElementById("aiReasoningSection");
-  const aiReasoningEl = document.getElementById("aiReasoning");
-  if (aiReasoningSectionEl) aiReasoningSectionEl.style.display = "none";
-  if (aiReasoningEl) aiReasoningEl.textContent = "";
-
-  // Itinerary section
-  if (typeof itineraryResultEl !== "undefined" && itineraryResultEl)
-    itineraryResultEl.srcdoc = "";
-  const itFields = ["itParticipants", "itTravelStartDate", "itTravelEndDate", "itTravelPurpose"];
-  itFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
-  const summaryItEl = document.getElementById("summaryItinerary");
-  if (summaryItEl) summaryItEl.textContent = "Chưa có dữ liệu.";
-
-  // DB booking status
-  if (typeof dbBookingStatusEl !== "undefined" && dbBookingStatusEl)
-    dbBookingStatusEl.innerHTML = "";
-  if (typeof extractStatusEl !== "undefined" && extractStatusEl)
-    extractStatusEl.innerHTML = "";
-
-  // Splitter sections
-  const splitterFileList = document.getElementById("splitterFileList");
-  if (splitterFileList) splitterFileList.innerHTML = "";
-  const splitterOutputList = document.getElementById("splitterOutputList");
-  if (splitterOutputList) splitterOutputList.innerHTML = "";
-  const splitterOutputHistoryList = document.getElementById("splitterOutputHistoryList");
-  if (splitterOutputHistoryList) splitterOutputHistoryList.innerHTML = "";
-  const splitterUploadArea = document.getElementById("splitterUploadArea");
-  if (splitterUploadArea) {
-    const fileInput = splitterUploadArea.querySelector("input[type='file']");
-    if (fileInput) fileInput.value = "";
-  }
-
-  // Letter section
-  const letterResult = document.getElementById("letterResult");
-  if (letterResult) letterResult.srcdoc = "";
-  const letterSummary = document.getElementById("summaryLetter");
-  if (letterSummary) letterSummary.textContent = "Chưa có dữ liệu.";
-
-  // File list (input files)
-  const fileListEl = document.getElementById("fileList");
-  if (fileListEl) fileListEl.innerHTML = "";
-
-  // Precheck
-  const precheckResults = document.getElementById("precheckResults");
-  if (precheckResults) precheckResults.innerHTML = "";
-  const precheckResultsCard = document.getElementById("precheckResultsCard");
-  if (precheckResultsCard) precheckResultsCard.style.display = "none";
-
-  // Export buttons
-  const exportBtns = ["exportHotelPdfBtn", "exportFlightPdfBtn", "exportItineraryPdfBtn"];
-  exportBtns.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = "none";
-  });
-
-  // Classifier section
-  const classifierList = document.getElementById("classifierFileList");
-  if (classifierList) classifierList.innerHTML = "";
-
-  // Refresh DB booking status for the new project
-  checkDbBookingStatus();
-}
 
 btnNewProject.addEventListener("click", async () => {
   const name = prompt("Tên hồ sơ mới (VD: Hồ sơ Nguyễn Văn A - Úc):");
@@ -364,8 +236,6 @@ btnNewProject.addEventListener("click", async () => {
     projectSelectEl.value = currentProjectId;
     btnRenameProject.style.display = "";
     btnDeleteProject.style.display = "";
-    await loadProjectDirs();
-    clearAllUI();
   } catch (e) {
     alert("Lỗi: " + e.message);
   }
@@ -397,7 +267,6 @@ btnDeleteProject.addEventListener("click", async () => {
     btnRenameProject.style.display = "none";
     btnDeleteProject.style.display = "none";
     await loadProjects();
-    clearAllUI();
   } catch (e) {
     alert("Lỗi: " + e.message);
   }
@@ -2217,9 +2086,6 @@ function syncCombinedPreviews() {
   }
 }
 
-// Track which project's data is currently loaded in the UI
-let _lastLoadedProjectId = null;
-
 function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -2259,7 +2125,6 @@ function setActiveTab(tab) {
   } else if (tab === "aisplitter") {
     if (aisplitterSection) aisplitterSection.classList.remove("hidden");
     loadSplitterFileList();
-    loadOutputHistory();
   } else if (tab === "precheck") {
     if (precheckSection) precheckSection.classList.remove("hidden");
   }
@@ -3254,10 +3119,6 @@ tabButtons.forEach((btn) => {
 });
 
 window.addEventListener("load", async () => {
-  // Load project-scoped directories first
-  await loadProjectDirs();
-  if (inputDirEl) inputDirEl.value = getInputDir();
-
   setActiveTab("precheck");
   await fetchFiles();
   await loadSteps();
@@ -3269,8 +3130,6 @@ window.addEventListener("load", async () => {
   await loadClassifierFiles();
   syncCombinedPreviews();
   await loadOutputHistory();
-  // Mark initial data as loaded for this project
-  _lastLoadedProjectId = currentProjectId;
 });
 
 // ==================== AI PDF SPLITTER ====================
@@ -3280,8 +3139,7 @@ async function loadSplitterFileList() {
   const listEl = document.getElementById("splitterFileList");
   if (!listEl) return;
   try {
-    const pid = getProjectId();
-    const res = await fetch(`/api/ai-splitter/list${pid ? `?project_id=${pid}` : ''}`);
+    const res = await fetch("/api/ai-splitter/list");
     const data = await res.json();
     const files = data.files || [];
 
@@ -3328,7 +3186,7 @@ async function deleteSplitterFile(filename) {
     await fetch("/api/ai-splitter/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename, project_id: getProjectId() }),
+      body: JSON.stringify({ filename }),
     });
     loadSplitterFileList();
   } catch (e) { alert(`Lỗi: ${e.message}`); }
@@ -3338,11 +3196,7 @@ async function deleteSplitterFile(filename) {
 async function deleteAllSplitter() {
   if (!confirm("Xóa TẤT CẢ file trong danh sách chờ tách?")) return;
   try {
-    const res = await fetch("/api/ai-splitter/delete-all", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_id: getProjectId() }),
-    });
+    const res = await fetch("/api/ai-splitter/delete-all", { method: "POST" });
     const data = await res.json();
     alert(`✅ Đã xóa ${data.deleted_count} file.`);
     loadSplitterFileList();
@@ -3394,7 +3248,7 @@ async function splitAllFiles() {
       const res = await fetch("/api/ai-splitter/process-local", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: fname, project_id: getProjectId() }),
+        body: JSON.stringify({ filename: fname }),
       });
       const data = await res.json();
       if (!res.ok) { console.error(`Error: ${data.error}`); continue; }
@@ -3534,7 +3388,7 @@ document.addEventListener("click", async (e) => {
       const res = await fetch("/api/ai-splitter/process-local", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename, project_id: getProjectId() }),
+        body: JSON.stringify({ filename }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -3611,8 +3465,6 @@ document.addEventListener("click", async (e) => {
       // 1. Upload
       const formData = new FormData();
       formData.append("file", file);
-      const pid = getProjectId();
-      if (pid) formData.append("project_id", pid);
       const uploadRes = await fetch("/api/ai-splitter/upload", { method: "POST", body: formData });
       const uploadData = await uploadRes.json();
       if (uploadData.error) {
@@ -3752,8 +3604,7 @@ async function loadOutputHistory() {
   const listEl = document.getElementById("splitterOutputHistoryList");
   if (!listEl) return;
   try {
-    const pid = getProjectId();
-    const res = await fetch(`/api/ai-splitter/list-outputs${pid ? `?project_id=${pid}` : ''}`);
+    const res = await fetch("/api/ai-splitter/list-outputs");
     const data = await res.json();
     const groups = data.groups || [];
     if (groups.length === 0) {
@@ -3931,11 +3782,7 @@ if (clearAllOutputsBtn) {
     clearAllOutputsBtn.disabled = true;
     clearAllOutputsBtn.textContent = "⏳ Đang xóa...";
     try {
-      const res = await fetch("/api/ai-splitter/clear-outputs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: getProjectId() }),
-      });
+      const res = await fetch("/api/ai-splitter/clear-outputs", { method: "POST" });
       const data = await res.json();
       alert(`✅ Đã xóa ${data.deleted_count} mục.`);
       await loadOutputHistory();
