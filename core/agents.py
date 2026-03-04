@@ -26,6 +26,14 @@ from core.state import GraphState
 
 
 PREFIX_TO_DOMAIN = {
+    # English prefixes (primary)
+    "OVERVIEW": "overview",
+    "PERSONAL": "personal",
+    "TRAVEL_HISTORY": "travel_history",
+    "EMPLOYMENT": "employment",
+    "FINANCIAL": "financial",
+    "PURPOSE": "purpose",
+    # Vietnamese prefixes (backward compatible)
     "TONG QUAN": "overview",
     "HO SO CA NHAN": "personal",
     "LICH SU DU LICH": "travel_history",
@@ -157,12 +165,12 @@ def classify_files(state: GraphState) -> GraphState:
 
 
 SUMMARY_DOMAIN_ORDER = [
-    ("overview", "TONG QUAN"),
-    ("personal", "HO SO CA NHAN"),
-    ("employment", "CONG VIEC"),
-    ("financial", "TAI CHINH"),
-    ("purpose", "MUC DICH CHUYEN DI"),
-    ("travel_history", "LICH SU DU LICH"),
+    ("overview", "OVERVIEW"),
+    ("personal", "PERSONAL"),
+    ("employment", "EMPLOYMENT"),
+    ("financial", "FINANCIAL"),
+    ("purpose", "PURPOSE"),
+    ("travel_history", "TRAVEL_HISTORY"),
 ]
 
 

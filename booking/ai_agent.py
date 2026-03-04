@@ -299,6 +299,11 @@ AIRPORT_BY_COUNTRY = {
 }
 
 TRIP_FILE_PREFIXES = [
+    # English (primary)
+    "OVERVIEW",
+    "PERSONAL",
+    "PURPOSE",
+    # Vietnamese (backward compatible)
     "TONG QUAN",
     "HO SO CA NHAN",
     "MUC DICH CHUYEN DI",

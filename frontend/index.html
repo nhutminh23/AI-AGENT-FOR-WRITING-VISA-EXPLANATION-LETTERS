@@ -21,13 +21,47 @@
       </header>
 
       <div class="tabs">
-        <button class="tab-btn active" data-tab="booking">Booking</button>
-        <button class="tab-btn" data-tab="itinerary">Lịch trình</button>
-        <button class="tab-btn" data-tab="letter">Thư giải trình</button>
-        <button class="tab-btn" data-tab="outputs">Kết quả</button>
-        <button class="tab-btn" data-tab="classifier">Phân loại file</button>
-        <button class="tab-btn" data-tab="pdf">Tách/Nối/Rename PDF</button>
-        <button class="tab-btn" data-tab="aisplitter">📎 Tách PDF (AI)</button>
+        <button class="tab-btn active" data-tab="precheck">⓪ Kiểm tra file</button>
+        <button class="tab-btn" data-tab="aisplitter">① Tách PDF (AI)</button>
+        <button class="tab-btn" data-tab="pdf">② Tách/Rename PDF</button>
+        <button class="tab-btn" data-tab="classifier">③ Phân loại file</button>
+        <button class="tab-btn" data-tab="booking">④ Booking</button>
+        <button class="tab-btn" data-tab="itinerary">⑤ Lịch trình</button>
+        <button class="tab-btn" data-tab="letter">⑥ Thư giải trình</button>
+        <button class="tab-btn" data-tab="outputs">⑦ Kết quả</button>
+      </div>
+
+      <!-- ⓪ Pre-Check Section -->
+      <div id="precheckSection" class="section">
+        <section class="card">
+          <h2>🔍 Kiểm tra file đầu vào</h2>
+          <div class="hint">
+            AI quét tất cả file trong thư mục input → phát hiện file nào chứa nhiều giấy tờ ghép chung (cần tách) và file nào sạch (đi thẳng phân loại).
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label for="precheckInputDir">Thư mục cần kiểm tra</label>
+              <input id="precheckInputDir" type="text" value="input" />
+            </div>
+            <button id="precheckScanBtn">🔍 Quét tất cả file</button>
+          </div>
+          <div id="precheckProgress" style="margin-top: 10px; display:none;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="spinner" style="width:20px;height:20px;border:3px solid #e5e7eb;border-top:3px solid #4f46e5;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+              <span id="precheckStatusText">Đang quét file...</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" id="precheckResultsCard" style="display:none;">
+          <h2>📋 Kết quả kiểm tra</h2>
+          <div id="precheckSummary" style="margin-bottom:12px; padding:10px; background:#f0fdf4; border-radius:8px; font-weight:600;"></div>
+          <div id="precheckResults" style="max-height:500px; overflow-y:auto;"></div>
+          <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="sendMultiToSplitterBtn" style="background:#dc2626;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;display:none;">⚠️ Gửi file cần tách → Tab ① Tách PDF (AI)</button>
+            <button id="sendCleanToClassifierBtn" style="background:#16a34a;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;display:none;">✅ Gửi file sạch → Tab ③ Phân loại</button>
+          </div>
+        </section>
       </div>
 
       <!-- NEW: AI Booking Section -->
@@ -342,30 +376,30 @@
         <section class="card">
           <h2>AI Phân loại hồ sơ visa</h2>
           <div class="hint">
-            Agent riêng chỉ dùng cho trang này. Hệ thống đọc file trong <code>phanloai/input</code>, giữ nguyên file gốc, và ghi kết quả sang <code>phanloai/output</code> theo từng người.
+            File từ bước trước sẽ tự động hiển thị ở đây. Bấm <strong>🤖 Chạy AI phân loại</strong> để phân loại, gắn tiền tố, và sắp xếp theo từng người.
           </div>
-          <div class="row" style="margin-top: 10px;">
-            <div>
-              <label for="classifierInputDir">Thư mục input phân loại</label>
-              <input id="classifierInputDir" type="text" value="phanloai/input" />
-            </div>
-            <div>
-              <label for="classifierOutputDir">Thư mục output kết quả</label>
-              <input id="classifierOutputDir" type="text" value="phanloai/output" />
-            </div>
-            <button id="loadClassifierFilesBtn">Tải danh sách file</button>
-            <button id="runClassifierBtn">Chạy AI phân loại</button>
+          <input id="classifierInputDir" type="hidden" value="phanloai/input" />
+          <input id="classifierOutputDir" type="hidden" value="phanloai/output" />
+          <div style="margin-top: 10px;">
+            <button id="runClassifierBtn" style="background:#4f46e5; padding:12px 24px; font-size:15px;">🤖 Chạy AI phân loại</button>
           </div>
         </section>
 
         <section class="card">
-          <h2>File nguồn trong thư mục phanloai</h2>
-          <div id="classifierFileList" class="file-list empty">Chưa có dữ liệu. Bấm "Tải danh sách file".</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+            <h2 style="margin:0;">File nguồn trong phanloai/input</h2>
+            <button id="loadClassifierFilesBtn" style="padding:6px 12px; font-size:12px;">🔄 Refresh</button>
+            <button id="deleteAllClassifierBtn" style="padding:6px 14px; font-size:13px; background:#dc2626; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">🗑️ Xóa tất cả</button>
+          </div>
+          <div id="classifierFileList" class="file-list empty">Chưa có file.</div>
         </section>
 
         <section class="card">
           <h2>Kết quả phân loại</h2>
           <pre id="classifierResult" class="summary">Chưa chạy.</pre>
+          <div id="pipelineToInputBtns" style="margin-top:12px; display:none; gap:10px; flex-wrap:wrap;">
+            <button id="sendToInputBtn" style="background:#2563eb;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;">➡️ Chuyển kết quả sang Input (Booking/Letter) → Tab ④</button>
+          </div>
         </section>
       </div>
 
@@ -484,15 +518,32 @@
         <section class="card">
           <h2>📎 Tách PDF bằng AI (Vision API)</h2>
           <div class="hint">
-            Upload file PDF scan → AI tự nhận diện từng trang → phân loại loại giấy tờ và tên người → tự động tách thành các file riêng.
+            File từ bước Kiểm tra sẽ được chuyển vào đây. Chọn file cần tách → AI tự nhận diện từng trang → phân loại → tách thành file riêng.
           </div>
-          <div class="row" style="margin-top: 12px;">
-            <div>
-              <label for="splitterFileInput">Chọn file PDF</label>
-              <input type="file" id="splitterFileInput" accept=".pdf" />
+
+          <!-- File list from splitter_uploads -->
+          <div style="margin-top: 12px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+              <h3 style="margin:0;">📁 File chờ tách</h3>
+              <button id="refreshSplitterListBtn" style="padding:6px 12px; font-size:12px;">🔄 Refresh</button>
+              <button id="splitAllBtn" style="padding:6px 14px; font-size:13px; background:#4f46e5; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">✂️ Tách tất cả</button>
+              <button id="deleteAllSplitterBtn" style="padding:6px 14px; font-size:13px; background:#dc2626; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">🗑️ Xóa tất cả</button>
             </div>
-            <button id="splitterUploadBtn">📤 Upload & Tách</button>
+            <div id="splitterFileList" class="file-list empty">Chưa có file. Hãy quét ở Tab ⓪ rồi gửi file cần tách sang đây.</div>
           </div>
+
+          <!-- Manual upload (collapsible) -->
+          <details style="margin-top: 16px;">
+            <summary style="cursor:pointer; color:#6b7280; font-size:13px;">📤 Hoặc upload thủ công...</summary>
+            <div class="row" style="margin-top: 8px;">
+              <div>
+                <label for="splitterFileInput">Chọn file PDF</label>
+                <input type="file" id="splitterFileInput" accept=".pdf" />
+              </div>
+              <button id="splitterUploadBtn">📤 Upload & Tách</button>
+            </div>
+          </details>
+
           <div id="splitterProgress" style="margin-top: 10px; display:none;">
             <div style="display:flex; align-items:center; gap:8px;">
               <progress id="splitterProgressBar" value="0" max="100" style="flex:1;"></progress>
@@ -510,8 +561,9 @@
         <section class="card" id="splitterResultsCard" style="display:none;">
           <h2>✅ File đã tách</h2>
           <div id="splitterResults"></div>
-          <div style="margin-top:12px;">
+          <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
             <button id="splitterDownloadAllBtn">📦 Tải tất cả (ZIP)</button>
+            <button id="sendToClassifierBtn" style="background:#2563eb;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;">➡️ Chuyển sang Phân loại file → Tab ③</button>
           </div>
         </section>
       </div>

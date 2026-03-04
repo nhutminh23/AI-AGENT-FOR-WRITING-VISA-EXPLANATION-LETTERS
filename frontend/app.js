@@ -298,17 +298,26 @@ async function fetchFiles() {
 }
 
 function renderClassifierFiles(files) {
+  const deleteAllBtn = document.getElementById("deleteAllClassifierBtn");
   if (!files || files.length === 0) {
     classifierFileListEl.classList.add("empty");
     classifierFileListEl.textContent = "Không có file nào trong thư mục input phân loại.";
+    if (deleteAllBtn) deleteAllBtn.style.display = "none";
     return;
   }
+  if (deleteAllBtn) deleteAllBtn.style.display = "inline-block";
   classifierFileListEl.classList.remove("empty");
   classifierFileListEl.innerHTML = files
     .map(
-      (f) => `<div class="file-row">
-        <span class="file-name">${f.rel_path || f.name}</span>
-        <span class="file-domain">${f.domain}</span>
+      (f) => `<div class="file-row" style="align-items:center;">
+        <div style="flex:1;">
+          <span class="file-name">${f.rel_path || f.name}</span>
+          <span class="file-domain">${f.domain}</span>
+        </div>
+        <button class="classifier-delete-btn" data-filename="${f.rel_path || f.name}" 
+                style="padding:5px 12px; background:#dc2626; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:12px;">
+          🗑️
+        </button>
       </div>`
     )
     .join("");
@@ -327,6 +336,48 @@ async function loadClassifierFiles() {
   classifierFilesCache = data.files || [];
   renderClassifierFiles(classifierFilesCache);
 }
+
+async function deleteClassifierFile(filename) {
+  if (!confirm(`Xóa file "${filename}"?`)) return;
+  const inputDir = classifierInputDirEl.value.trim() || "phanloai/input";
+  try {
+    await fetch("/api/classifier/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_dir: inputDir, filename }),
+    });
+    await loadClassifierFiles();
+  } catch (e) { alert(`Lỗi: ${e.message}`); }
+}
+
+async function deleteAllClassifierFiles() {
+  if (!confirm("Xóa TẤT CẢ file trong thư mục phân loại?")) return;
+  const inputDir = classifierInputDirEl.value.trim() || "phanloai/input";
+  try {
+    const res = await fetch("/api/classifier/delete-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_dir: inputDir }),
+    });
+    const data = await res.json();
+    alert(`✅ Đã xóa ${data.deleted_count} file.`);
+    await loadClassifierFiles();
+  } catch (e) { alert(`Lỗi: ${e.message}`); }
+}
+
+// Classifier delete-all button
+const deleteAllClassifierBtn = document.getElementById("deleteAllClassifierBtn");
+if (deleteAllClassifierBtn) {
+  deleteAllClassifierBtn.addEventListener("click", deleteAllClassifierFiles);
+}
+
+// Classifier per-file delete delegation
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".classifier-delete-btn");
+  if (!btn) return;
+  const filename = btn.dataset.filename;
+  if (filename) deleteClassifierFile(filename);
+});
 
 // === PDF tools helpers ===
 
@@ -918,6 +969,47 @@ async function runClassifier() {
     }
     classifierResultEl.textContent = formatClassifierResult(data);
     await loadClassifierFiles();
+    // Store output paths for save button
+    window._classifierTempOutput = data._temp_output;
+    window._classifierFinalOutput = data._final_output;
+    // Show pipeline buttons
+    const pipelineBtns = document.getElementById("pipelineToInputBtns");
+    if (pipelineBtns) {
+      pipelineBtns.style.display = "flex";
+      // Add save-to-output button if not already there
+      if (!document.getElementById("saveClassifierOutputBtn")) {
+        const saveBtn = document.createElement("button");
+        saveBtn.id = "saveClassifierOutputBtn";
+        saveBtn.textContent = "💾 Lưu vào output folder";
+        saveBtn.style.cssText = "background:#059669;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;";
+        saveBtn.addEventListener("click", async () => {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "⏳ Đang lưu...";
+          try {
+            const res = await fetch("/api/classifier/save-output", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                temp_output: window._classifierTempOutput,
+                output_dir: window._classifierFinalOutput,
+              }),
+            });
+            const result = await res.json();
+            if (res.ok) {
+              alert(`✅ Đã lưu ${result.file_count} file vào: ${result.output_dir}`);
+            } else {
+              alert(`Lỗi: ${result.error}`);
+            }
+          } catch (e) {
+            alert(`Lỗi: ${e.message}`);
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "💾 Lưu vào output folder";
+          }
+        });
+        pipelineBtns.appendChild(saveBtn);
+      }
+    }
   } catch (error) {
     classifierResultEl.textContent = `Lỗi: ${error.message}`;
   } finally {
@@ -925,6 +1017,65 @@ async function runClassifier() {
     runClassifierBtn.textContent = originalText;
   }
 }
+
+// ==================== PIPELINE CONNECTION FUNCTIONS ====================
+
+async function sendToClassifier() {
+  const btn = document.getElementById("sendToClassifierBtn");
+  if (!btn) return;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Đang chuyển file...";
+  try {
+    const res = await fetch("/api/pipeline/send-to-classifier", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`Lỗi: ${data.error}`);
+      return;
+    }
+    alert(`✅ Đã chuyển ${data.count} file sang ${data.target_dir}`);
+    setActiveTab("classifier");
+    loadClassifierFiles();
+  } catch (e) {
+    alert(`Lỗi: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function sendToInput() {
+  const btn = document.getElementById("sendToInputBtn");
+  if (!btn) return;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Đang chuyển file...";
+  try {
+    const res = await fetch("/api/pipeline/send-to-input", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`Lỗi: ${data.error}`);
+      return;
+    }
+    alert(`✅ Đã chuyển ${data.count} file sang ${data.target_dir}`);
+    setActiveTab("booking");
+    fetchFiles();
+  } catch (e) {
+    alert(`Lỗi: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
 
 function formatStage(stage) {
   const labelMap = {
@@ -1352,7 +1503,9 @@ function setActiveTab(tab) {
   const allSections = [letterSection, itinerarySection, bookingSection,
     outputsSection, classifierSection, pdfSection];
   const aisplitterSection = document.getElementById("aisplitterSection");
+  const precheckSection = document.getElementById("precheckSection");
   if (aisplitterSection) allSections.push(aisplitterSection);
+  if (precheckSection) allSections.push(precheckSection);
   allSections.forEach((s) => { if (s) s.classList.add("hidden"); });
 
   if (tab === "letter") {
@@ -1378,6 +1531,9 @@ function setActiveTab(tab) {
     loadPdfFiles();
   } else if (tab === "aisplitter") {
     if (aisplitterSection) aisplitterSection.classList.remove("hidden");
+    loadSplitterFileList();
+  } else if (tab === "precheck") {
+    if (precheckSection) precheckSection.classList.remove("hidden");
   }
 }
 
@@ -1782,6 +1938,131 @@ async function runAIBooking() {
   }
 }
 
+// ==================== PRE-CHECK FUNCTIONS ====================
+
+let precheckResults = []; // store scan results globally
+
+async function precheckScan() {
+  const inputDir = document.getElementById("precheckInputDir").value.trim() || "input";
+  const scanBtn = document.getElementById("precheckScanBtn");
+  const progressDiv = document.getElementById("precheckProgress");
+  const statusText = document.getElementById("precheckStatusText");
+  const resultsCard = document.getElementById("precheckResultsCard");
+  const summaryDiv = document.getElementById("precheckSummary");
+  const resultsDiv = document.getElementById("precheckResults");
+
+  scanBtn.disabled = true;
+  scanBtn.textContent = "⏳ Đang quét...";
+  progressDiv.style.display = "block";
+  statusText.textContent = "AI đang quét và phân tích tất cả file... (có thể mất vài phút)";
+  resultsCard.style.display = "none";
+
+  try {
+    const res = await fetch("/api/precheck/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_dir: inputDir }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      statusText.textContent = `Lỗi: ${data.error}`;
+      return;
+    }
+
+    precheckResults = data.files || [];
+    progressDiv.style.display = "none";
+    resultsCard.style.display = "block";
+
+    // Summary
+    summaryDiv.innerHTML = `
+      📁 Tổng: <strong>${data.total_files}</strong> file &nbsp;|&nbsp;
+      ✅ Sạch: <strong>${data.clean_count}</strong> &nbsp;|&nbsp;
+      ⚠️ Cần tách: <strong style="color:#dc2626;">${data.multi_doc_count}</strong>
+    `;
+
+    // Results table
+    let html = `<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+      <thead>
+        <tr style="background:#f1f5f9; text-align:left;">
+          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Trạng thái</th>
+          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">File</th>
+          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Trang</th>
+          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Số giấy tờ</th>
+          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Loại giấy tờ</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    for (const f of precheckResults) {
+      const status = f.needs_split
+        ? '<span style="color:#dc2626; font-weight:bold;">⚠️ Cần tách</span>'
+        : '<span style="color:#16a34a;">✅ Sạch</span>';
+      const rowBg = f.needs_split ? "background:#fef2f2;" : "";
+      html += `
+        <tr style="${rowBg} border-bottom:1px solid #e2e8f0;">
+          <td style="padding:8px;">${status}</td>
+          <td style="padding:8px; word-break:break-all;" title="${f.path}">${f.filename}</td>
+          <td style="padding:8px; text-align:center;">${f.page_count}</td>
+          <td style="padding:8px; text-align:center; font-weight:bold; ${f.doc_count >= 2 ? 'color:#dc2626;' : ''}">${f.doc_count}</td>
+          <td style="padding:8px; font-size:0.85em;">${(f.doc_types || []).join(", ")}</td>
+        </tr>`;
+    }
+    html += "</tbody></table>";
+    resultsDiv.innerHTML = html;
+
+    // Show/hide pipeline buttons
+    const sendMultiBtn = document.getElementById("sendMultiToSplitterBtn");
+    const sendCleanBtn = document.getElementById("sendCleanToClassifierBtn");
+    if (sendMultiBtn) sendMultiBtn.style.display = data.multi_doc_count > 0 ? "inline-block" : "none";
+    if (sendCleanBtn) sendCleanBtn.style.display = data.clean_count > 0 ? "inline-block" : "none";
+
+  } catch (e) {
+    statusText.textContent = `Lỗi: ${e.message}`;
+  } finally {
+    scanBtn.disabled = false;
+    scanBtn.textContent = "🔍 Quét tất cả file";
+  }
+}
+
+async function sendMultiToSplitter() {
+  const multiFiles = precheckResults.filter(f => f.needs_split).map(f => f.path);
+  if (multiFiles.length === 0) { alert("Không có file cần tách."); return; }
+  const btn = document.getElementById("sendMultiToSplitterBtn");
+  btn.disabled = true; btn.textContent = "Đang chuyển...";
+  try {
+    const res = await fetch("/api/pipeline/send-to-splitter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_paths: multiFiles }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
+    alert(`✅ Đã chuyển ${data.count} file sang splitter_uploads.\nHãy upload từng file ở Tab ① để tách.`);
+    setActiveTab("aisplitter");
+  } catch (e) { alert(`Lỗi: ${e.message}`); }
+  finally { btn.disabled = false; btn.textContent = "⚠️ Gửi file cần tách → Tab ① Tách PDF (AI)"; }
+}
+
+async function sendCleanToClassifier() {
+  const cleanFiles = precheckResults.filter(f => !f.needs_split).map(f => f.path);
+  if (cleanFiles.length === 0) { alert("Không có file sạch."); return; }
+  const btn = document.getElementById("sendCleanToClassifierBtn");
+  btn.disabled = true; btn.textContent = "Đang chuyển...";
+  try {
+    const res = await fetch("/api/pipeline/send-clean-to-classifier", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_paths: cleanFiles }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
+    alert(`✅ Đã chuyển ${data.count} file sạch sang ${data.target_dir}.\nChuyển sang Tab ③ để phân loại.`);
+    setActiveTab("classifier");
+    loadClassifierFiles();
+  } catch (e) { alert(`Lỗi: ${e.message}`); }
+  finally { btn.disabled = false; btn.textContent = "✅ Gửi file sạch → Tab ③ Phân loại"; }
+}
+
 // ==================== EVENT LISTENERS ====================
 
 refreshBtn.addEventListener("click", fetchFiles);
@@ -2074,7 +2355,7 @@ tabButtons.forEach((btn) => {
 });
 
 window.addEventListener("load", async () => {
-  setActiveTab("booking");
+  setActiveTab("precheck");
   await fetchFiles();
   await loadSteps();
   await loadLatestItinerary();
@@ -2087,6 +2368,280 @@ window.addEventListener("load", async () => {
 });
 
 // ==================== AI PDF SPLITTER ====================
+
+// Load file list from splitter_uploads
+async function loadSplitterFileList() {
+  const listEl = document.getElementById("splitterFileList");
+  if (!listEl) return;
+  try {
+    const res = await fetch("/api/ai-splitter/list");
+    const data = await res.json();
+    const files = data.files || [];
+
+    // Show/hide header buttons
+    const splitAllBtn = document.getElementById("splitAllBtn");
+    const deleteAllBtn = document.getElementById("deleteAllSplitterBtn");
+    if (splitAllBtn) splitAllBtn.style.display = files.length > 0 ? "inline-block" : "none";
+    if (deleteAllBtn) deleteAllBtn.style.display = files.length > 0 ? "inline-block" : "none";
+
+    if (files.length === 0) {
+      listEl.className = "file-list empty";
+      listEl.innerHTML = "Chưa có file. Hãy quét ở Tab ⓪ rồi gửi file cần tách sang đây.";
+      return;
+    }
+    listEl.className = "file-list";
+    listEl.innerHTML = files.map(f => {
+      const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+      return `<div class="file-row" style="align-items:center;">
+        <div style="flex:1;">
+          <span class="file-name">📄 ${f.filename}</span>
+          <span class="file-domain">(${sizeMB} MB)</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="splitter-process-btn" data-filename="${f.filename}" 
+                  style="padding:5px 12px; background:#4f46e5; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:12px;">
+            ✂️ Tách
+          </button>
+          <button class="splitter-delete-btn" data-filename="${f.filename}" 
+                  style="padding:5px 12px; background:#dc2626; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:12px;">
+            🗑️
+          </button>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    listEl.innerHTML = `Lỗi: ${e.message}`;
+  }
+}
+
+// Delete single file
+async function deleteSplitterFile(filename) {
+  if (!confirm(`Xóa file "${filename}"?`)) return;
+  try {
+    await fetch("/api/ai-splitter/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename }),
+    });
+    loadSplitterFileList();
+  } catch (e) { alert(`Lỗi: ${e.message}`); }
+}
+
+// Delete all files
+async function deleteAllSplitter() {
+  if (!confirm("Xóa TẤT CẢ file trong danh sách chờ tách?")) return;
+  try {
+    const res = await fetch("/api/ai-splitter/delete-all", { method: "POST" });
+    const data = await res.json();
+    alert(`✅ Đã xóa ${data.deleted_count} file.`);
+    loadSplitterFileList();
+  } catch (e) { alert(`Lỗi: ${e.message}`); }
+}
+
+// Split all files sequentially with combined results
+async function splitAllFiles() {
+  const listEl = document.getElementById("splitterFileList");
+  const btns = listEl ? listEl.querySelectorAll(".splitter-process-btn") : [];
+  if (btns.length === 0) { alert("Không có file để tách."); return; }
+
+  const splitAllBtn = document.getElementById("splitAllBtn");
+  if (splitAllBtn) { splitAllBtn.disabled = true; splitAllBtn.textContent = "⏳ Đang tách..."; }
+
+  const filenames = Array.from(btns).map(b => b.dataset.filename);
+  const totalFiles = filenames.length;
+
+  // Create progress panel in the splitter results area
+  const progressDiv = document.getElementById("splitterProgress");
+  const statusText = document.getElementById("splitterStatus");
+  const classificationsCard = document.getElementById("classificationsCard");
+  const classificationsDiv = document.getElementById("classificationsDiv");
+  const resultsCard = document.getElementById("splitterResultsCard");
+  const resultsDiv = document.getElementById("splitterResultsDiv");
+
+  // Show overall progress
+  if (progressDiv) progressDiv.style.display = "block";
+  if (classificationsCard) classificationsCard.style.display = "none";
+  if (resultsCard) resultsCard.style.display = "none";
+
+  // Accumulate all output files from all processed files
+  const allOutputFiles = []; // {file_id, filename, output_files}
+  const allClassifications = []; // accumulated classifications with source filename
+  let completedCount = 0;
+
+  for (let i = 0; i < filenames.length; i++) {
+    const fname = filenames[i];
+    if (splitAllBtn) splitAllBtn.textContent = `⏳ ${i + 1}/${totalFiles}: ${fname}`;
+    if (statusText) statusText.textContent = `📄 [${i + 1}/${totalFiles}] Đang tách: ${fname}...`;
+
+    // Update progress bar
+    const progressBar = document.getElementById("splitterProgressBar");
+    const progressText = document.getElementById("splitterProgressText");
+    if (progressBar) { progressBar.value = Math.round((i / totalFiles) * 100); progressBar.max = 100; }
+    if (progressText) progressText.textContent = `File ${i + 1}/${totalFiles}`;
+
+    try {
+      const res = await fetch("/api/ai-splitter/process-local", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: fname }),
+      });
+      const data = await res.json();
+      if (!res.ok) { console.error(`Error: ${data.error}`); continue; }
+
+      const fileId = data.file_id;
+
+      // Poll until this file is done — show live status
+      await new Promise((resolve) => {
+        let dots = 0;
+        const checkDone = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/ai-splitter/status/${fileId}`);
+            const statusData = await statusRes.json();
+
+            // Live progress update
+            dots = (dots + 1) % 4;
+            const dotStr = ".".repeat(dots);
+            const statusMap = {
+              converting: `🔄 Chuyển PDF → ảnh${dotStr}`,
+              classifying: `🤖 Phân loại trang ${statusData.current_page || "?"}/${statusData.page_count || "?"}${dotStr}`,
+              splitting: `✂️ Đang tách file${dotStr}`,
+              processing: `⚙️ Đang xử lý${dotStr}`,
+            };
+            if (statusText) {
+              statusText.textContent = `📄 [${i + 1}/${totalFiles}] ${fname} — ${statusMap[statusData.status] || statusData.status}`;
+            }
+
+            // Update sub-progress bar
+            if (statusData.page_count > 0 && progressBar) {
+              const filePct = (statusData.current_page || 0) / statusData.page_count;
+              const overallPct = Math.round(((i + filePct) / totalFiles) * 100);
+              progressBar.value = overallPct;
+            }
+
+            if (statusData.status === "completed") {
+              clearInterval(checkDone);
+              completedCount++;
+              // Collect this file's output files
+              if (statusData.output_files && statusData.output_files.length > 0) {
+                allOutputFiles.push({
+                  file_id: fileId,
+                  source_filename: fname,
+                  output_files: statusData.output_files,
+                });
+              }
+              // Collect classifications
+              if (statusData.classifications) {
+                for (const c of statusData.classifications) {
+                  allClassifications.push({ ...c, source_file: fname });
+                }
+              }
+              resolve();
+            } else if (statusData.status === "error") {
+              clearInterval(checkDone);
+              console.error(`Error splitting ${fname}: ${statusData.error}`);
+              resolve();
+            }
+          } catch { clearInterval(checkDone); resolve(); }
+        }, 1500);
+      });
+
+    } catch (e) { console.error(`Error splitting ${fname}:`, e); }
+  }
+
+  // All done — show combined results
+  if (progressBar) { progressBar.value = 100; }
+  if (progressText) progressText.textContent = "100%";
+  if (statusText) statusText.textContent = `✅ Đã tách xong ${completedCount}/${totalFiles} file!`;
+
+  // Render combined output files grouped by source file
+  if (resultsCard && resultsDiv && allOutputFiles.length > 0) {
+    resultsCard.style.display = "block";
+    let html = "";
+    for (const group of allOutputFiles) {
+      html += `<div style="padding:8px 12px; background:#f0f4ff; border-radius:6px; margin-bottom:8px;">
+        <strong>📁 ${group.source_filename}</strong> → ${group.output_files.length} file
+        <a href="/api/ai-splitter/download-zip/${group.file_id}" 
+           style="margin-left:8px; text-decoration:none; padding:3px 10px; background:#4f46e5; color:white; border-radius:4px; font-size:0.8em;">
+          ⬇ Download ZIP
+        </a>
+      </div>`;
+      for (const f of group.output_files) {
+        const pages = f.pages.join(", ");
+        html += `<div style="padding:6px 12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; padding-left:24px;">
+          <div>
+            <strong>${f.filename}</strong>
+            <br><small style="color:#666;">${f.document_type} · 👤 ${f.person_name} · ${f.pages.length} trang (${pages})</small>
+          </div>
+          <a href="/api/ai-splitter/download/${group.file_id}/${encodeURIComponent(f.filename)}"
+             style="text-decoration:none; padding:4px 10px; background:#4f46e5; color:white; border-radius:4px; font-size:0.8em;">
+            ⬇
+          </a>
+        </div>`;
+      }
+    }
+    resultsDiv.innerHTML = html;
+  }
+
+  if (splitAllBtn) { splitAllBtn.disabled = false; splitAllBtn.textContent = "✂️ Tách tất cả"; }
+}
+
+// Refresh button
+const refreshSplitterListBtn = document.getElementById("refreshSplitterListBtn");
+if (refreshSplitterListBtn) {
+  refreshSplitterListBtn.addEventListener("click", loadSplitterFileList);
+}
+
+// Split-all button
+const splitAllBtn2 = document.getElementById("splitAllBtn");
+if (splitAllBtn2) {
+  splitAllBtn2.addEventListener("click", splitAllFiles);
+}
+
+// Delete-all button
+const deleteAllSplitterBtn = document.getElementById("deleteAllSplitterBtn");
+if (deleteAllSplitterBtn) {
+  deleteAllSplitterBtn.addEventListener("click", deleteAllSplitter);
+}
+
+// Event delegation for per-file buttons
+document.addEventListener("click", async (e) => {
+  // Tách button
+  const processBtn = e.target.closest(".splitter-process-btn");
+  if (processBtn) {
+    const filename = processBtn.dataset.filename;
+    if (!filename) return;
+    processBtn.disabled = true;
+    processBtn.textContent = "⏳...";
+    try {
+      const res = await fetch("/api/ai-splitter/process-local", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Lỗi: ${data.error}`);
+        processBtn.disabled = false;
+        processBtn.textContent = "✂️ Tách";
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("splitter-start", { detail: { file_id: data.file_id, filename: data.filename } }));
+    } catch (err) {
+      alert(`Lỗi: ${err.message}`);
+      processBtn.disabled = false;
+      processBtn.textContent = "✂️ Tách";
+    }
+    return;
+  }
+
+  // Delete button
+  const deleteBtn = e.target.closest(".splitter-delete-btn");
+  if (deleteBtn) {
+    const filename = deleteBtn.dataset.filename;
+    if (filename) deleteSplitterFile(filename);
+    return;
+  }
+});
 
 (function initAISplitter() {
   const uploadBtn = document.getElementById("splitterUploadBtn");
@@ -2166,6 +2721,19 @@ window.addEventListener("load", async () => {
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(checkStatus, 1000);
   }
+
+  // Listen for process-local events (from file list Tách buttons)
+  window.addEventListener("splitter-start", (e) => {
+    const { file_id, filename } = e.detail;
+    currentFileId = file_id;
+    progressDiv.style.display = "block";
+    statusText.textContent = `Đang tách ${filename}...`;
+    progressBar.value = 0;
+    progressText.textContent = "0%";
+    classificationsCard.style.display = "none";
+    resultsCard.style.display = "none";
+    startPolling();
+  });
 
   async function checkStatus() {
     if (!currentFileId) return;
@@ -2250,3 +2818,27 @@ window.addEventListener("load", async () => {
     window.location.href = `/api/ai-splitter/download-zip/${currentFileId}`;
   });
 })();
+
+// ==================== PIPELINE BUTTON LISTENERS ====================
+const sendToClassifierBtn = document.getElementById("sendToClassifierBtn");
+if (sendToClassifierBtn) {
+  sendToClassifierBtn.addEventListener("click", sendToClassifier);
+}
+const sendToInputBtn = document.getElementById("sendToInputBtn");
+if (sendToInputBtn) {
+  sendToInputBtn.addEventListener("click", sendToInput);
+}
+
+// Pre-check button listeners
+const precheckScanBtn = document.getElementById("precheckScanBtn");
+if (precheckScanBtn) {
+  precheckScanBtn.addEventListener("click", precheckScan);
+}
+const sendMultiToSplitterBtn = document.getElementById("sendMultiToSplitterBtn");
+if (sendMultiToSplitterBtn) {
+  sendMultiToSplitterBtn.addEventListener("click", sendMultiToSplitter);
+}
+const sendCleanToClassifierBtn = document.getElementById("sendCleanToClassifierBtn");
+if (sendCleanToClassifierBtn) {
+  sendCleanToClassifierBtn.addEventListener("click", sendCleanToClassifier);
+}
