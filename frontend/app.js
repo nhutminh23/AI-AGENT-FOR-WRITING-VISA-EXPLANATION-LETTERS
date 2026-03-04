@@ -1,3 +1,28 @@
+// ── Per-project directory paths (loaded from server) ──
+let projectDirs = { input: "input", output: "output", splitter_uploads: "splitter_uploads", splitter_outputs: "splitter_outputs" };
+
+async function loadProjectDirs() {
+  const pid = currentProjectId;
+  if (!pid) {
+    projectDirs = { input: "input", output: "output", splitter_uploads: "splitter_uploads", splitter_outputs: "splitter_outputs" };
+    return;
+  }
+  try {
+    const res = await fetch(`/api/project/dirs?project_id=${pid}`);
+    projectDirs = await res.json();
+  } catch (e) {
+    console.error("Failed to load project dirs:", e);
+  }
+}
+
+function getInputDir() {
+  return projectDirs.input || "input";
+}
+
+function getOutputDir() {
+  return projectDirs.output || "output";
+}
+
 const fileListEl = document.getElementById("fileList");
 const resultEl = document.getElementById("result");
 const summaryEl = document.getElementById("summary");
@@ -19,6 +44,72 @@ const exportItineraryPdfBtn = document.getElementById("exportItineraryPdfBtn");
 const flightFileEl = document.getElementById("flightFile");
 const hotelFileEl = document.getElementById("hotelFile");
 const itineraryResultEl = document.getElementById("itineraryResult");
+const bookingSourceDbEl = document.getElementById("bookingSourceDb");
+const bookingSourceFileEl = document.getElementById("bookingSourceFile");
+const fileSelectRowEl = document.getElementById("fileSelectRow");
+const dbBookingStatusEl = document.getElementById("dbBookingStatus");
+
+// Toggle file selection visibility based on booking source
+function updateBookingSourceUI() {
+  const isDb = bookingSourceDbEl.checked;
+  fileSelectRowEl.style.display = isDb ? "none" : "flex";
+  if (isDb) checkDbBookingStatus();
+}
+bookingSourceDbEl.addEventListener("change", updateBookingSourceUI);
+bookingSourceFileEl.addEventListener("change", updateBookingSourceUI);
+
+async function checkDbBookingStatus() {
+  const pid = getProjectId();
+  if (!pid) {
+    dbBookingStatusEl.innerHTML = '<span style="color:#d97706;">⚠️ Chưa có project. Hãy tạo booking AI trước.</span>';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/booking/latest_html?project_id=${pid}`);
+    const data = await res.json();
+    if (data.has_booking) {
+      const hotelCount = (data.hotel_htmls || []).length;
+      dbBookingStatusEl.innerHTML = `<span style="color:#16a34a;">✅ Có booking trong DB: ${hotelCount} khách sạn + 1 vé máy bay</span>`;
+    } else {
+      dbBookingStatusEl.innerHTML = '<span style="color:#d97706;">⚠️ Chưa có booking trong DB. Hãy tạo booking AI trước.</span>';
+    }
+  } catch (e) {
+    dbBookingStatusEl.innerHTML = '<span style="color:#dc2626;">❌ Lỗi kiểm tra DB</span>';
+  }
+}
+
+// Extract itinerary info from booking data
+const extractItineraryBtn = document.getElementById("extractItineraryBtn");
+const extractStatusEl = document.getElementById("extractStatus");
+
+extractItineraryBtn.addEventListener("click", async () => {
+  extractItineraryBtn.disabled = true;
+  extractItineraryBtn.textContent = "⏳ Đang trích xuất...";
+  extractStatusEl.textContent = "";
+
+  try {
+    const pid = getProjectId();
+    const url = "/api/booking/trip/latest" + (pid ? `?project_id=${pid}` : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    const ti = data.trip_info || {};
+
+    // Auto-fill form fields from trip info
+    const guests = ti.guest_names || [];
+    const guestStr = Array.isArray(guests) ? guests.join("\n") : String(guests);
+    if (guestStr) itParticipantsEl.value = guestStr;
+    if (ti.travel_start_date) itTravelStartDateEl.value = ti.travel_start_date;
+    if (ti.travel_end_date) itTravelEndDateEl.value = ti.travel_end_date;
+    if (ti.travel_purpose) itTravelPurposeEl.value = ti.travel_purpose;
+
+    extractStatusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã trích xuất thành công! Kiểm tra và chỉnh sửa bên dưới.</span>';
+  } catch (e) {
+    extractStatusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  } finally {
+    extractItineraryBtn.disabled = false;
+    extractItineraryBtn.textContent = "🔍 Trích xuất thông tin lịch trình";
+  }
+});
 
 const tabButtons = document.querySelectorAll(".tab-btn");
 const letterSection = document.getElementById("letterSection");
@@ -146,13 +237,116 @@ async function loadProjects() {
   }
 }
 
-projectSelectEl.addEventListener("change", () => {
+projectSelectEl.addEventListener("change", async () => {
   const val = projectSelectEl.value;
   currentProjectId = val ? parseInt(val) : null;
   btnRenameProject.style.display = currentProjectId ? "" : "none";
   btnDeleteProject.style.display = currentProjectId ? "" : "none";
   localStorage.setItem("currentProjectId", currentProjectId || "");
+  await loadProjectDirs();
+  clearAllUI();
 });
+
+/**
+ * Reset ALL UI sections to empty/default state.
+ * Called when switching or creating a new project.
+ */
+function clearAllUI() {
+  // Mark project data as stale — prevents tab switch from reloading shared filesystem data
+  _lastLoadedProjectId = Symbol('cleared');
+
+  // Update input dir field to project-scoped path
+  if (inputDirEl) inputDirEl.value = getInputDir();
+  // Booking section
+  if (typeof hotelBookingResultEl !== "undefined" && hotelBookingResultEl)
+    hotelBookingResultEl.srcdoc = "";
+  if (typeof flightBookingResultEl !== "undefined" && flightBookingResultEl)
+    flightBookingResultEl.srcdoc = "";
+  if (typeof aiBookingStatusEl !== "undefined" && aiBookingStatusEl)
+    aiBookingStatusEl.innerHTML = "";
+  if (typeof tripInfoPanelEl !== "undefined" && tripInfoPanelEl)
+    tripInfoPanelEl.textContent = "Chưa có dữ liệu.";
+
+  // Booking form fields
+  const bookingFields = [
+    "guestNames", "destinationCountry", "departureAirport",
+    "travelStartDate", "travelEndDate", "travelPurpose"
+  ];
+  bookingFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+
+  // Hotel tabs
+  const hotelTabsEl = document.getElementById("hotelTabs");
+  if (hotelTabsEl) hotelTabsEl.innerHTML = "";
+
+  // AI reasoning
+  const aiReasoningSectionEl = document.getElementById("aiReasoningSection");
+  const aiReasoningEl = document.getElementById("aiReasoning");
+  if (aiReasoningSectionEl) aiReasoningSectionEl.style.display = "none";
+  if (aiReasoningEl) aiReasoningEl.textContent = "";
+
+  // Itinerary section
+  if (typeof itineraryResultEl !== "undefined" && itineraryResultEl)
+    itineraryResultEl.srcdoc = "";
+  const itFields = ["itParticipants", "itTravelStartDate", "itTravelEndDate", "itTravelPurpose"];
+  itFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  const summaryItEl = document.getElementById("summaryItinerary");
+  if (summaryItEl) summaryItEl.textContent = "Chưa có dữ liệu.";
+
+  // DB booking status
+  if (typeof dbBookingStatusEl !== "undefined" && dbBookingStatusEl)
+    dbBookingStatusEl.innerHTML = "";
+  if (typeof extractStatusEl !== "undefined" && extractStatusEl)
+    extractStatusEl.innerHTML = "";
+
+  // Splitter sections
+  const splitterFileList = document.getElementById("splitterFileList");
+  if (splitterFileList) splitterFileList.innerHTML = "";
+  const splitterOutputList = document.getElementById("splitterOutputList");
+  if (splitterOutputList) splitterOutputList.innerHTML = "";
+  const splitterOutputHistoryList = document.getElementById("splitterOutputHistoryList");
+  if (splitterOutputHistoryList) splitterOutputHistoryList.innerHTML = "";
+  const splitterUploadArea = document.getElementById("splitterUploadArea");
+  if (splitterUploadArea) {
+    const fileInput = splitterUploadArea.querySelector("input[type='file']");
+    if (fileInput) fileInput.value = "";
+  }
+
+  // Letter section
+  const letterResult = document.getElementById("letterResult");
+  if (letterResult) letterResult.srcdoc = "";
+  const letterSummary = document.getElementById("summaryLetter");
+  if (letterSummary) letterSummary.textContent = "Chưa có dữ liệu.";
+
+  // File list (input files)
+  const fileListEl = document.getElementById("fileList");
+  if (fileListEl) fileListEl.innerHTML = "";
+
+  // Precheck
+  const precheckResults = document.getElementById("precheckResults");
+  if (precheckResults) precheckResults.innerHTML = "";
+  const precheckResultsCard = document.getElementById("precheckResultsCard");
+  if (precheckResultsCard) precheckResultsCard.style.display = "none";
+
+  // Export buttons
+  const exportBtns = ["exportHotelPdfBtn", "exportFlightPdfBtn", "exportItineraryPdfBtn"];
+  exportBtns.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+
+  // Classifier section
+  const classifierList = document.getElementById("classifierFileList");
+  if (classifierList) classifierList.innerHTML = "";
+
+  // Refresh DB booking status for the new project
+  checkDbBookingStatus();
+}
 
 btnNewProject.addEventListener("click", async () => {
   const name = prompt("Tên hồ sơ mới (VD: Hồ sơ Nguyễn Văn A - Úc):");
@@ -170,6 +364,8 @@ btnNewProject.addEventListener("click", async () => {
     projectSelectEl.value = currentProjectId;
     btnRenameProject.style.display = "";
     btnDeleteProject.style.display = "";
+    await loadProjectDirs();
+    clearAllUI();
   } catch (e) {
     alert("Lỗi: " + e.message);
   }
@@ -201,6 +397,7 @@ btnDeleteProject.addEventListener("click", async () => {
     btnRenameProject.style.display = "none";
     btnDeleteProject.style.display = "none";
     await loadProjects();
+    clearAllUI();
   } catch (e) {
     alert("Lỗi: " + e.message);
   }
@@ -287,6 +484,7 @@ function renderFiles(files) {
     .join("");
   fileListEl.innerHTML = rows;
   renderFileOptions();
+  checkDbBookingStatus();
 }
 
 async function fetchFiles() {
@@ -1786,52 +1984,147 @@ function buildItinerarySummaryFromForm(formData) {
 async function runItinerary() {
   const inputDir = inputDirEl.value.trim() || "input";
   const outputPath = itineraryOutputEl.value.trim() || "output/itinerary.html";
-  const flightFile = flightFileEl.value;
-  const hotelFile = hotelFileEl.value;
   const formData = collectItineraryFormData();
   const summaryProfile = buildItinerarySummaryFromForm(formData);
+  const useDb = bookingSourceDbEl.checked;
+  const runBtn = document.getElementById("runItineraryBtn");
+  const originalBtnText = runBtn.textContent;
 
-  if (!flightFile || !hotelFile) {
-    itineraryResultEl.srcdoc =
-      "<p>Vui lòng chọn đủ file vé máy bay và khách sạn.</p>";
-    syncCombinedPreviews();
-    return;
-  }
-  if (!summaryProfile) {
-    itineraryResultEl.srcdoc =
-      "<p>Vui lòng nhập thông tin đầu vào lịch trình trước khi tạo.</p>";
-    syncCombinedPreviews();
-    return;
+  if (!useDb) {
+    const flightFile = flightFileEl.value;
+    const hotelFile = hotelFileEl.value;
+    if (!flightFile || !hotelFile) {
+      itineraryResultEl.srcdoc =
+        "<p>Vui lòng chọn đủ file vé máy bay và khách sạn.</p>";
+      syncCombinedPreviews();
+      return;
+    }
   }
 
-  itineraryResultEl.srcdoc = "<p>Đang tạo lịch trình, vui lòng chờ...</p>";
-  const res = await fetch("/api/itinerary/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  // Auto-save context silently before generating
+  if (summaryProfile) {
+    try {
+      await fetch("/api/itinerary/context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input_dir: inputDir,
+          output: outputPath,
+          summary_profile: summaryProfile,
+          project_id: getProjectId(),
+        }),
+      });
+    } catch (e) { /* ignore save errors */ }
+  }
+
+  runBtn.textContent = "⏳ Đang xử lý...";
+  runBtn.disabled = true;
+
+  // Build step progress UI
+  const itStepLabels = {
+    1: "Tải dữ liệu booking",
+    2: "Trích xuất nội dung",
+    3: "AI viết lịch trình chi tiết",
+    4: "Lưu kết quả",
+  };
+  itineraryResultEl.srcdoc = `<html><body style="font-family:Arial,sans-serif;padding:16px;margin:0;">
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
+      <div style="font-weight:600; margin-bottom:12px; color:#334155;">📋 Tiến trình tạo lịch trình</div>
+      ${Object.entries(itStepLabels).map(([k, v]) => `
+        <div id="it-step-${k}" style="display:flex; align-items:center; gap:8px; padding:6px 8px; margin:4px 0; border-radius:6px; background:#fff; border:1px solid #e2e8f0; transition:all 0.3s;">
+          <span id="it-step-icon-${k}" style="font-size:16px;">⬜</span>
+          <span style="color:#475569; font-size:0.9em;">${v}</span>
+          <span id="it-step-msg-${k}" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
+        </div>
+      `).join("")}
+    </div>
+  </body></html>`;
+
+  function updateItStep(step, msg) {
+    const iframe = itineraryResultEl;
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    const iconEl = doc.getElementById("it-step-icon-" + step);
+    const msgEl = doc.getElementById("it-step-msg-" + step);
+    const rowEl = doc.getElementById("it-step-" + step);
+    if (!iconEl) return;
+    if (msg.startsWith("✅")) {
+      iconEl.textContent = "✅";
+      if (rowEl) { rowEl.style.background = "#f0fdf4"; rowEl.style.borderColor = "#86efac"; }
+      if (msgEl) { msgEl.textContent = "Xong"; msgEl.style.color = "#16a34a"; }
+    } else if (msg.startsWith("⏳")) {
+      iconEl.textContent = "⏳";
+      if (rowEl) { rowEl.style.background = "#fffbeb"; rowEl.style.borderColor = "#fcd34d"; }
+      if (msgEl) { msgEl.textContent = "Đang xử lý..."; msgEl.style.color = "#d97706"; }
+    } else if (msg.startsWith("❌")) {
+      iconEl.textContent = "❌";
+      if (rowEl) { rowEl.style.background = "#fef2f2"; rowEl.style.borderColor = "#fca5a5"; }
+      if (msgEl) { msgEl.textContent = msg; msgEl.style.color = "#dc2626"; }
+    }
+  }
+
+  try {
+    const payload = {
       input_dir: inputDir,
       output: outputPath,
-      flight_file: flightFile,
-      hotel_file: hotelFile,
       summary_profile: summaryProfile,
       project_id: getProjectId(),
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    if (data.error === "missing_itinerary_summary") {
-      itineraryResultEl.srcdoc =
-        "<p>Chưa có dữ liệu lịch trình. Vui lòng nhập form và bấm lưu trước.</p>";
-    } else if (data.error === "missing_files") {
-      itineraryResultEl.srcdoc = "<p>Không tìm thấy file vé máy bay hoặc khách sạn đã chọn.</p>";
+    };
+    if (useDb) {
+      payload.from_db = true;
     } else {
-      itineraryResultEl.srcdoc = "<p>Lỗi khi tạo lịch trình.</p>";
+      payload.flight_file = flightFileEl.value;
+      payload.hotel_file = hotelFileEl.value;
+    }
+
+    const res = await fetch("/api/itinerary/run_stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalData = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          if (evt.step === -1) {
+            updateItStep(1, evt.msg);
+            return;
+          }
+          updateItStep(evt.step, evt.msg);
+          if (evt.step === 5 && evt.data) {
+            finalData = evt.data;
+          }
+        } catch (e) { /* skip */ }
+      }
+    }
+
+    if (finalData) {
+      itineraryResultEl.srcdoc = finalData.itinerary || "<p>Không có kết quả.</p>";
+    } else {
+      itineraryResultEl.srcdoc = "<p>❌ Không nhận được kết quả từ server.</p>";
     }
     syncCombinedPreviews();
-    return;
+  } catch (error) {
+    itineraryResultEl.srcdoc = `<p>❌ Lỗi: ${error.message}</p>`;
+    syncCombinedPreviews();
+  } finally {
+    runBtn.textContent = originalBtnText;
+    runBtn.disabled = false;
   }
-  itineraryResultEl.srcdoc = data.itinerary || "<p>Không có kết quả.</p>";
-  syncCombinedPreviews();
 }
 
 async function loadLatestItinerary() {
@@ -1924,6 +2217,9 @@ function syncCombinedPreviews() {
   }
 }
 
+// Track which project's data is currently loaded in the UI
+let _lastLoadedProjectId = null;
+
 function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -1948,6 +2244,7 @@ function setActiveTab(tab) {
     bookingSection.classList.remove("hidden");
     loadLatestBooking();
     loadLatestTripInfo();
+    loadFilteredFiles();
   } else if (tab === "outputs") {
     outputsSection.classList.remove("hidden");
     loadLatestItinerary().then(syncCombinedPreviews);
@@ -1962,6 +2259,7 @@ function setActiveTab(tab) {
   } else if (tab === "aisplitter") {
     if (aisplitterSection) aisplitterSection.classList.remove("hidden");
     loadSplitterFileList();
+    loadOutputHistory();
   } else if (tab === "precheck") {
     if (precheckSection) precheckSection.classList.remove("hidden");
   }
@@ -2223,12 +2521,110 @@ function getTripInfoFromForm() {
   });
 }
 
+async function loadFilteredFiles() {
+  const inputDir = inputDirEl.value.trim() || "input";
+  const tableEl = document.getElementById("filteredFilesTable");
+  const statusEl = document.getElementById("filteredFilesStatus");
+  if (!tableEl) return;
+
+  tableEl.innerHTML = "";
+  if (statusEl) statusEl.textContent = "";
+
+  try {
+    const res = await fetch(`/api/booking/filtered-files?input_dir=${encodeURIComponent(inputDir)}`);
+    const data = await res.json();
+
+    if (!data.matched || data.matched.length === 0) {
+      tableEl.innerHTML = `<div style="padding:10px; background:#fef2f2; border-radius:6px; color:#991b1b; font-size:0.85em;">
+        ⚠️ Chưa có file nào khớp tiền tố trong <b>${inputDir}</b>.
+        Hãy chạy phân loại → lưu → chuyển file trước.
+      </div>`;
+      if (statusEl) statusEl.textContent = `(0/${data.total || 0} file)`;
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = `(${data.matched.length}/${data.total} file)`;
+
+    const rows = data.matched.map((f, i) =>
+      `<div style="display:flex; align-items:center; gap:8px; padding:4px 10px; font-size:0.85em; ${i % 2 === 0 ? 'background:rgba(99,102,241,0.05);' : ''}">
+        <span style="padding:1px 6px; background:#e0e7ff; color:#4338ca; border-radius:10px; font-size:0.8em; white-space:nowrap;">${f.label}</span>
+        <span style="color:#374151; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${f.filename}">📄 ${f.filename}</span>
+      </div>`
+    ).join("");
+
+    let html = `<div style="border:1px solid #e5e7eb; border-radius:6px; overflow:hidden; max-height:220px; overflow-y:auto;">
+      ${rows}
+    </div>`;
+
+    if (data.other && data.other.length > 0) {
+      html += `<details style="margin-top:6px;">
+        <summary style="cursor:pointer; font-size:0.8em; color:#9ca3af;">📁 ${data.other.length} file khác (bỏ qua)</summary>
+        <div style="padding:4px 10px; font-size:0.8em; color:#9ca3af; max-height:120px; overflow-y:auto;">
+          ${data.other.map(f => `<div style="padding:1px 0;">• ${f.filename}</div>`).join("")}
+        </div>
+      </details>`;
+    }
+
+    tableEl.innerHTML = html;
+  } catch (e) {
+    tableEl.innerHTML = `<div style="color:#dc2626; font-size:0.85em;">❌ Lỗi: ${e.message}</div>`;
+  }
+}
+
 async function extractTripInfo() {
   const inputDir = inputDirEl.value.trim() || "input";
   const originalBtnText = extractTripBtn.textContent;
   extractTripBtn.textContent = "⏳ Đang trích xuất...";
   extractTripBtn.disabled = true;
-  tripInfoPanelEl.innerHTML = "⏳ Đang đọc và phân tích các file có tiền tố THONG TIN CHUYEN DI / HO SO CA NHAN / MUC DICH CHUYEN DI...";
+
+  // Step 1: Show which files will be read
+  let fileListHtml = "";
+  let matchedCount = 0;
+  try {
+    const fRes = await fetch(`/api/booking/filtered-files?input_dir=${encodeURIComponent(inputDir)}`);
+    const fData = await fRes.json();
+    matchedCount = fData.matched?.length || 0;
+    if (fData.matched && fData.matched.length > 0) {
+      fileListHtml = fData.matched.map((f, i) =>
+        `<div style="padding:3px 0; display:flex; align-items:center; gap:6px;">
+          <span class="extract-spinner" style="display:inline-block; width:12px; height:12px; border:2px solid #3b82f6; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite;"></span>
+          <span style="color:#1e293b; font-size:0.85em;">📄 ${f.filename}</span>
+        </div>`
+      ).join("");
+    }
+  } catch(e) {}
+
+  tripInfoPanelEl.innerHTML = `
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    <div style="padding:16px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+        <div style="width:18px; height:18px; border:3px solid #3b82f6; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+        <span style="font-weight:600; color:#1e40af; font-size:1em;">Đang trích xuất thông tin chuyến đi...</span>
+      </div>
+      <div class="extract-steps" style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
+        <span style="padding:3px 10px; background:#dcfce7; color:#166534; border-radius:14px; font-size:0.8em; border:1px solid #86efac;">① Quét file ✅</span>
+        <span style="padding:3px 10px; background:#3b82f6; color:#fff; border-radius:14px; font-size:0.8em; font-weight:600;">② Đọc nội dung...</span>
+        <span style="padding:3px 10px; background:#e2e8f0; color:#94a3b8; border-radius:14px; font-size:0.8em;">③ AI phân tích</span>
+      </div>
+      ${fileListHtml ? `<div style="background:#fff; border-radius:6px; padding:8px 12px; border:1px solid #e2e8f0; max-height:200px; overflow-y:auto;">
+        <div style="font-size:0.75em; color:#64748b; margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">📂 Đang đọc ${matchedCount} file</div>
+        ${fileListHtml}
+      </div>` : ""}
+      <div style="margin-top:8px; font-size:0.78em; color:#94a3b8;">⏱️ Có thể mất 30s – 2 phút tùy số file</div>
+    </div>`;
+
+  // Step 2: update to AI phase after a delay
+  const phaseTimer = setTimeout(() => {
+    const steps = tripInfoPanelEl.querySelectorAll(".extract-steps > span");
+    if (steps.length >= 3) {
+      steps[1].style.background = "#dcfce7"; steps[1].style.color = "#166534"; steps[1].style.border = "1px solid #86efac"; steps[1].style.fontWeight = "normal"; steps[1].textContent = "② Đọc nội dung ✅";
+      steps[2].style.background = "#3b82f6"; steps[2].style.color = "#fff"; steps[2].style.fontWeight = "600"; steps[2].textContent = "③ AI đang phân tích...";
+    }
+    // Stop file spinners
+    tripInfoPanelEl.querySelectorAll(".extract-spinner").forEach(s => {
+      s.style.animation = "none"; s.style.border = "none"; s.innerHTML = "✅"; s.style.fontSize = "12px";
+    });
+  }, 5000);
 
   try {
     const res = await fetch("/api/booking/extract_trip", {
@@ -2237,17 +2633,21 @@ async function extractTripInfo() {
       body: JSON.stringify({ input_dir: inputDir, project_id: getProjectId() }),
     });
 
+    clearTimeout(phaseTimer);
     const data = await res.json();
 
     if (!res.ok) {
-      tripInfoPanelEl.textContent = `❌ Lỗi: ${data.error || "Không thể trích xuất"}`;
+      tripInfoPanelEl.innerHTML = `<div style="padding:12px; color:#dc2626;">❌ Lỗi: ${data.error || "Không thể trích xuất"}</div>`;
       return;
     }
 
     setTripInfoForm(data.trip_info);
-    tripInfoPanelEl.textContent = `✅ Trích xuất thành công.\n\n${formatTripInfo(data.trip_info)}`;
+    tripInfoPanelEl.innerHTML = `<div style="padding:12px; color:#34d399; font-weight:600;">
+      ✅ Trích xuất thành công! Kiểm tra và bổ sung thông tin bên dưới → 💾 Lưu.
+    </div>`;
   } catch (error) {
-    tripInfoPanelEl.textContent = `❌ Lỗi: ${error.message}`;
+    clearTimeout(phaseTimer);
+    tripInfoPanelEl.innerHTML = `<div style="padding:12px; color:#dc2626;">❌ Lỗi: ${error.message}</div>`;
   } finally {
     extractTripBtn.textContent = originalBtnText;
     extractTripBtn.disabled = false;
@@ -2299,13 +2699,51 @@ async function runAIBooking() {
 
   runAIBookingBtn.textContent = "⏳ AI đang xử lý...";
   runAIBookingBtn.disabled = true;
-  aiBookingStatusEl.innerHTML = '<div style="color:#fbbf24;">⏳ AI đang phân tích hồ sơ và chọn khách sạn, chuyến bay...<br><small>(Quá trình này có thể mất 1-3 phút)</small></div>';
-  hotelBookingResultEl.srcdoc = "<p style='color:#fbbf24;padding:20px;'>⏳ Đang tạo booking, vui lòng chờ...</p>";
-  flightBookingResultEl.srcdoc = "<p style='color:#fbbf24;padding:20px;'>⏳ Đang tạo booking, vui lòng chờ...</p>";
+
+  // Build step-by-step progress UI
+  const stepLabels = {
+    1: "Trích xuất thông tin chuyến đi",
+    2: "AI chọn khách sạn & chuyến bay",
+    3: "Tạo file HTML booking",
+  };
+  aiBookingStatusEl.innerHTML = `
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px; margin:8px 0;">
+      <div style="font-weight:600; margin-bottom:12px; color:#334155;">📋 Tiến trình tạo booking</div>
+      ${Object.entries(stepLabels).map(([k, v]) => `
+        <div id="ai-step-${k}" style="display:flex; align-items:center; gap:8px; padding:6px 8px; margin:4px 0; border-radius:6px; background:#fff; border:1px solid #e2e8f0; transition:all 0.3s;">
+          <span id="ai-step-icon-${k}" style="font-size:16px;">⬜</span>
+          <span style="color:#475569; font-size:0.9em;">${v}</span>
+          <span id="ai-step-msg-${k}" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
+        </div>
+      `).join("")}
+    </div>`;
+
+  hotelBookingResultEl.srcdoc = "<p style='color:#94a3b8;padding:20px;'>⏳ Đang tạo booking...</p>";
+  flightBookingResultEl.srcdoc = "<p style='color:#94a3b8;padding:20px;'>⏳ Đang tạo booking...</p>";
   aiReasoningSectionEl.style.display = "none";
 
+  function updateStep(step, msg, done) {
+    const iconEl = document.getElementById(`ai-step-icon-${step}`);
+    const msgEl = document.getElementById(`ai-step-msg-${step}`);
+    const rowEl = document.getElementById(`ai-step-${step}`);
+    if (!iconEl) return;
+    if (msg.startsWith("✅")) {
+      iconEl.textContent = "✅";
+      if (rowEl) { rowEl.style.background = "#f0fdf4"; rowEl.style.borderColor = "#86efac"; }
+      if (msgEl) { msgEl.textContent = "Xong"; msgEl.style.color = "#16a34a"; }
+    } else if (msg.startsWith("⏳")) {
+      iconEl.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span>';
+      if (rowEl) { rowEl.style.background = "#fffbeb"; rowEl.style.borderColor = "#fcd34d"; }
+      if (msgEl) { msgEl.textContent = "Đang xử lý..."; msgEl.style.color = "#d97706"; }
+    } else if (msg.startsWith("❌")) {
+      iconEl.textContent = "❌";
+      if (rowEl) { rowEl.style.background = "#fef2f2"; rowEl.style.borderColor = "#fca5a5"; }
+      if (msgEl) { msgEl.textContent = msg; msgEl.style.color = "#dc2626"; }
+    }
+  }
+
   try {
-    const res = await fetch("/api/booking/ai_generate", {
+    const res = await fetch("/api/booking/ai_generate_stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2316,23 +2754,50 @@ async function runAIBooking() {
       }),
     });
 
-    let data;
-    try {
-      const responseText = await res.text();
-      data = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error("❌ Có lỗi Server Nội bộ (như thiếu API Key, gõ sai thư mục...). Vui lòng mở cái bảng Terminal đen lên xem nó báo lỗi chữ gì nha!");
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalData = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE events from buffer
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          const step = evt.step;
+          const msg = evt.msg;
+
+          if (step === -1) {
+            // Error
+            aiBookingStatusEl.innerHTML += `<div style="color:#dc2626; margin-top:8px;">${msg}</div>`;
+            return;
+          }
+
+          updateStep(step, msg);
+
+          if (step === 4 && evt.data) {
+            finalData = evt.data;
+          }
+        } catch (e) { /* skip parse errors */ }
+      }
     }
 
-    if (!res.ok) {
-      aiBookingStatusEl.textContent = `❌ Lỗi: ${data.error || "Không thể tạo booking"}`;
-      hotelBookingResultEl.srcdoc = `<p>Lỗi: ${data.error || "Không thể tạo booking"}</p>`;
-      flightBookingResultEl.srcdoc = "";
-      syncCombinedPreviews();
+    if (!finalData) {
+      aiBookingStatusEl.innerHTML += '<div style="color:#dc2626; margin-top:8px;">❌ Không nhận được kết quả từ server</div>';
       return;
     }
 
-    // Update trip info panel if available
+    const data = finalData;
+
+    // Update trip info panel
     if (data.trip_info) {
       tripInfoPanelEl.textContent = formatTripInfo(data.trip_info);
     }
@@ -2354,11 +2819,15 @@ async function runAIBooking() {
     }
     syncCombinedPreviews();
 
-    aiBookingStatusEl.textContent = data.used_cache
-      ? "✅ Hoàn thành! (dùng dữ liệu đã cache - không tốn token). Bấm 'Trích xuất từ input' để tạo mới."
-      : "✅ Hoàn thành! AI đã tạo booking thành công.";
+    aiBookingStatusEl.innerHTML += `<div style="color:#16a34a; font-weight:600; margin-top:8px;">
+      ${data.used_cache
+        ? "✅ Hoàn thành! (dùng cache - không tốn token)"
+        : "✅ Hoàn thành! AI đã tạo booking thành công."}
+    </div>`;
+    // Refresh DB booking status for itinerary section
+    checkDbBookingStatus();
   } catch (error) {
-    aiBookingStatusEl.textContent = `❌ Lỗi: ${error.message}`;
+    aiBookingStatusEl.innerHTML += `<div style="color:#dc2626; margin-top:8px;">❌ Lỗi: ${error.message}</div>`;
     hotelBookingResultEl.srcdoc = `<p>Lỗi: ${error.message}</p>`;
     flightBookingResultEl.srcdoc = "";
     syncCombinedPreviews();
@@ -2785,6 +3254,10 @@ tabButtons.forEach((btn) => {
 });
 
 window.addEventListener("load", async () => {
+  // Load project-scoped directories first
+  await loadProjectDirs();
+  if (inputDirEl) inputDirEl.value = getInputDir();
+
   setActiveTab("precheck");
   await fetchFiles();
   await loadSteps();
@@ -2796,6 +3269,8 @@ window.addEventListener("load", async () => {
   await loadClassifierFiles();
   syncCombinedPreviews();
   await loadOutputHistory();
+  // Mark initial data as loaded for this project
+  _lastLoadedProjectId = currentProjectId;
 });
 
 // ==================== AI PDF SPLITTER ====================
@@ -2805,7 +3280,8 @@ async function loadSplitterFileList() {
   const listEl = document.getElementById("splitterFileList");
   if (!listEl) return;
   try {
-    const res = await fetch("/api/ai-splitter/list");
+    const pid = getProjectId();
+    const res = await fetch(`/api/ai-splitter/list${pid ? `?project_id=${pid}` : ''}`);
     const data = await res.json();
     const files = data.files || [];
 
@@ -2852,7 +3328,7 @@ async function deleteSplitterFile(filename) {
     await fetch("/api/ai-splitter/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename }),
+      body: JSON.stringify({ filename, project_id: getProjectId() }),
     });
     loadSplitterFileList();
   } catch (e) { alert(`Lỗi: ${e.message}`); }
@@ -2862,7 +3338,11 @@ async function deleteSplitterFile(filename) {
 async function deleteAllSplitter() {
   if (!confirm("Xóa TẤT CẢ file trong danh sách chờ tách?")) return;
   try {
-    const res = await fetch("/api/ai-splitter/delete-all", { method: "POST" });
+    const res = await fetch("/api/ai-splitter/delete-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: getProjectId() }),
+    });
     const data = await res.json();
     alert(`✅ Đã xóa ${data.deleted_count} file.`);
     loadSplitterFileList();
@@ -2914,7 +3394,7 @@ async function splitAllFiles() {
       const res = await fetch("/api/ai-splitter/process-local", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: fname }),
+        body: JSON.stringify({ filename: fname, project_id: getProjectId() }),
       });
       const data = await res.json();
       if (!res.ok) { console.error(`Error: ${data.error}`); continue; }
@@ -3054,7 +3534,7 @@ document.addEventListener("click", async (e) => {
       const res = await fetch("/api/ai-splitter/process-local", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename }),
+        body: JSON.stringify({ filename, project_id: getProjectId() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -3131,6 +3611,8 @@ document.addEventListener("click", async (e) => {
       // 1. Upload
       const formData = new FormData();
       formData.append("file", file);
+      const pid = getProjectId();
+      if (pid) formData.append("project_id", pid);
       const uploadRes = await fetch("/api/ai-splitter/upload", { method: "POST", body: formData });
       const uploadData = await uploadRes.json();
       if (uploadData.error) {
@@ -3270,7 +3752,8 @@ async function loadOutputHistory() {
   const listEl = document.getElementById("splitterOutputHistoryList");
   if (!listEl) return;
   try {
-    const res = await fetch("/api/ai-splitter/list-outputs");
+    const pid = getProjectId();
+    const res = await fetch(`/api/ai-splitter/list-outputs${pid ? `?project_id=${pid}` : ''}`);
     const data = await res.json();
     const groups = data.groups || [];
     if (groups.length === 0) {
@@ -3448,7 +3931,11 @@ if (clearAllOutputsBtn) {
     clearAllOutputsBtn.disabled = true;
     clearAllOutputsBtn.textContent = "⏳ Đang xóa...";
     try {
-      const res = await fetch("/api/ai-splitter/clear-outputs", { method: "POST" });
+      const res = await fetch("/api/ai-splitter/clear-outputs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: getProjectId() }),
+      });
       const data = await res.json();
       alert(`✅ Đã xóa ${data.deleted_count} mục.`);
       await loadOutputHistory();

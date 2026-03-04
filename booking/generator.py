@@ -457,6 +457,33 @@ def fill_hotel_template(template_path: str, booking_data: Dict) -> str:
         except Exception:
             pass
     
+    # ── Room count fields ──
+    # The template has single-digit values at positioned spans, identified
+    # by their unique CSS "top" value:
+    #   top:8.5475em  → Number of Rooms  (default 1)
+    #   top:9.9946em  → Number of Extra Beds (default 0)
+    #   top:11.4417em → Number of Adults  (default 1)
+    #   top:12.8887em → Number of Children (default 0)
+    def _replace_positioned_value(html, top_val, new_val):
+        """Replace the text content of a positioned span identified by CSS top value."""
+        pattern = _re.compile(
+            r'(<div class="pdf24_01" style="left:38\.6685em;top:' + _re.escape(top_val) + r';">)'
+            r'(<span[^>]*>)'
+            r'(.*?)'
+            r'(</span></div>)',
+            _re.DOTALL,
+        )
+        return pattern.sub(r'\g<1>\g<2>' + str(new_val) + r'\g<4>', html, count=1)
+
+    num_rooms = booking_data.get("num_rooms", 1)
+    num_adults = booking_data.get("num_adults", 1)
+    num_children = booking_data.get("num_children", 0)
+
+    result = _replace_positioned_value(result, "8.5475em", num_rooms)    # Number of Rooms
+    result = _replace_positioned_value(result, "9.9946em", 0)            # Extra Beds (always 0)
+    result = _replace_positioned_value(result, "11.4417em", num_adults)   # Number of Adults
+    result = _replace_positioned_value(result, "12.8887em", num_children) # Number of Children
+    
     # ── Font fix: override embedded PDF subset fonts with system font ──
     # The PDF-to-HTML template embeds fonts as base64 subsets containing only
     # the original glyphs. When we replace text with new characters, those
@@ -648,83 +675,114 @@ def fill_flight_template(template_path: str, flight_data: Dict) -> str:
     if not passenger_names:
         passenger_names = ["THI THANH HIEN DO"]
 
-    container_pattern = _re.compile(
-        r'<div class="passenger-container">[\s\S]*?</div>\s*</div>',
-        _re.DOTALL,
-    )
-    container_matches = list(container_pattern.finditer(section_passengers))
-    if container_matches:
-        prefix = section_passengers[:container_matches[0].start()]
-        suffix = section_passengers[container_matches[-1].end():]
-        container_template = container_matches[0].group(0)
-        passenger_blocks = []
+    # Find all passenger-container blocks properly (nested divs)
+    def _find_passenger_containers(html_text):
+        """Find all passenger-container blocks using proper div nesting."""
+        blocks = []
+        start_tag = '<div class="passenger-container">'
+        idx = 0
+        while True:
+            start = html_text.find(start_tag, idx)
+            if start == -1:
+                break
+            # Count nested divs to find matching closing </div>
+            depth = 0
+            pos = start
+            while pos < len(html_text):
+                if html_text[pos:pos+4] == '<div':
+                    depth += 1
+                elif html_text[pos:pos+6] == '</div>':
+                    depth -= 1
+                    if depth == 0:
+                        end = pos + 6
+                        blocks.append((start, end, html_text[start:end]))
+                        break
+                pos += 1
+            idx = start + 1
+        return blocks
 
+    container_blocks = _find_passenger_containers(section_passengers)
+
+    if container_blocks:
+        prefix = section_passengers[:container_blocks[0][0]]
+        suffix = section_passengers[container_blocks[-1][1]:]
+        template_block = container_blocks[0][2]  # Use first block as template
+
+        # Build route descriptions
+        out_dep_city = outbound.get("departure_city", "Hanoi")
+        out_arr_city = outbound.get("arrival_city", "Sydney")
+        ret_dep_city = return_fl.get("departure_city", "Melbourne")
+        ret_arr_city = return_fl.get("arrival_city", "Hanoi")
+
+        _airport_country = {
+            "HAN": "Vietnam", "SGN": "Vietnam", "DAD": "Vietnam",
+            "SYD": "Australia", "MEL": "Australia", "BNE": "Australia",
+            "NRT": "Japan", "HND": "Japan", "KIX": "Japan",
+            "ICN": "South Korea", "SIN": "Singapore", "BKK": "Thailand",
+            "CDG": "France", "LHR": "United Kingdom", "LAX": "United States",
+            "YVR": "Canada", "YYZ": "Canada", "AKL": "New Zealand",
+        }
+
+        out_dep_airport = outbound.get("departure_airport", "HAN")
+        out_arr_airport = outbound.get("arrival_airport", "SYD")
+        ret_dep_airport = return_fl.get("departure_airport", "MEL")
+        ret_arr_airport = return_fl.get("arrival_airport", "HAN")
+
+        out_dep_country = _airport_country.get(out_dep_airport, "Vietnam")
+        out_arr_country = _airport_country.get(out_arr_airport, "")
+        ret_dep_country = _airport_country.get(ret_dep_airport, "")
+        ret_arr_country = _airport_country.get(ret_arr_airport, "Vietnam")
+
+        route1_dep_desc = f"{out_dep_city} ({out_dep_airport}), {out_dep_country}"
+        route1_arr_desc = f"{out_arr_city} ({out_arr_airport}), {out_arr_country}"
+        route2_dep_desc = f"{ret_dep_city} ({ret_dep_airport}), {ret_dep_country}"
+        route2_arr_desc = f"{ret_arr_city} ({ret_arr_airport}), {ret_arr_country}"
+
+        passenger_blocks = []
         for idx, name in enumerate(passenger_names, 1):
-            block = container_template
+            block = template_block
+            # Replace passenger number
             block = _re.sub(
                 r'(<span class="p-label">)Passenger \d+(</span>)',
                 rf'\1Passenger {idx}\2',
-                block,
-                count=1,
+                block, count=1,
             )
+            # Replace passenger name
             block = _re.sub(
                 r'(<span class="p-name">)(.*?)(</span>)',
                 rf'\1{name}\3',
-                block,
-                count=1,
-                flags=_re.DOTALL,
+                block, count=1, flags=_re.DOTALL,
             )
+            # Replace route details (Route 1 and Route 2) in this passenger block
+            route_detail_pattern = _re.compile(
+                r'(<div class="route-detail">\s*)(.*?)(\s*<i class="fa-solid fa-plane-departure separator-icon"></i>\s*)(.*?)(\s*</div>)',
+                _re.DOTALL,
+            )
+            route_matches_in_block = list(route_detail_pattern.finditer(block))
+            if route_matches_in_block:
+                new_parts = []
+                last_end = 0
+                for ri, rm in enumerate(route_matches_in_block):
+                    if ri % 2 == 0:
+                        dep_desc, arr_desc = route1_dep_desc, route1_arr_desc
+                    else:
+                        dep_desc, arr_desc = route2_dep_desc, route2_arr_desc
+                    replacement = rm.group(1) + dep_desc + rm.group(3) + arr_desc + rm.group(5)
+                    new_parts.append(block[last_end:rm.start()])
+                    new_parts.append(replacement)
+                    last_end = rm.end()
+                new_parts.append(block[last_end:])
+                block = "".join(new_parts)
+
             passenger_blocks.append(block)
 
         section_passengers = prefix + "\n\n".join(passenger_blocks) + suffix
-
-    # Replace route details in passenger section using city names from data
-    out_dep_city = outbound.get("departure_city", "Hanoi")
-    out_arr_city = outbound.get("arrival_city", "Sydney")
-    ret_dep_city = return_fl.get("departure_city", "Melbourne")
-    ret_arr_city = return_fl.get("arrival_city", "Hanoi")
-
-    # Determine country from airport code
-    _airport_country = {
-        "HAN": "Vietnam", "SGN": "Vietnam", "DAD": "Vietnam",
-        "SYD": "Australia", "MEL": "Australia", "BNE": "Australia",
-        "NRT": "Japan", "HND": "Japan", "KIX": "Japan",
-        "ICN": "South Korea", "SIN": "Singapore", "BKK": "Thailand",
-        "CDG": "France", "LHR": "United Kingdom", "LAX": "United States",
-        "YVR": "Canada", "YYZ": "Canada", "AKL": "New Zealand",
-    }
-
-    out_dep_country = _airport_country.get(out_dep_airport, "Vietnam")
-    out_arr_country = _airport_country.get(out_arr_airport, "")
-    ret_dep_country = _airport_country.get(ret_dep_airport, "")
-    ret_arr_country = _airport_country.get(ret_arr_airport, "Vietnam")
-
-    # Build new route descriptions
-    route1_dep_desc = f"{out_dep_city} ({out_dep_airport}), {out_dep_country}"
-    route1_arr_desc = f"{out_arr_city} ({out_arr_airport}), {out_arr_country}"
-    route2_dep_desc = f"{ret_dep_city} ({ret_dep_airport}), {ret_dep_country}"
-    route2_arr_desc = f"{ret_arr_city} ({ret_arr_airport}), {ret_arr_country}"
-
-    # Replace route details in each passenger block (Route 1, Route 2).
-    route_detail_pattern = _re.compile(
-        r'(<div class="route-detail">\s*)(.*?)(\s*<i class="fa-solid fa-plane-departure separator-icon"></i>\s*)(.*?)(\s*</div>)',
-        _re.DOTALL,
-    )
-    route_matches = list(route_detail_pattern.finditer(section_passengers))
-    if route_matches:
-        new_parts = []
-        last_idx = 0
-        for i, m in enumerate(route_matches):
-            if i % 2 == 0:
-                dep_desc, arr_desc = route1_dep_desc, route1_arr_desc
-            else:
-                dep_desc, arr_desc = route2_dep_desc, route2_arr_desc
-            replacement = m.group(1) + dep_desc + m.group(3) + arr_desc + m.group(5)
-            new_parts.append(section_passengers[last_idx:m.start()])
-            new_parts.append(replacement)
-            last_idx = m.end()
-        new_parts.append(section_passengers[last_idx:])
-        section_passengers = "".join(new_parts)
+    else:
+        # Fallback: just replace route details in existing section
+        out_dep_city = outbound.get("departure_city", "Hanoi")
+        out_arr_city = outbound.get("arrival_city", "Sydney")
+        ret_dep_city = return_fl.get("departure_city", "Melbourne")
+        ret_arr_city = return_fl.get("arrival_city", "Hanoi")
 
     # Reassemble
     result = section_before + section_route1 + section_route2 + section_passengers

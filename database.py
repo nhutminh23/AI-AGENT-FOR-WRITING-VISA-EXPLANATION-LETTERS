@@ -233,9 +233,8 @@ def save_booking(project_id: int, booking_data: Dict, hotel_htmls: List[str],
                  flight_html: str, reasoning: str = "") -> Dict[str, Any]:
     session = get_session()
     try:
-        latest = session.query(Booking).filter_by(project_id=project_id) \
-            .order_by(desc(Booking.version)).first()
-        version = (latest.version + 1) if latest else 1
+        # Delete previous bookings for this project (replace with new)
+        session.query(Booking).filter_by(project_id=project_id).delete()
 
         booking = Booking(
             project_id=project_id,
@@ -243,14 +242,14 @@ def save_booking(project_id: int, booking_data: Dict, hotel_htmls: List[str],
             hotel_htmls=json.dumps(hotel_htmls, ensure_ascii=False),
             flight_html=flight_html,
             reasoning=reasoning,
-            version=version,
+            version=1,
         )
         session.add(booking)
         project = session.query(Project).filter_by(id=project_id).first()
         if project:
             project.updated_at = datetime.utcnow()
         session.commit()
-        return {"id": booking.id, "version": version}
+        return {"id": booking.id, "version": 1}
     finally:
         session.close()
 
