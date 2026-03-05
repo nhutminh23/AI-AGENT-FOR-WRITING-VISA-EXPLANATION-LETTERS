@@ -14,7 +14,7 @@
           <select id="projectSelect" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;">
             <option value="">-- Chọn hồ sơ --</option>
           </select>
-          <button id="btnNewProject" class="btn btn-sm" style="white-space:nowrap;" title="Tạo hồ sơ mới">+ Hồ sơ mới</button>
+          <button id="btnNewProject" class="btn btn-sm" style="white-space:nowrap;" title="Xóa dữ liệu hồ sơ hiện tại để làm người mới">🔄 Làm mới (người mới)</button>
           <button id="btnRenameProject" class="btn btn-sm btn-outline" style="white-space:nowrap;display:none;" title="Đổi tên hồ sơ">✏️</button>
           <button id="btnDeleteProject" class="btn btn-sm btn-outline btn-danger" style="white-space:nowrap;display:none;" title="Xóa hồ sơ">🗑️</button>
         </div>
@@ -507,39 +507,21 @@
         <section class="card">
           <h2>Nối PDF</h2>
           <div class="hint">
-            Chọn nhiều file PDF trong <code>pdf/input</code> để nối thành 1 file duy nhất trong <code>pdf/output</code>.
+            Chọn file PDF từ máy tính (giữ Ctrl hoặc Shift để chọn nhiều). Thứ tự chọn = thứ tự trang (chọn trước = trang 1). Kết quả lưu trong <code>pdf/output</code>.
           </div>
           <div class="row" style="margin-top: 10px;">
             <div>
-              <label for="pdfMergeFiles">Chọn các file cần nối (giữ Ctrl để chọn nhiều)</label>
-              <select id="pdfMergeFiles" multiple size="6"></select>
-            </div>
-          </div>
-          <div class="row" style="margin-top: 10px; align-items: flex-end;">
-            <label style="flex: 0 0 100%; margin-bottom: 6px;">Tên file output (không cần .pdf)</label>
-            <div style="flex: 1; min-width: 180px;">
-              <label for="pdfMergePrefix">Tiền tố loại hồ sơ</label>
-              <select id="pdfMergePrefix"></select>
-            </div>
-            <div style="flex: 2; min-width: 220px; margin-left: 12px;">
-              <label for="pdfMergeDocType">Tên giấy tờ (EN, ngắn gọn)</label>
-              <select id="pdfMergeDocType"></select>
-              <input
-                id="pdfMergeDocTypeCustom"
-                type="text"
-                placeholder="Nhập mô tả tiếng Việt hoặc tên EN tuỳ ý"
-                style="margin-top: 6px; display: none;"
-              />
-            </div>
-            <div style="margin-left: 12px;">
-              <button id="pdfMergeGenBtn" type="button">Gen tên EN</button>
+              <label for="pdfMergeFileInput">Chọn file PDF từ máy tính</label>
+              <input type="file" id="pdfMergeFileInput" multiple accept=".pdf" style="display:block; margin-top:4px;" />
+              <div id="pdfMergeFileList" class="hint" style="margin-top:8px; min-height:24px; padding:8px; background:#f8fafc; border-radius:6px;">Chưa chọn file. Thứ tự hiển thị = thứ tự trang.</div>
             </div>
           </div>
           <div class="row" style="margin-top: 10px;">
-            <div style="flex: 1;">
-              <small id="pdfMergePreview" class="hint">Tên file output sẽ có dạng: [PREFIX] - [DOC_TYPE].pdf</small>
+            <div style="flex: 1; min-width: 200px;">
+              <label for="pdfMergeOutputName">Tên file sau khi nối (không cần .pdf)</label>
+              <input type="text" id="pdfMergeOutputName" placeholder="VD: Ho so tong hop" style="width:100%; padding:8px; margin-top:4px; border:1px solid #d1d5db; border-radius:6px;" />
             </div>
-            <div>
+            <div style="margin-left: 12px; align-self: flex-end;">
               <button id="pdfRunMergeBtn">Nối PDF</button>
             </div>
           </div>

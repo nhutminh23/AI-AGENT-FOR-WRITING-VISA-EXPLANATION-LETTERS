@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -242,6 +243,57 @@ def delete_project(project_id):
     return jsonify({"status": "deleted"})
 
 
+@app.post("/api/projects/<int:project_id>/clear")
+def clear_project(project_id: int):
+    """Xóa toàn bộ dữ liệu của hồ sơ (DB + file tách AI) để làm người mới. Giữ lại project."""
+    project = db.get_project(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    db.clear_project_data(project_id)
+    # Xóa file trong splitter_uploads có prefix p{id}__
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    upload_dir = os.path.join(base_dir, "splitter_uploads")
+    prefix = f"p{project_id}__"
+    deleted_uploads = 0
+    if os.path.isdir(upload_dir):
+        for fname in os.listdir(upload_dir):
+            if fname.startswith(prefix) and fname.lower().endswith(".pdf"):
+                try:
+                    os.remove(os.path.join(upload_dir, fname))
+                    deleted_uploads += 1
+                except OSError:
+                    pass
+    # Xóa thư mục trong splitter_outputs có _source.json với project_id trùng
+    output_dir = os.path.join(base_dir, "splitter_outputs")
+    deleted_output_dirs = 0
+    if os.path.isdir(output_dir):
+        for folder_name in os.listdir(output_dir):
+            folder_path = os.path.join(output_dir, folder_name)
+            if not os.path.isdir(folder_path):
+                continue
+            meta_path = os.path.join(folder_path, "_source.json")
+            if os.path.isfile(meta_path):
+                try:
+                    with open(meta_path, "r", encoding="utf-8") as mf:
+                        meta = json.load(mf)
+                    if meta.get("project_id") == project_id:
+                        shutil.rmtree(folder_path, ignore_errors=True)
+                        deleted_output_dirs += 1
+                        zip_path = os.path.join(output_dir, f"{folder_name}.zip")
+                        if os.path.isfile(zip_path):
+                            try:
+                                os.remove(zip_path)
+                            except OSError:
+                                pass
+                except Exception:
+                    pass
+    return jsonify({
+        "status": "cleared",
+        "deleted_uploads": deleted_uploads,
+        "deleted_output_dirs": deleted_output_dirs,
+    })
+
+
 @app.get("/api/files")
 def list_files():
     input_dir = request.args.get("input_dir", "input")
@@ -421,6 +473,7 @@ def pipeline_send_to_splitter():
     """Copy selected multi-doc files → splitter_uploads for AI splitting."""
     payload = request.get_json(force=True) or {}
     file_paths = payload.get("file_paths", [])
+    project_id = payload.get("project_id")
 
     if not file_paths:
         return jsonify({"error": "no_files_selected"}), 400
@@ -428,18 +481,36 @@ def pipeline_send_to_splitter():
     target_dir = os.path.join("splitter_uploads")
     os.makedirs(target_dir, exist_ok=True)
     copied = []
+
+    # Normalise project_id to int if possible
+    pid: Optional[int]
+    if isinstance(project_id, int):
+        pid = project_id
+    elif isinstance(project_id, str) and project_id.isdigit():
+        pid = int(project_id)
+    else:
+        pid = None
+
     for src in file_paths:
         if not os.path.isfile(src):
             continue
-        fname = os.path.basename(src)
-        dst = os.path.join(target_dir, fname)
-        base, ext = os.path.splitext(fname)
+        original_name = os.path.basename(src)
+
+        # Prefix filename with project id so we can filter queue per project later.
+        # Old files without prefix will be treated as "global" and ignored when a project_id is provided.
+        if pid is not None:
+            stored_name = f"p{pid}__{original_name}"
+        else:
+            stored_name = original_name
+
+        dst = os.path.join(target_dir, stored_name)
+        base, ext = os.path.splitext(stored_name)
         idx = 1
         while os.path.exists(dst):
             dst = os.path.join(target_dir, f"{base} ({idx}){ext}")
             idx += 1
         shutil.copy2(src, dst)
-        copied.append(fname)
+        copied.append(stored_name)
 
     return jsonify({"status": "done", "copied": copied, "count": len(copied)})
 
@@ -780,6 +851,7 @@ def split_manual():
     # Legacy support: direct source path
     input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
     source = (payload.get("source") or "").strip()
+    project_id = payload.get("project_id")
     segments = payload.get("segments") or []
 
     if not isinstance(segments, list) or not segments:
@@ -876,6 +948,17 @@ def split_manual():
     if created:
         src_display = source_filename or source or "unknown"
         source_meta = {"source_filename": src_display, "source_type": "manual"}
+
+        # Normalise project_id to int if possible
+        if isinstance(project_id, int):
+            pid = project_id
+        elif isinstance(project_id, str) and project_id.isdigit():
+            pid = int(project_id)
+        else:
+            pid = None
+        if pid is not None:
+            source_meta["project_id"] = pid
+
         with open(os.path.join(output_dir, "_source.json"), "w", encoding="utf-8") as mf:
             json.dump(source_meta, mf, ensure_ascii=False)
 
@@ -888,6 +971,76 @@ def split_manual():
             "total_pages": total_pages,
             "segments": created,
             "removed_original": removed_original,
+        }
+    )
+
+
+def _pdf_merge_sanitize_name(value: str, fallback: str) -> str:
+    text = (value or "").strip()
+    text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or fallback
+
+
+def _pdf_merge_pick_unique(dest_dir: str, stem: str, ext: str) -> str:
+    candidate = os.path.join(dest_dir, f"{stem}{ext}")
+    idx = 1
+    while os.path.exists(candidate):
+        candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
+        idx += 1
+    return candidate
+
+
+@app.route("/api/pdf/merge-upload", methods=["POST"])
+def merge_pdf_upload():
+    """Merge PDFs uploaded from user's computer. Order of form fields = page order."""
+    output_dir = os.path.join("pdf", "output")
+    os.makedirs(output_dir, exist_ok=True)
+    output_name = (request.form.get("output_name") or "").strip()
+    if not output_name:
+        return jsonify({"error": "missing_output_name"}), 400
+
+    files = request.files.getlist("file")
+    if not files:
+        return jsonify({"error": "missing_files"}), 400
+
+    writer = PdfWriter()
+    total_pages = 0
+    used_names: List[str] = []
+
+    for f in files:
+        if not f or not getattr(f, "filename", None):
+            continue
+        if not str(f.filename).lower().endswith(".pdf"):
+            continue
+        try:
+            reader = PdfReader(f.stream)
+        except Exception:
+            continue
+        for page in reader.pages:
+            writer.add_page(page)
+            total_pages += 1
+        used_names.append(f.filename)
+
+    if not used_names:
+        return jsonify({"error": "no_valid_pdfs"}), 400
+
+    safe_name = _pdf_merge_sanitize_name(output_name, "MERGED")
+    out_path = _pdf_merge_pick_unique(output_dir, safe_name, ".pdf")
+    try:
+        with open(out_path, "wb") as fp:
+            writer.write(fp)
+    except Exception as exc:
+        return jsonify({"error": "write_failed", "detail": str(exc)}), 500
+
+    return jsonify(
+        {
+            "status": "done",
+            "output_dir": output_dir,
+            "files": used_names,
+            "file_count": len(used_names),
+            "total_pages": total_pages,
+            "output_file": os.path.relpath(out_path, output_dir).replace("\\", "/"),
         }
     )
 
@@ -908,21 +1061,6 @@ def merge_pdf():
         return jsonify({"error": "missing_files"}), 400
     if not output_name:
         return jsonify({"error": "missing_output_name"}), 400
-
-    # Reuse helpers
-    def _sanitize_name(value: str, fallback: str) -> str:
-        text = (value or "").strip()
-        text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
-        text = re.sub(r"\s+", " ", text).strip()
-        return text or fallback
-
-    def _pick_unique(dest_dir: str, stem: str, ext: str) -> str:
-        candidate = os.path.join(dest_dir, f"{stem}{ext}")
-        idx = 1
-        while os.path.exists(candidate):
-            candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
-            idx += 1
-        return candidate
 
     writer = PdfWriter()
     total_pages = 0
@@ -949,8 +1087,8 @@ def merge_pdf():
     if not used_files:
         return jsonify({"error": "no_valid_pdfs"}), 400
 
-    safe_name = _sanitize_name(output_name, "MERGED")
-    out_path = _pick_unique(output_dir, safe_name, ".pdf")
+    safe_name = _pdf_merge_sanitize_name(output_name, "MERGED")
+    out_path = _pdf_merge_pick_unique(output_dir, safe_name, ".pdf")
     try:
         with open(out_path, "wb") as f:
             writer.write(f)
@@ -2320,6 +2458,9 @@ async def _process_splitter_job(file_id: str):
 
         # Save source metadata for persistent display
         source_meta = {"source_filename": job["filename"], "source_type": "ai"}
+        pid = job.get("project_id")
+        if pid is not None:
+            source_meta["project_id"] = pid
         with open(os.path.join(job_output_dir, "_source.json"), "w", encoding="utf-8") as mf:
             json.dump(source_meta, mf, ensure_ascii=False)
 
@@ -2341,13 +2482,37 @@ async def _process_splitter_job(file_id: str):
 def splitter_list_files():
     """List PDF files already in splitter_uploads folder."""
     upload_dir = str(SPLITTER_UPLOAD_DIR)
+    project_id = request.args.get("project_id", type=int)
     if not os.path.isdir(upload_dir):
         return jsonify({"files": []})
     files = []
     for fname in sorted(os.listdir(upload_dir)):
         path = os.path.join(upload_dir, fname)
-        if os.path.isfile(path) and fname.lower().endswith(".pdf"):
-            files.append({"filename": fname, "size": os.path.getsize(path)})
+        if not (os.path.isfile(path) and fname.lower().endswith(".pdf")):
+            continue
+
+        display_name = fname
+        file_pid: Optional[int] = None
+
+        # New convention: filenames starting with p<id>__ belong to a specific project
+        match = re.match(r"p(\d+)__(.+)", fname, re.IGNORECASE)
+        if match:
+            try:
+                file_pid = int(match.group(1))
+            except ValueError:
+                file_pid = None
+            display_name = match.group(2)
+
+        if project_id is not None and file_pid != project_id:
+            continue
+
+        files.append(
+            {
+                "filename": fname,  # stored name used by APIs
+                "display_name": display_name,  # original name for UI
+                "size": os.path.getsize(path),
+            }
+        )
     return jsonify({"files": files})
 
 
@@ -2367,15 +2532,27 @@ def splitter_delete_file():
 
 @app.post("/api/ai-splitter/delete-all")
 def splitter_delete_all():
-    """Delete all PDF files from splitter_uploads."""
+    """Delete all PDF files from splitter_uploads. If project_id is in body, only delete files with p{id}__ prefix."""
+    payload = request.get_json(force=True) or {}
+    project_id = payload.get("project_id")
+    pid = None
+    if isinstance(project_id, int):
+        pid = project_id
+    elif isinstance(project_id, str) and project_id.isdigit():
+        pid = int(project_id)
     upload_dir = str(SPLITTER_UPLOAD_DIR)
     count = 0
     if os.path.isdir(upload_dir):
         for fname in os.listdir(upload_dir):
             fpath = os.path.join(upload_dir, fname)
-            if os.path.isfile(fpath) and fname.lower().endswith(".pdf"):
-                os.remove(fpath)
-                count += 1
+            if not (os.path.isfile(fpath) and fname.lower().endswith(".pdf")):
+                continue
+            if pid is not None:
+                match = re.match(r"p" + str(pid) + r"__(.+)", fname)
+                if not match:
+                    continue
+            os.remove(fpath)
+            count += 1
     return jsonify({"deleted_count": count})
 
 
@@ -2384,6 +2561,7 @@ def splitter_process_local():
     """Process a PDF already in splitter_uploads (no upload needed)."""
     payload = request.get_json(force=True) or {}
     filename = payload.get("filename", "")
+    project_id = payload.get("project_id")
     if not filename:
         return jsonify({"error": "no_filename"}), 400
 
@@ -2392,6 +2570,14 @@ def splitter_process_local():
         return jsonify({"error": "file_not_found"}), 404
 
     import threading
+
+    # Normalise project_id to int if possible
+    if isinstance(project_id, int):
+        pid: Optional[int] = project_id
+    elif isinstance(project_id, str) and project_id.isdigit():
+        pid = int(project_id)
+    else:
+        pid = None
 
     file_id = uuid.uuid4().hex[:8]
     # Copy to sub-folder (same structure as upload flow)
@@ -2405,6 +2591,7 @@ def splitter_process_local():
     splitter_jobs[file_id] = {
         "status": "uploaded",
         "filename": filename,
+        "project_id": pid,
         "file_path": str(file_path),
         "page_count": page_count,
         "current_page": 0,
@@ -2426,6 +2613,11 @@ def splitter_upload():
     if "file" not in request.files:
         return jsonify({"error": "no_file"}), 400
     file = request.files["file"]
+    project_id_raw = request.form.get("project_id")
+    if isinstance(project_id_raw, str) and project_id_raw.isdigit():
+        pid: Optional[int] = int(project_id_raw)
+    else:
+        pid = None
     if not file.filename.lower().endswith(".pdf"):
         return jsonify({"error": "not_pdf"}), 400
 
@@ -2440,6 +2632,7 @@ def splitter_upload():
     splitter_jobs[file_id] = {
         "status": "uploaded",
         "filename": file.filename,
+        "project_id": pid,
         "file_path": str(file_path),
         "page_count": page_count,
         "current_page": 0,
@@ -2543,6 +2736,7 @@ def splitter_list_outputs():
     """List ALL split output files across all splitter job folders (AI + manual).
     Used by Tab ② to pick a file to re-split manually."""
     output_dir = str(SPLITTER_OUTPUT_DIR)
+    project_id = request.args.get("project_id", type=int)
     if not os.path.isdir(output_dir):
         return jsonify({"groups": []})
 
@@ -2564,17 +2758,26 @@ def splitter_list_outputs():
             is_manual = folder_name.startswith("manual_")
             # Read persistent source metadata
             source_name = ""
+            source_project_id = None
             source_meta_path = os.path.join(folder_path, "_source.json")
             if os.path.isfile(source_meta_path):
                 try:
                     with open(source_meta_path, "r", encoding="utf-8") as mf:
                         meta = json.load(mf)
                     source_name = meta.get("source_filename", "")
+                    source_project_id = meta.get("project_id")
                 except Exception:
                     pass
             # Fallback to in-memory splitter_jobs
             if not source_name and not is_manual and folder_name in splitter_jobs:
                 source_name = splitter_jobs[folder_name].get("filename", "")
+                if source_project_id is None:
+                    source_project_id = splitter_jobs[folder_name].get("project_id")
+
+            # Filter by project if requested
+            if project_id is not None and source_project_id != project_id:
+                continue
+
             groups.append({
                 "folder_id": folder_name,
                 "source_type": "manual" if is_manual else "ai",
@@ -2596,6 +2799,7 @@ def manual_split_upload_and_split():
         return jsonify({"error": "not_pdf"}), 400
 
     segments_json = request.form.get("segments", "[]")
+    project_id_raw = request.form.get("project_id")
     try:
         segments = json.loads(segments_json)
     except Exception:
@@ -2674,6 +2878,8 @@ def manual_split_upload_and_split():
     # Save source metadata for persistent display
     if created:
         source_meta = {"source_filename": file.filename, "source_type": "manual"}
+        if project_id_raw and project_id_raw.isdigit():
+            source_meta["project_id"] = int(project_id_raw)
         with open(os.path.join(output_dir, "_source.json"), "w", encoding="utf-8") as mf:
             json.dump(source_meta, mf, ensure_ascii=False)
 

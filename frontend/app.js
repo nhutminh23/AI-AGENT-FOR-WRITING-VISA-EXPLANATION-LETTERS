@@ -158,6 +158,9 @@ const pdfManualCountEl = document.getElementById("pdfManualCount");
 const pdfBuildSplitFormBtn = document.getElementById("pdfBuildSplitFormBtn");
 const pdfManualSegmentsEl = document.getElementById("pdfManualSegments");
 const pdfRunSplitBtn = document.getElementById("pdfRunSplitBtn");
+const pdfMergeFileInput = document.getElementById("pdfMergeFileInput");
+const pdfMergeFileList = document.getElementById("pdfMergeFileList");
+const pdfMergeOutputName = document.getElementById("pdfMergeOutputName");
 const pdfMergeFilesEl = document.getElementById("pdfMergeFiles");
 const pdfMergePrefixEl = document.getElementById("pdfMergePrefix");
 const pdfMergeDocTypeEl = document.getElementById("pdfMergeDocType");
@@ -212,30 +215,51 @@ async function loadProjects() {
   }
 }
 
-projectSelectEl.addEventListener("change", () => {
+projectSelectEl.addEventListener("change", async () => {
   const val = projectSelectEl.value;
   currentProjectId = val ? parseInt(val) : null;
   btnRenameProject.style.display = currentProjectId ? "" : "none";
   btnDeleteProject.style.display = currentProjectId ? "" : "none";
   localStorage.setItem("currentProjectId", currentProjectId || "");
+
+  // Khi đổi hồ sơ, reload lại các dữ liệu phụ thuộc project
+  try {
+    await loadSteps();
+    await loadLatestItinerary();
+    await loadLatestBooking();
+    await loadItineraryContext();
+    await loadLatestTripInfo();
+    await loadClassifierFiles();
+    await loadSplitterFileList();
+    await loadOutputHistory();
+  } catch (e) {
+    console.error("Failed to reload project-scoped data:", e);
+  }
 });
 
 btnNewProject.addEventListener("click", async () => {
-  const name = prompt("Tên hồ sơ mới (VD: Hồ sơ Nguyễn Văn A - Úc):");
-  if (!name || !name.trim()) return;
+  if (!currentProjectId) {
+    alert("Vui lòng chọn một hồ sơ ở dropdown. Nếu chưa có, tạo hồ sơ bằng cách thêm từ API hoặc dùng nút Đổi tên để đặt tên.");
+    return;
+  }
+  if (!confirm("Xóa toàn bộ dữ liệu hồ sơ này (phần tách, booking, lịch trình, thư…) để làm người mới? Bạn có thể bỏ file mới vào và làm lại từ đầu.")) return;
   try {
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    const project = await res.json();
-    currentProjectId = project.id;
-    localStorage.setItem("currentProjectId", currentProjectId);
-    await loadProjects();
-    projectSelectEl.value = currentProjectId;
-    btnRenameProject.style.display = "";
-    btnDeleteProject.style.display = "";
+    const res = await fetch(`/api/projects/${currentProjectId}/clear`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert("Lỗi: " + (data.error || "không xác định"));
+      return;
+    }
+    await loadSteps();
+    await loadLatestItinerary();
+    await loadLatestBooking();
+    await loadItineraryContext();
+    await loadLatestTripInfo();
+    await loadClassifierFiles();
+    await loadSplitterFileList();
+    await loadOutputHistory();
+    if (loadFilteredFiles) await loadFilteredFiles();
+    alert("Đã xóa dữ liệu. Bạn có thể bỏ file mới vào và làm lại từ đầu.");
   } catch (e) {
     alert("Lỗi: " + e.message);
   }
@@ -272,8 +296,32 @@ btnDeleteProject.addEventListener("click", async () => {
   }
 });
 
+// Đảm bảo luôn có ít nhất 1 hồ sơ (chỉ cần 1 hồ sơ, làm mới khi đổi người)
+async function ensureOneProject() {
+  const res = await fetch("/api/projects");
+  const data = await res.json();
+  const projects = data.projects || [];
+  if (projects.length === 0) {
+    await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Hồ sơ" }),
+    });
+  }
+  await loadProjects();
+  const list = (await fetch("/api/projects").then((r) => r.json())).projects || [];
+  if (list.length > 0 && !currentProjectId) {
+    currentProjectId = list[0].id;
+    localStorage.setItem("currentProjectId", currentProjectId);
+    projectSelectEl.value = currentProjectId;
+    btnRenameProject.style.display = "";
+    btnDeleteProject.style.display = "";
+  }
+}
+
 // Restore project from localStorage
 (async () => {
+  await ensureOneProject();
   const saved = localStorage.getItem("currentProjectId");
   if (saved) {
     currentProjectId = parseInt(saved);
@@ -921,6 +969,8 @@ async function runPdfManualSplit() {
       const formData = new FormData();
       formData.append("file", fileInput.files[0]);
       formData.append("segments", JSON.stringify(segments));
+      const pid = getProjectId();
+      if (pid) formData.append("project_id", String(pid));
       const res = await fetch("/api/manual-split/upload-and-split", { method: "POST", body: formData });
       data = await res.json();
       if (!res.ok) { alert(`Lỗi: ${data.error || "không xác định"}`); return; }
@@ -933,6 +983,7 @@ async function runPdfManualSplit() {
           source_file_id: manualSplitState.aiFileId,
           source_filename: manualSplitState.aiFilename,
           segments,
+          project_id: getProjectId() || null,
         }),
       });
       data = await res.json();
@@ -1018,41 +1069,54 @@ if (manualSplitToClassifierBtn) {
   });
 }
 
+function updatePdfMergeFileListDisplay() {
+  if (!pdfMergeFileList || !pdfMergeFileInput) return;
+  const files = Array.from(pdfMergeFileInput.files || []);
+  if (files.length === 0) {
+    pdfMergeFileList.textContent = "Chưa chọn file. Thứ tự hiển thị = thứ tự trang.";
+    pdfMergeFileList.className = "hint";
+    return;
+  }
+  pdfMergeFileList.className = "";
+  pdfMergeFileList.innerHTML = files.map((f, i) => `${i + 1}. ${f.name}`).join("<br>");
+}
+
+if (pdfMergeFileInput) {
+  pdfMergeFileInput.addEventListener("change", updatePdfMergeFileListDisplay);
+}
+
 async function runPdfMerge() {
-  const inputDir = "pdf/input";
-  const outputDir = "pdf/output";
-  if (!pdfMergeFilesEl) {
-    alert("Không tìm thấy danh sách file để nối.");
+  if (!pdfMergeFileInput) {
+    alert("Không tìm thấy ô chọn file.");
     return;
   }
-  const selected = Array.from(pdfMergeFilesEl.options)
-    .filter((opt) => opt.selected)
-    .map((opt) => opt.value);
-  if (!selected.length) {
-    alert("Vui lòng chọn ít nhất 2 file PDF để nối.");
+  const files = Array.from(pdfMergeFileInput.files || []).filter((f) => f.name && f.name.toLowerCase().endsWith(".pdf"));
+  if (files.length === 0) {
+    alert("Vui lòng chọn ít nhất 1 file PDF từ máy tính (thứ tự chọn = thứ tự trang).");
     return;
   }
-  const output_name = getPdfMergeOutputName();
+  const output_name = (pdfMergeOutputName && pdfMergeOutputName.value || "").trim();
   if (!output_name) {
-    alert("Vui lòng chọn tiền tố loại hồ sơ và tên giấy tờ.");
+    alert("Vui lòng nhập tên file sau khi nối.");
     return;
   }
-  const originalText = pdfRunMergeBtn.textContent;
-  pdfRunMergeBtn.disabled = true;
-  pdfRunMergeBtn.textContent = "Đang nối...";
+  const originalText = pdfRunMergeBtn ? pdfRunMergeBtn.textContent : "";
+  if (pdfRunMergeBtn) {
+    pdfRunMergeBtn.disabled = true;
+    pdfRunMergeBtn.textContent = "Đang nối...";
+  }
   if (pdfToolsResultEl) {
     pdfToolsResultEl.textContent = "Đang nối các file PDF...";
   }
   try {
-    const res = await fetch("/api/pdf/merge", {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("file", file);
+    }
+    formData.append("output_name", output_name);
+    const res = await fetch("/api/pdf/merge-upload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input_dir: inputDir,
-        output_dir: outputDir,
-        files: selected,
-        output_name,
-      }),
+      body: formData,
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1075,8 +1139,10 @@ async function runPdfMerge() {
       pdfToolsResultEl.textContent = `Lỗi nối PDF: ${error.message}`;
     }
   } finally {
-    pdfRunMergeBtn.disabled = false;
-    pdfRunMergeBtn.textContent = originalText;
+    if (pdfRunMergeBtn) {
+      pdfRunMergeBtn.disabled = false;
+      pdfRunMergeBtn.textContent = originalText;
+    }
   }
 }
 
@@ -2797,10 +2863,11 @@ async function sendMultiToSplitter() {
   const btn = document.getElementById("sendMultiToSplitterBtn");
   btn.disabled = true; btn.textContent = "Đang chuyển...";
   try {
+    const pid = getProjectId();
     const res = await fetch("/api/pipeline/send-to-splitter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file_paths: multiFiles }),
+      body: JSON.stringify({ file_paths: multiFiles, project_id: pid || null }),
     });
     const data = await res.json();
     if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
@@ -3142,7 +3209,9 @@ async function loadSplitterFileList() {
   const listEl = document.getElementById("splitterFileList");
   if (!listEl) return;
   try {
-    const res = await fetch("/api/ai-splitter/list");
+    const pid = getProjectId();
+    const url = "/api/ai-splitter/list" + (pid ? "?project_id=" + pid : "");
+    const res = await fetch(url);
     const data = await res.json();
     const files = data.files || [];
 
@@ -3160,9 +3229,10 @@ async function loadSplitterFileList() {
     listEl.className = "file-list";
     listEl.innerHTML = files.map(f => {
       const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+      const displayName = f.display_name || f.filename;
       return `<div class="file-row" style="align-items:center;">
         <div style="flex:1;">
-          <span class="file-name">📄 ${f.filename}</span>
+          <span class="file-name">📄 ${displayName}</span>
           <span class="file-domain">(${sizeMB} MB)</span>
         </div>
         <div style="display:flex; gap:6px;">
@@ -3199,7 +3269,11 @@ async function deleteSplitterFile(filename) {
 async function deleteAllSplitter() {
   if (!confirm("Xóa TẤT CẢ file trong danh sách chờ tách?")) return;
   try {
-    const res = await fetch("/api/ai-splitter/delete-all", { method: "POST" });
+    const res = await fetch("/api/ai-splitter/delete-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: getProjectId() || null }),
+    });
     const data = await res.json();
     alert(`✅ Đã xóa ${data.deleted_count} file.`);
     loadSplitterFileList();
@@ -3251,7 +3325,7 @@ async function splitAllFiles() {
       const res = await fetch("/api/ai-splitter/process-local", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: fname }),
+        body: JSON.stringify({ filename: fname, project_id: getProjectId() || null }),
       });
       const data = await res.json();
       if (!res.ok) { console.error(`Error: ${data.error}`); continue; }
@@ -3303,6 +3377,8 @@ async function splitAllFiles() {
                   allClassifications.push({ ...c, source_file: fname });
                 }
               }
+              // Cập nhật ngay phần "Tất cả file đã tách" sau mỗi file tách xong
+              await loadOutputHistory();
               resolve();
             } else if (statusData.status === "error") {
               clearInterval(checkDone);
@@ -3391,7 +3467,7 @@ document.addEventListener("click", async (e) => {
       const res = await fetch("/api/ai-splitter/process-local", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename }),
+        body: JSON.stringify({ filename, project_id: getProjectId() || null }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -3468,6 +3544,8 @@ document.addEventListener("click", async (e) => {
       // 1. Upload
       const formData = new FormData();
       formData.append("file", file);
+      const pid = getProjectId();
+      if (pid) formData.append("project_id", String(pid));
       const uploadRes = await fetch("/api/ai-splitter/upload", { method: "POST", body: formData });
       const uploadData = await uploadRes.json();
       if (uploadData.error) {
@@ -3543,7 +3621,7 @@ document.addEventListener("click", async (e) => {
         progressText.textContent = "100%";
         statusText.textContent = `✅ Hoàn thành! Đã tách thành ${data.output_files.length} file.`;
         renderOutputFiles(data.output_files);
-        loadOutputHistory();
+        await loadOutputHistory();
         uploadBtn.disabled = false;
         uploadBtn.textContent = "📤 Upload & Tách";
       } else if (data.status === "error") {
@@ -3607,7 +3685,9 @@ async function loadOutputHistory() {
   const listEl = document.getElementById("splitterOutputHistoryList");
   if (!listEl) return;
   try {
-    const res = await fetch("/api/ai-splitter/list-outputs");
+    const pid = getProjectId();
+    const url = "/api/ai-splitter/list-outputs" + (pid ? "?project_id=" + pid : "");
+    const res = await fetch(url);
     const data = await res.json();
     const groups = data.groups || [];
     if (groups.length === 0) {
