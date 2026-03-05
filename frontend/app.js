@@ -188,6 +188,7 @@ let currentProjectId = null;
 // ==================== PROJECT MANAGEMENT ====================
 
 const projectSelectEl = document.getElementById("projectSelect");
+const btnCreateProject = document.getElementById("btnCreateProject");
 const btnNewProject = document.getElementById("btnNewProject");
 const btnRenameProject = document.getElementById("btnRenameProject");
 const btnDeleteProject = document.getElementById("btnDeleteProject");
@@ -258,8 +259,57 @@ btnNewProject.addEventListener("click", async () => {
     await loadClassifierFiles();
     await loadSplitterFileList();
     await loadOutputHistory();
-    if (loadFilteredFiles) await loadFilteredFiles();
+    if (typeof loadFilteredFiles === 'function') await loadFilteredFiles();
     alert("Đã xóa dữ liệu. Bạn có thể bỏ file mới vào và làm lại từ đầu.");
+  } catch (e) {
+    alert("Lỗi: " + e.message);
+  }
+});
+
+btnCreateProject.addEventListener("click", async () => {
+  const name = prompt("Nhập tên hồ sơ mới (VD: Dữ liệu khách hàng B):");
+  if (!name || !name.trim()) return;
+  try {
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    const newProject = await res.json();
+    if (!res.ok) {
+      alert("Lỗi: " + (newProject.error || "không xác định"));
+      return;
+    }
+    
+    currentProjectId = newProject.id || newProject.project_id;
+    if (!currentProjectId) {
+      // In case the API returns the project id under a different key but usually it's `id`
+      const listRes = await fetch("/api/projects");
+      const listData = await listRes.json();
+      const projects = listData.projects || [];
+      if (projects.length > 0) {
+        const added = projects.find(p => p.name === name.trim());
+        if (added) currentProjectId = added.id;
+      }
+    }
+    
+    localStorage.setItem("currentProjectId", currentProjectId);
+    
+    await loadProjects();
+    
+    try {
+      await loadSteps();
+      await loadLatestItinerary();
+      await loadLatestBooking();
+      await loadItineraryContext();
+      await loadLatestTripInfo();
+      await loadClassifierFiles();
+      await loadSplitterFileList();
+      await loadOutputHistory();
+      if (typeof loadFilteredFiles === 'function') await loadFilteredFiles();
+    } catch (e) {
+      console.error("Failed to reload project-scoped data:", e);
+    }
   } catch (e) {
     alert("Lỗi: " + e.message);
   }
