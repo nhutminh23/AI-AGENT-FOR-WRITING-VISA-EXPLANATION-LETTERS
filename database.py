@@ -174,6 +174,21 @@ def delete_project(project_id: int) -> bool:
         session.close()
 
 
+def clear_project_data(project_id: int) -> bool:
+    """Xóa toàn bộ dữ liệu của hồ sơ (trip, booking, itinerary, letter) nhưng giữ lại project.
+    Dùng khi 'Làm mới (người mới)' — chỉ cần 1 hồ sơ, xóa data rồi bỏ file mới vào."""
+    session = get_session()
+    try:
+        session.query(TripInfo).filter_by(project_id=project_id).delete()
+        session.query(Booking).filter_by(project_id=project_id).delete()
+        session.query(Itinerary).filter_by(project_id=project_id).delete()
+        session.query(LetterState).filter_by(project_id=project_id).delete()
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
 def _project_to_dict(p: Project) -> Dict[str, Any]:
     return {
         "id": p.id,
