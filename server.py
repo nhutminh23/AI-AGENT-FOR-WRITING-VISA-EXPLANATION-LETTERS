@@ -648,7 +648,7 @@ def classifier_rename_file():
     ext = os.path.splitext(full_old)[1] or ".pdf"
 
     # Import domain resolver from classifier
-    from classifier.agent import _resolve_domain_prefix, _sanitize_name, _pick_unique_destination
+    from classifier.agent import _resolve_domain_prefix, _sanitize_name
 
     doc_type = _sanitize_name(new_doc_type, "DOCUMENT") if new_doc_type else "DOCUMENT"
     person_clean = _sanitize_name(new_person, "UNKNOWN PERSON")
@@ -659,10 +659,25 @@ def classifier_rename_file():
     # Create new person directory
     new_person_dir = os.path.join(temp_output, person_clean)
     os.makedirs(new_person_dir, exist_ok=True)
-    new_path = _pick_unique_destination(new_person_dir, stem, ext)
+    
+    # Pick a unique destination name, but don't increment if the "collision" is just the source file itself
+    new_path = os.path.join(new_person_dir, f"{stem}{ext}")
+    idx = 1
+    while os.path.exists(new_path):
+        try:
+            if os.path.samefile(full_old, new_path):
+                break  # The file already has this name, no collision
+        except OSError:
+            pass
+        new_path = os.path.join(new_person_dir, f"{stem} ({idx}){ext}")
+        idx += 1
 
-    # Move file
-    shutil.move(full_old, new_path)
+    # Only move if the path actually changed
+    if not (os.path.exists(new_path) and os.path.exists(full_old) and os.path.samefile(full_old, new_path)):
+        try:
+            shutil.move(full_old, new_path)
+        except getattr(__builtins__, "FileNotFoundError", OSError):
+            return jsonify({"error": f"File already moved or not found: {old_path}"}), 404
 
     # Clean up empty old directory
     old_dir = os.path.dirname(full_old)
@@ -1820,8 +1835,31 @@ def get_destinations():
 def booking_filtered_files():
     """List files in input dir, categorized by trip-info prefix."""
     input_dir = request.args.get("input_dir", "input")
+    project_id = request.args.get("project_id", type=int)
+    guest_names_param = request.args.get("guest_names", "")
+
     if not os.path.isdir(input_dir):
         return jsonify({"files": [], "matched": [], "other": []})
+
+    # Get guest names for filtering (from param or DB)
+    guest_names = [n.strip() for n in guest_names_param.split(",") if n.strip()] if guest_names_param else []
+    if not guest_names and project_id:
+        saved_ti = db.get_latest_trip_info(project_id)
+        if saved_ti and saved_ti.get("data", {}).get("guest_names"):
+            guest_names = saved_ti["data"]["guest_names"]
+
+    def _filename_matches_guests(fname, names):
+        if not names:
+            return True  # No filter = show all
+        normalized_fname = re.sub(r'[\s\-_]+', ' ', os.path.splitext(fname)[0].upper()).strip()
+        for name in names:
+            normalized_name = re.sub(r'[\s\-_]+', ' ', name.upper()).strip()
+            if not normalized_name:
+                continue
+            name_parts = [p for p in normalized_name.split() if len(p) > 1]
+            if len(name_parts) >= 2 and all(part in normalized_fname for part in name_parts):
+                return True
+        return False
 
     PREFIXES = {
         "OVERVIEW": "🌍 Tổng quan",
@@ -1835,8 +1873,12 @@ def booking_filtered_files():
     other = []
     for root, _, filenames in os.walk(input_dir):
         for fname in sorted(filenames):
+            # Filter by guest names if available
+            if guest_names and not _filename_matches_guests(fname, guest_names):
+                continue
+
             stem = os.path.splitext(fname)[0]
-            normalized = __import__("re").sub(r"[\s\-_]+", " ", stem.upper()).strip()
+            normalized = re.sub(r"[\s\-_]+", " ", stem.upper()).strip()
             rel = os.path.relpath(os.path.join(root, fname), input_dir).replace("\\", "/")
             found_prefix = None
             found_label = None
@@ -1860,11 +1902,17 @@ def extract_trip():
     input_dir = payload.get("input_dir", "input")
     model = payload.get("model") or get_vision_model()  # reads input files (may contain images)
     project_id = payload.get("project_id")
+    # Get saved guest names to filter input files by project
+    saved_guest_names = payload.get("guest_names") or []
+    if not saved_guest_names and project_id:
+        saved_ti = db.get_latest_trip_info(int(project_id))
+        if saved_ti and saved_ti.get("data", {}).get("guest_names"):
+            saved_guest_names = saved_ti["data"]["guest_names"]
 
     llm = ChatOpenAI(model=model, temperature=0)
 
     try:
-        trip_info = extract_trip_info(llm, input_dir)
+        trip_info = extract_trip_info(llm, input_dir, guest_names=saved_guest_names)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2112,7 +2160,13 @@ def ai_generate_booking_stream():
                 # Step 1: Extract or load trip info
                 if not trip_info:
                     yield from send_event(1, "⏳ Đang trích xuất thông tin chuyến đi từ file...")
-                    trip_info = extract_trip_info(llm, input_dir)
+                    # Get saved guest names to filter input files by project
+                    saved_guest_names = []
+                    if project_id:
+                        saved_ti = db.get_latest_trip_info(int(project_id))
+                        if saved_ti and saved_ti.get("data", {}).get("guest_names"):
+                            saved_guest_names = saved_ti["data"]["guest_names"]
+                    trip_info = extract_trip_info(llm, input_dir, guest_names=saved_guest_names)
                     yield from send_event(1, "✅ Trích xuất thông tin chuyến đi hoàn tất")
                 else:
                     yield from send_event(1, "✅ Đã có thông tin chuyến đi")

@@ -1350,6 +1350,8 @@ function formatClassifierResult(data) {
 function setupClassifierRename() {
   const resultEl = classifierResultEl;
   if (!resultEl) return;
+  if (resultEl._renameSetupDone) return;
+  resultEl._renameSetupDone = true;
 
   // Toggle rename form
   resultEl.addEventListener("click", (e) => {
@@ -1555,7 +1557,7 @@ async function sendToInput() {
     const res = await fetch("/api/pipeline/send-to-input", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ target_dir: "booking/input" }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -2396,7 +2398,8 @@ async function loadFilteredFiles() {
   if (statusEl) statusEl.textContent = "";
 
   try {
-    const res = await fetch(`/api/booking/filtered-files?input_dir=${encodeURIComponent(inputDir)}`);
+    const pid = getProjectId();
+    const res = await fetch(`/api/booking/filtered-files?input_dir=${encodeURIComponent(inputDir)}${pid ? `&project_id=${pid}` : ''}`);
     const data = await res.json();
 
     if (!data.matched || data.matched.length === 0) {

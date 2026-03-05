@@ -109,14 +109,16 @@ QUY TẮC BẮT BUỘC CHO KHÁCH SẠN:
 5. Chọn hạng 4-5 sao, phù hợp profile khách
 6. Giá PHẢI HỢP LÝ theo thị trường thực tế (USD/đêm hoặc local currency)
 7. Loại phòng phải có thật tại khách sạn đó. ⚠️ Tên loại phòng phải NGẮN GỌN (tối đa 2-3 từ, ví dụ: "Superior King", "Deluxe Twin", "Premier Suite"). KHÔNG dùng tên dài quá 20 ký tự.
-8. Ngày check-in khách sạn đầu tiên = ngày đến nước sở tại (sau khi bay)
-9. Ngày check-out khách sạn cuối = ngày về
-10. CHIA PHÒNG ĐÚNG QUY TẮC:
-    - Mỗi phòng tối đa 2 NGƯỜI LỚN + 1 TRẺ EM
-    - Trong guest_names, tên có "[child]" hoặc "[tre em]" cuối cùng là trẻ em, còn lại là người lớn
-    - Ví dụ 5 khách: 3 người lớn + 2 trẻ em → 2 phòng (phòng 1: 2 lớn + 1 em, phòng 2: 1 lớn + 1 em)
-    - Ví dụ 4 khách: 4 người lớn → 2 phòng (mỗi phòng 2 lớn)
-    - Set num_rooms, num_adults, num_children cho TỪNG khách sạn theo quy tắc trên
+8. 🕒 QUAN TRỌNG VỀ NGÀY CHECK-IN/CHECK-OUT KHÁCH SẠN:
+   - Ngày check-in khách sạn đầu tiên PHẢI LÀ NGÀY HẠ CÁNH (Arrival Date) của chuyến bay chiều đi.
+   - Nếu chuyến bay là chuyến bay qua đêm (Overnight flight - ví dụ bay tối 7/7, hạ cánh sáng 8/7), thì ngày check-in khách sạn phải là 8/7 (KHÔNG PHẢI 7/7).
+   - Ngày check-out khách sạn cuối cùng PHẢI LÀ NGÀY CẤT CÁNH của chuyến bay chiều về.
+9. CHIA PHÒNG ĐÚNG QUY TẮC:
+   - Mỗi phòng tối đa 2 NGƯỜI LỚN + 1 TRẺ EM
+   - Trong guest_names, tên có "[child]" hoặc "[tre em]" cuối cùng là trẻ em, còn lại là người lớn
+   - Ví dụ 5 khách: 3 người lớn + 2 trẻ em → 2 phòng (phòng 1: 2 lớn + 1 em, phòng 2: 1 lớn + 1 em)
+   - Ví dụ 4 khách: 4 người lớn → 2 phòng (mỗi phòng 2 lớn)
+   - Set num_rooms, num_adults, num_children cho TỪNG khách sạn theo quy tắc trên
 
 QUY TẮC BẮT BUỘC CHO CHUYẾN BAY:
 
@@ -549,18 +551,37 @@ def _safe_json_loads(text: str) -> dict:
 
 # ==================== AGENT 1: TRIP INFO EXTRACTOR ====================
 
-def extract_trip_info(llm: Any, input_dir: str) -> Dict[str, Any]:
+def extract_trip_info(llm: Any, input_dir: str, guest_names: list = None) -> Dict[str, Any]:
     """
     Read only files prefixed with trip-info keywords and extract trip information.
     Uses parallel file reading for speed.
+    If guest_names is provided, filter files to only include those
+    whose filename contains at least one of the guest names.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _filename_matches_guests(fname: str, names: list) -> bool:
+        """Check if filename contains at least one guest name."""
+        normalized_fname = re.sub(r'[\s\-_]+', ' ', os.path.splitext(fname)[0].upper()).strip()
+        for name in names:
+            normalized_name = re.sub(r'[\s\-_]+', ' ', name.upper()).strip()
+            if not normalized_name:
+                continue
+            # Check each part of the name (handle LAST_FIRST vs FIRST_LAST)
+            name_parts = [p for p in normalized_name.split() if len(p) > 1]
+            if len(name_parts) >= 2 and all(part in normalized_fname for part in name_parts):
+                return True
+        return False
 
     # Collect matching file paths
     file_paths = []
     for root, _, filenames in os.walk(input_dir):
         for fname in sorted(filenames):
             if _is_trip_info_filename(fname):
+                # If guest_names filter is set, only include files for those guests
+                if guest_names and len(guest_names) > 0:
+                    if not _filename_matches_guests(fname, guest_names):
+                        continue
                 file_paths.append((fname, os.path.join(root, fname)))
 
     if not file_paths:
