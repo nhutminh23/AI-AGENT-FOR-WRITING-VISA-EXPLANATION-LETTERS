@@ -1369,12 +1369,14 @@ def get_itinerary_context_latest():
 
 def _build_itinerary_summary_from_form(form_data: Dict[str, Any]) -> str:
     participants = (form_data.get("participants") or "").strip()
+    additional_info = (form_data.get("additional_info") or "").strip()
     travel_purpose = (form_data.get("travel_purpose") or "").strip()
     start_date = (form_data.get("travel_start_date") or "").strip()
     end_date = (form_data.get("travel_end_date") or "").strip()
     has_any_value = any(
         [
             participants,
+            additional_info,
             travel_purpose,
             start_date,
             end_date,
@@ -1386,6 +1388,8 @@ def _build_itinerary_summary_from_form(form_data: Dict[str, Any]) -> str:
     lines: List[str] = ["Core itinerary inputs:"]
     if participants:
         lines.append(f"- Participant(s): {participants}")
+    if additional_info:
+        lines.append(f"- Additional information: {additional_info}")
     if start_date and end_date:
         lines.append(f"- Travel period: From {start_date} to {end_date}")
     elif start_date:
