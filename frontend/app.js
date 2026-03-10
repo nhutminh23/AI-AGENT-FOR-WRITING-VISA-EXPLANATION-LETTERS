@@ -7,6 +7,7 @@ const inputDirEl = document.getElementById("inputDir");
 const outputPathEl = document.getElementById("outputPath");
 const itineraryOutputEl = document.getElementById("itineraryOutput");
 const itParticipantsEl = document.getElementById("itParticipants");
+const itAdditionalInfoEl = document.getElementById("itAdditionalInfo");
 const itTravelPurposeEl = document.getElementById("itTravelPurpose");
 const itTravelStartDateEl = document.getElementById("itTravelStartDate");
 const itTravelEndDateEl = document.getElementById("itTravelEndDate");
@@ -1934,6 +1935,7 @@ function renderFileOptions() {
 function collectItineraryFormData() {
   return {
     participants: itParticipantsEl.value.trim(),
+    additional_info: itAdditionalInfoEl.value.trim(),
     travel_purpose: itTravelPurposeEl.value.trim(),
     travel_start_date: itTravelStartDateEl.value.trim(),
     travel_end_date: itTravelEndDateEl.value.trim(),
@@ -1942,6 +1944,7 @@ function collectItineraryFormData() {
 
 function applyItineraryFormData(formData = {}) {
   itParticipantsEl.value = formData.participants || "";
+  itAdditionalInfoEl.value = formData.additional_info || "";
   itTravelPurposeEl.value = formData.travel_purpose || "";
   itTravelStartDateEl.value = formData.travel_start_date || "";
   itTravelEndDateEl.value = formData.travel_end_date || "";
@@ -1954,6 +1957,7 @@ function buildItinerarySummaryFromForm(formData) {
   const sections = [
     "Core itinerary inputs:",
     formData.participants ? `- Participant(s): ${formData.participants}` : "",
+    formData.additional_info ? `- Additional information: ${formData.additional_info}` : "",
     formData.travel_start_date && formData.travel_end_date
       ? `- Travel period: From ${formData.travel_start_date} to ${formData.travel_end_date}`
       : "",
