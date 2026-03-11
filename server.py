@@ -4,6 +4,10 @@ import json
 import os
 import re
 import shutil
+import base64
+import tempfile
+import uuid
+from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -18,6 +22,11 @@ from core.agents import (
     ingest_files,
     itinerary_writer,
     letter_writer,
+)
+from core.prompts import (
+    OCR_VIETNAMESE_ADMIN_PROMPT,
+    TRANSLATE_TO_EN_PROMPT,
+    TRANSLATION_HTML_RENDER_PROMPT,
 )
 from classifier.agent import classify_files_in_folder
 from pypdf import PdfReader, PdfWriter
@@ -38,6 +47,149 @@ def get_text_model() -> str:
 def get_vision_model() -> str:
     """Model for image/OCR tasks (gpt-4o-mini default — cheaper, good at vision)."""
     return os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
+
+
+TRANSLATE_TEMPLATE_DIR = os.path.join("dich", "HTML template")
+TRANSLATE_OUTPUT_DIR = os.path.join("output", "translation")
+TRANSLATE_HTML_SAVE_DIR = os.path.join("dich", "html")
+TRANSLATE_DEFAULT_TEMPLATE = "a4.html"
+translation_upload_cache: Dict[str, Dict[str, str]] = {}
+
+def _default_translate_template_html() -> str:
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Translated Document</title>
+  <style>
+    body { margin:0; padding:20px; background:#f3f4f6; font-family:"Times New Roman", serif; }
+    .a4-page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:18mm; box-sizing:border-box; box-shadow:0 0 8px rgba(0,0,0,.1); }
+    h1 { font-size:20px; margin:0 0 14px; text-align:center; text-transform:uppercase; }
+    .doc-content { white-space:pre-wrap; font-size:14px; line-height:1.45; }
+    @media print { body { background:#fff; padding:0; } .a4-page { box-shadow:none; margin:0; width:100%; min-height:unset; } }
+  </style>
+</head>
+<body>
+  <div class="a4-page">
+    <h1>TRANSLATED DOCUMENT</h1>
+    <div class="doc-content">{{CONTENT}}</div>
+  </div>
+</body>
+</html>"""
+
+
+def _ensure_translate_template_dir() -> None:
+    os.makedirs(TRANSLATE_TEMPLATE_DIR, exist_ok=True)
+    default_path = os.path.join(TRANSLATE_TEMPLATE_DIR, TRANSLATE_DEFAULT_TEMPLATE)
+    if not os.path.exists(default_path):
+        with open(default_path, "w", encoding="utf-8") as f:
+            f.write(_default_translate_template_html())
+
+
+def _safe_name(name: str) -> str:
+    cleaned = re.sub(r"[\\/:*?\"<>|]+", " ", (name or "")).strip()
+    return re.sub(r"\s+", " ", cleaned)
+
+
+def _resolve_translate_source_path(input_dir: str, file_ref: str) -> Optional[str]:
+    """Resolve file path for translation sources.
+
+    Supports:
+    - files inside input_dir (same as other modules)
+    - uploaded files in temp cache using prefix: "upload_token:<token>"
+    """
+    if not file_ref:
+        return None
+    file_ref = file_ref.strip().replace("\\", "/")
+    if file_ref.startswith("upload_token:"):
+        token = file_ref.split(":", 1)[1].strip()
+        meta = translation_upload_cache.get(token) or {}
+        candidate = meta.get("temp_path", "")
+        if candidate and os.path.exists(candidate):
+            return candidate
+        return None
+    return _resolve_input_file_path(input_dir, file_ref)
+
+
+def _img_bytes_to_data_url(image_bytes: bytes) -> str:
+    return f"data:image/png;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+
+
+def _ocr_image_bytes(llm: Any, image_bytes: bytes, page_idx: int, total_pages: int) -> str:
+    prompt = (
+        f"{OCR_VIETNAMESE_ADMIN_PROMPT}\n\n"
+        f"Bạn đang OCR trang {page_idx}/{total_pages}. Chỉ trả ra text của trang này."
+    )
+    msg = HumanMessage(
+        content=[
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": _img_bytes_to_data_url(image_bytes)}},
+        ]
+    )
+    result = llm.invoke([SystemMessage(content="Bạn là OCR engine chính xác."), msg])
+    return (result.content or "").strip()
+
+
+def _ocr_document_for_translation(llm: Any, file_path: str) -> str:
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".pdf":
+        try:
+            import pdfplumber
+            from PIL import Image
+            page_texts: List[str] = []
+            with pdfplumber.open(file_path) as pdf:
+                total = len(pdf.pages)
+                for idx, page in enumerate(pdf.pages, start=1):
+                    try:
+                        page_img = page.to_image(resolution=200).original
+                        if isinstance(page_img, Image.Image):
+                            buff = BytesIO()
+                            page_img.save(buff, format="PNG")
+                            page_texts.append(_ocr_image_bytes(llm, buff.getvalue(), idx, total))
+                    except Exception:
+                        continue
+            return "\n\n".join(t for t in page_texts if t).strip()
+        except Exception:
+            # Fallback: use existing extractor if image-render OCR fails
+            return extract_text_with_openai(llm, file_path)
+
+    if ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"]:
+        try:
+            from PIL import Image
+            img = Image.open(file_path)
+            buff = BytesIO()
+            img.save(buff, format="PNG")
+            return _ocr_image_bytes(llm, buff.getvalue(), 1, 1)
+        except Exception:
+            return extract_text_with_openai(llm, file_path)
+
+    # Non-image docs fallback
+    return extract_text_with_openai(llm, file_path)
+
+
+def _translate_ocr_text(llm: Any, ocr_text: str) -> str:
+    prompt = TRANSLATE_TO_EN_PROMPT.format(ocr_text=ocr_text)
+    result = llm.invoke([SystemMessage(content="You are a strict legal translator."), HumanMessage(content=prompt)])
+    return (result.content or "").strip()
+
+
+def _build_translation_html(
+    llm: Any,
+    translated_text: str,
+    template_html: str,
+    source_pdf_text: str,
+) -> str:
+    prompt = TRANSLATION_HTML_RENDER_PROMPT.format(
+        source_pdf_text=source_pdf_text or "",
+        template_html=template_html,
+        translated_text=translated_text,
+    )
+    result = llm.invoke([SystemMessage(content="You output valid HTML only."), HumanMessage(content=prompt)])
+    html_text = (result.content or "").strip()
+    if not html_text:
+        html_text = template_html.replace("{{CONTENT}}", translated_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    return html_text
 
 
 def _list_input_files(input_dir: str) -> List[Dict[str, str]]:
@@ -3075,6 +3227,215 @@ def splitter_clear_outputs():
                 deleted_count += 1
     splitter_jobs.clear()
     return jsonify({"status": "done", "deleted_count": deleted_count})
+
+
+@app.get("/api/translate/templates")
+def list_translate_templates():
+    _ensure_translate_template_dir()
+    templates: List[Dict[str, str]] = []
+    for name in sorted(os.listdir(TRANSLATE_TEMPLATE_DIR)):
+        path = os.path.join(TRANSLATE_TEMPLATE_DIR, name)
+        if os.path.isfile(path) and name.lower().endswith(".html"):
+            templates.append({"name": name})
+    return jsonify({"templates": templates, "default": TRANSLATE_DEFAULT_TEMPLATE})
+
+
+@app.post("/api/translate/upload")
+def translate_upload_file():
+    """Upload a file for translation flow (temporary, auto-clean)."""
+    if "file" not in request.files:
+        return jsonify({"error": "missing_file"}), 400
+    f = request.files["file"]
+    if not f or not f.filename:
+        return jsonify({"error": "missing_filename"}), 400
+
+    orig_name = os.path.basename(f.filename)
+    safe_name = _safe_name(orig_name)
+    safe_name = safe_name.replace("..", ".")
+    if not safe_name:
+        return jsonify({"error": "invalid_filename"}), 400
+
+    base, ext = os.path.splitext(safe_name)
+    ext = ext or ".bin"
+    token = uuid.uuid4().hex
+    out_name = f"translate_{token}{ext}"
+    out_path = os.path.join(tempfile.gettempdir(), out_name)
+
+    try:
+        f.save(out_path)
+    except Exception as e:
+        return jsonify({"error": "save_failed", "detail": str(e)}), 500
+
+    translation_upload_cache[token] = {"temp_path": out_path, "filename": safe_name}
+    file_ref = f"upload_token:{token}"
+    return jsonify(
+        {
+            "status": "success",
+            "file_ref": file_ref,
+            "filename": safe_name,
+            "temporary": True,
+        }
+    )
+
+
+@app.post("/api/translate/run_stream")
+def run_translate_stream():
+    payload = request.get_json(force=True) or {}
+    input_dir = payload.get("input_dir", "input")
+    file_ref = (payload.get("file_ref") or "").strip()
+    template_name = (payload.get("template_name") or TRANSLATE_DEFAULT_TEMPLATE).strip()
+    flow_id = payload.get("flow_id") or 1
+    ocr_model = payload.get("ocr_model") or get_text_model()  # default gpt-5-mini
+    translate_model = payload.get("translate_model") or get_text_model()
+
+    if not file_ref:
+        return jsonify({"error": "missing_file_ref"}), 400
+
+    _ensure_translate_template_dir()
+    template_name = _safe_name(template_name) or TRANSLATE_DEFAULT_TEMPLATE
+    template_path = os.path.abspath(os.path.join(TRANSLATE_TEMPLATE_DIR, template_name))
+    template_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
+    if not template_path.startswith(template_root) or not os.path.exists(template_path):
+        return jsonify({"error": "template_not_found"}), 404
+
+    source_path = _resolve_translate_source_path(input_dir, file_ref)
+    if not source_path:
+        return jsonify({"error": "file_not_found"}), 404
+    upload_token = ""
+    if file_ref.startswith("upload_token:"):
+        upload_token = file_ref.split(":", 1)[1].strip()
+
+    with open(template_path, "r", encoding="utf-8") as f:
+        template_html = f.read()
+
+    def generate():
+        def send_event(step: int, msg: str, data: Optional[Dict[str, Any]] = None):
+            evt: Dict[str, Any] = {"step": step, "msg": msg}
+            if data is not None:
+                evt["data"] = data
+            yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+
+        try:
+            # Step 1: OCR
+            yield from send_event(1, "⏳ Đang OCR tài liệu...")
+            llm_ocr = ChatOpenAI(model=ocr_model, temperature=0)
+            ocr_text = _ocr_document_for_translation(llm_ocr, source_path)
+            if not ocr_text.strip():
+                yield from send_event(-1, "❌ Không trích xuất được OCR từ file")
+                return
+            yield from send_event(1, "✅ OCR hoàn tất")
+
+            # Step 2: Translate
+            yield from send_event(2, "⏳ Đang dịch sang tiếng Anh...")
+            llm_translate = ChatOpenAI(model=translate_model, temperature=0)
+            translated_text = _translate_ocr_text(llm_translate, ocr_text)
+            if not translated_text.strip():
+                yield from send_event(-1, "❌ Không tạo được bản dịch")
+                return
+            yield from send_event(2, "✅ Dịch hoàn tất")
+
+            # Step 3: Build HTML
+            yield from send_event(3, "⏳ Đang tạo HTML theo template...")
+            source_pdf_text = extract_text_with_openai(llm_ocr, source_path) or ocr_text
+            html_result = _build_translation_html(
+                llm_translate,
+                translated_text,
+                template_html,
+                source_pdf_text,
+            )
+            if not html_result.strip():
+                yield from send_event(-1, "❌ Không tạo được HTML")
+                return
+            yield from send_event(3, "✅ Tạo HTML hoàn tất")
+
+            file_stem = os.path.splitext(os.path.basename(source_path))[0]
+            safe_stem = _safe_name(file_stem) or "translated_document"
+            out_dir = os.path.join(TRANSLATE_OUTPUT_DIR, f"flow_{flow_id}")
+            os.makedirs(out_dir, exist_ok=True)
+
+            ocr_path = os.path.join(out_dir, f"{safe_stem}.ocr.txt")
+            translated_path = os.path.join(out_dir, f"{safe_stem}.translated.txt")
+            html_path = os.path.join(out_dir, f"{safe_stem}.translated.html")
+            with open(ocr_path, "w", encoding="utf-8") as f:
+                f.write(ocr_text)
+            with open(translated_path, "w", encoding="utf-8") as f:
+                f.write(translated_text)
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(html_result)
+
+            yield from send_event(
+                4,
+                "✅ Hoàn tất",
+                {
+                    "ocr_text": ocr_text,
+                    "translated_text": translated_text,
+                    "html": html_result,
+                    "paths": {
+                        "ocr_path": ocr_path,
+                        "translated_path": translated_path,
+                        "html_path": html_path,
+                    },
+                },
+            )
+        except Exception as e:
+            yield from send_event(-1, f"❌ Lỗi: {str(e)}")
+        finally:
+            # Cleanup temporary uploaded file (if any)
+            if upload_token:
+                meta = translation_upload_cache.pop(upload_token, None) or {}
+                temp_path = meta.get("temp_path", "")
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/translate/save_html")
+def translate_save_html():
+    payload = request.get_json(force=True) or {}
+    html_content = payload.get("html_content") or ""
+    file_name = _safe_name(payload.get("file_name") or "").strip()
+    if not html_content.strip():
+        return jsonify({"error": "missing_html_content"}), 400
+    if not file_name:
+        return jsonify({"error": "missing_file_name"}), 400
+    if not file_name.lower().endswith(".html"):
+        file_name = f"{file_name}.html"
+
+    os.makedirs(TRANSLATE_HTML_SAVE_DIR, exist_ok=True)
+    out_path = os.path.join(TRANSLATE_HTML_SAVE_DIR, file_name)
+
+    # Avoid overwrite by suffixing
+    if os.path.exists(out_path):
+        stem, ext = os.path.splitext(file_name)
+        idx = 1
+        while os.path.exists(out_path):
+            out_path = os.path.join(TRANSLATE_HTML_SAVE_DIR, f"{stem} ({idx}){ext}")
+            idx += 1
+
+    try:
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+    except Exception as e:
+        return jsonify({"error": "save_failed", "detail": str(e)}), 500
+
+    return jsonify(
+        {
+            "status": "success",
+            "saved_path": out_path.replace("\\", "/"),
+            "saved_name": os.path.basename(out_path),
+        }
+    )
 
 
 if __name__ == "__main__":

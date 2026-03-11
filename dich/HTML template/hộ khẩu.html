@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Household Registration Book - A4</title>
+<style>
+    body {
+        margin: 0;
+        padding: 20px 0;
+        background: #eee;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: "Times New Roman", serif;
+    }
+
+    .a4 {
+        width: 210mm;
+        min-height: 297mm;
+        background: #fff;
+        padding: 20mm;
+        box-sizing: border-box;
+        box-shadow: 0 0 10px rgba(0,0,0,0.15);
+        position: relative;
+        display: block;
+        margin-bottom: 20px;
+    }
+
+    h1, h2, h3, p {
+        margin: 0 0 6px 0;
+        line-height: 1.1;
+    }
+
+    .center {
+        text-align: center;
+    }
+
+    .right {
+        text-align: right;
+    }
+
+    .section {
+        margin-bottom: 8px;
+    }
+
+    .field {
+        margin-bottom: 6px;
+    }
+
+    .label {
+        font-weight: bold;
+    }
+
+    .emblem {
+        display: block;
+        margin: 6px auto;
+        width: 60px;
+        height: auto;
+    }
+
+    .sig-row {
+        display: flex;
+        gap: 16mm;
+        justify-content: center;
+        align-items: flex-start;
+        margin-top: 8mm;
+        flex-wrap: nowrap;
+    }
+
+    .sig-block {
+        width: 78mm;
+        min-height: 38mm;
+        box-sizing: border-box;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        flex-shrink: 0;
+    }
+
+    .sig-block p {
+        margin: 2px 0;
+    }
+
+    .muted {
+        color: #000;
+        opacity: 0.95;
+    }
+
+    .small {
+        font-size: 12px;
+    }
+
+    .page-footnote {
+        position: absolute;
+        bottom: 20mm;
+        left: 20mm;
+        right: 20mm;
+        text-align: left;
+        font-size: 12px;
+    }
+
+    @media print {
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        body {
+            padding: 0;
+            background: none;
+        }
+        .a4 {
+            width: 210mm;
+            height: 297mm;
+            box-shadow: none;
+            margin: 0;
+            padding: 20mm;
+            page-break-after: always;
+        }
+    }
+</style>
+</head>
+<body>
+
+    <div class="a4">
+
+        <div class="center section" style="margin-top:10mm;">
+            <h3 class="muted">HO CHI MINH CITY POLICE</h3>
+            <h2 class="muted">HOUSEHOLD REGISTRATION BOOK</h2>
+            <p class="muted">No: 31100069439</p>
+        </div>
+
+        <div class="section" style="margin-top:8mm;">
+            <p class="label">Full name of household head: <span class="muted">NGUYEN THI HUE</span></p>
+            <p class="label">Permanent residence: <br>
+            <span class="muted">652/60 Cong Hoa, Ward 13, Tan Binh District</span></p>
+        </div>
+        <div class="sig-row">
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+        <hr style="margin:10mm 0; border:none; border-top:1px solid #ddd;">
+
+        <div class="section" style="margin-top:6mm;">
+            <h3 class="label">HEAD OF HOUSEHOLD </h3>
+            <p class="label">Full name: <span class="muted">NGUYEN THI HUE </span></p>
+            <p class="label">Date of birth: <span class="muted">27/07/1962 </span></p>
+            <p class="label">Sex: <span class="muted">Female </span></p>
+            <p class="label">Place of origin: <span class="muted">Nam Dinh </span></p>
+            <p class="label">Ethnicity: <span class="muted">Kinh </span></p>
+            <p class="label">Religion: <span class="muted">Catholic</span></p>
+            <p class="label">ID No: <span class="muted">023459158 </span></p>
+            <p class="label">Moved in on: <span class="muted">05/12/1996 </span></p>
+        </div>
+
+        <div class="sig-row">
+            
+            <div class="sig-block">
+                <p class="label">REGISTERING OFFICER </p>
+                <p class="muted">(signature, full name) </p>
+                <p class="label">LE THI THU TRANG </p>
+            </div>
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="a4">
+        <div class="section">
+            <h3 class="label">RELATIONSHIP TO HEAD OF HOUSEHOLD: Husband </h3>
+            <p class="label">Full name: <span class="muted">PHAN VAN NGOC </span></p>
+            <p class="label">Date of birth: <span class="muted">12/07/1959 </span></p>
+            <p class="label">Sex: <span class="muted">Male </span></p>
+            <p class="label">Place of origin: <span class="muted">Nam Dinh </span></p>
+            <p class="label">Ethnicity: <span class="muted">Kinh </span></p>
+            <p class="label">Religion: <span class="muted">Catholic</span></p>
+            <p class="label">ID No: <span class="muted">023459897 </span></p>
+            <p class="label">Moved in on: <span class="muted">05/12/1996 </span></p>
+        </div>
+        <div class="sig-row">
+            <div class="sig-block">
+                <p class="label">REGISTERING OFFICER </p>
+                <p class="muted">(signature, full name) </p>
+                <p class="label">LE THI THU TRANG </p>
+            </div>
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+        <hr style="margin:10mm 0; border:none; border-top:1px solid #ddd;">
+
+        <div class="section">
+            <h3 class="label">RELATIONSHIP TO HEAD OF HOUSEHOLD: Child </h3>
+            <p class="label">Full name: <span class="muted">PHAN TAN DAT </span></p>
+            <p class="label">Date of birth: <span class="muted">25/08/1981 </span></p>
+            <p class="label">Sex: <span class="muted">Male </span></p>
+            <p class="label">Place of origin: <span class="muted">Ho Chi Minh City </span></p>
+            <p class="label">Ethnicity: <span class="muted">Kinh </span></p>
+            <p class="label">Religion: <span class="muted">Catholic </span></p>
+            <p class="label">ID No: <span class="muted">023471840 </span></p>
+            <p class="label">Moved in on: <span class="muted">05/12/1996 </span></p>
+        </div>
+        <div class="sig-row">
+            <div class="sig-block">
+                <p class="label">REGISTERING OFFICER </p>
+                <p class="muted">(signature, full name) </p>
+                <p class="label">LE THI THU TRANG </p>
+            </div>
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="a4">
+        <div class="section">
+            <h3 class="label">RELATIONSHIP TO HEAD OF HOUSEHOLD: Child </h3>
+            <p class="label">Full name: <span class="muted">PHAN THUY BICH HUYEN </span></p>
+            <p class="label">Date of birth: <span class="muted">21/06/1984 </span></p>
+            <p class="label">Sex: <span class="muted">Female </span></p>
+            <p class="label">Place of origin: <span class="muted">Ho Chi Minh City </span></p>
+            <p class="label">Ethnicity: <span class="muted">Kinh </span></p>
+            <p class="label">Religion: <span class="muted">Catholic </span></p>
+            <p class="label">ID No: <span class="muted">023684240 </span></p>
+            <p class="label">Moved in on: <span class="muted">05/12/1996 </span></p>
+        </div>
+        <div class="sig-row">
+            <div class="sig-block">
+                <p class="label">REGISTERING OFFICER </p>
+                <p class="muted">(signature, full name) </p>
+                <p class="label">LE THI THU TRANG </p>
+            </div>
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+        <div class="section">
+            <h3 class="label">RELATIONSHIP TO HEAD OF HOUSEHOLD: Child </h3>
+            <p class="label">Full name: <span class="muted">PHAN TUAN HUY </span></p>
+            <p class="label">Date of birth: <span class="muted">10/05/1987 </span></p>
+            <p class="label">Sex: <span class="muted">Male </span></p>
+            <p class="label">Place of origin: <span class="muted">Ho Chi Minh City </span></p>
+            <p class="label">Ethnicity: <span class="muted">Kinh </span></p>
+            <p class="label">Religion: <span class="muted">Catholic </span></p>
+            <p class="label">ID No: <span class="muted">024051229 </span></p>
+            <p class="label">Moved in on: <span class="muted">05/12/1996 </span></p>
+        </div>
+        <div class="sig-row">
+            <div class="sig-block">
+                <p class="label">REGISTERING OFFICER </p>
+                <p class="muted">(signature, full name) </p>
+                <p class="label">LE THI THU TRANG </p>
+            </div>
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+
+
+        
+
+        
+    </div>
+    <div class="a4">
+        <div class="section">
+            <h3 class="label">RELATIONSHIP TO HEAD OF HOUSEHOLD: Grandson </h3>
+            <p class="label">Full name: <span class="muted">NGUYEN PHAN HOANG VU </span></p>
+            <p class="label">Date of birth: <span class="muted">18/04/2012 </span></p>
+            <p class="label">Sex: <span class="muted">Male </span></p>
+            <p class="label">Place of origin: <span class="muted">Quang Binh </span></p>
+            <p class="label">Ethnicity: <span class="muted">Kinh </span></p>
+            <p class="label">Moved in on: <span class="muted">10/05/2012 </span></p>
+        </div>
+        <hr style="margin:10mm 0; border:none; border-top:1px solid #ddd;">
+        <div class="sig-row">
+            <div class="sig-block">
+                <p class="label">REGISTERING OFFICER </p>
+                <p class="muted">(signature, full name) </p>
+                <p class="label">LE THI THU TRANG </p>
+            </div>
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+        <div class="section">
+            <h3 class="label">RELATIONSHIP TO HEAD OF HOUSEHOLD: Grandchild </h3>
+            <p class="label">Full name: <span class="muted">NGUYEN PHAN HOANG VAN </span></p>
+            <p class="label">Date of birth: <span class="muted">26/03/2014 </span></p>
+            <p class="label">Sex: <span class="muted">Female </span></p>
+            <p class="label">Place of origin: <span class="muted">Quang Binh </span></p>
+            <p class="label">Ethnicity: <span class="muted">Kinh </span></p>
+            <p class="label">Moved in on: <span class="muted">04/04/2014 </span></p>
+        </div>
+        <div class="sig-row">
+            <div class="sig-block">
+                <p class="label">REGISTERING OFFICER </p>
+                <p class="muted">(signature, full name) </p>
+                <p class="label">LE THI THU TRANG </p>
+            </div>
+            <div class="sig-block">
+                <p class="label">01 September 2010</p>
+                <p class="label">CHIEF OF TAN BINH DISTRICT POLICE</p>
+                <p class="muted">(signature and seal)</p>
+                <p class="label">SENIOR COLONEL Tran Van Trinh</p>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

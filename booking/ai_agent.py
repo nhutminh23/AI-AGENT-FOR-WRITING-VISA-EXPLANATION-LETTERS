@@ -69,6 +69,9 @@ Trích xuất các trường sau:
 14. traveler_profile: Mô tả ngắn profile người đi (nghề nghiệp, tình trạng tài chính)
     để hỗ trợ AI chọn khách sạn phù hợp
 
+15. additional_info: Thông tin bổ sung do khách cung cấp (tên khách sạn mong muốn, địa chỉ, khu vực ưu tiên, yêu cầu phòng...)
+    - Nếu không có thì để chuỗi rỗng
+
 Trả về JSON hợp lệ, KHÔNG thêm chữ ngoài JSON:
 {{
   "guest_names": [],
@@ -84,7 +87,8 @@ Trả về JSON hợp lệ, KHÔNG thêm chữ ngoài JSON:
   "destination_airport_hint": "",
   "return_airport_hint": "",
   "travel_purpose": "",
-  "traveler_profile": ""
+  "traveler_profile": "",
+  "additional_info": ""
 }}
 
 DỮ LIỆU:
@@ -98,6 +102,8 @@ NHIỆM VỤ: Dựa trên thông tin chuyến đi, hãy chọn khách sạn và 
 
 THÔNG TIN CHUYẾN ĐI:
 {trip_info}
+
+⚠️ Nếu có trường additional_info trong trip_info, hãy ƯU TIÊN bám theo yêu cầu đó (ví dụ: tên khách sạn/khu vực/địa chỉ/yêu cầu phòng).
 
 QUY TẮC BẮT BUỘC CHO KHÁCH SẠN:
 1. Chọn khách sạn THẬT, CÓ TỒN TẠI trên thế giới (có thể verify trên Google)
@@ -332,6 +338,7 @@ DEFAULT_TRIP_INFO: Dict[str, Any] = {
     "return_airport_hint": "",
     "travel_purpose": "",
     "traveler_profile": "",
+    "additional_info": "",
 }
 
 

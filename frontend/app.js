@@ -92,6 +92,7 @@ const letterSection = document.getElementById("letterSection");
 const itinerarySection = document.getElementById("itinerarySection");
 const bookingSection = document.getElementById("bookingSection");
 const outputsSection = document.getElementById("outputsSection");
+const translateSection = document.getElementById("translateSection");
 const classifierSection = document.getElementById("classifierSection");
 const pdfSection = document.getElementById("pdfSection");
 
@@ -124,6 +125,7 @@ const tripDestinationAirportHintEl = document.getElementById("tripDestinationAir
 const tripReturnAirportHintEl = document.getElementById("tripReturnAirportHint");
 const tripTravelPurposeEl = document.getElementById("tripTravelPurpose");
 const tripTravelerProfileEl = document.getElementById("tripTravelerProfile");
+const tripAdditionalInfoEl = document.getElementById("tripAdditionalInfo");
 const runAIBookingBtn = document.getElementById("runAIBookingBtn");
 const bookingOutputAIEl = document.getElementById("bookingOutputAI");
 const aiBookingStatusEl = document.getElementById("aiBookingStatus");
@@ -177,6 +179,8 @@ const pdfRenameDocTypeCustomEl = document.getElementById("pdfRenameDocTypeCustom
 const pdfRenameGenBtn = document.getElementById("pdfRenameGenBtn");
 const pdfRunRenameBtn = document.getElementById("pdfRunRenameBtn");
 const pdfRenamePreviewEl = document.getElementById("pdfRenamePreview");
+const addTranslateFlowBtn = document.getElementById("addTranslateFlowBtn");
+const translateFlowsContainerEl = document.getElementById("translateFlowsContainer");
 
 let cachedFiles = [];
 let hotelHtmls = [];
@@ -185,6 +189,9 @@ let activeStepLog = null;
 let classifierFilesCache = [];
 let pdfFilesCache = [];
 let currentProjectId = null;
+let translationTemplatesCache = [];
+let translationSourceFilesCache = [];
+let translationFlowCounter = 0;
 
 // ==================== PROJECT MANAGEMENT ====================
 
@@ -430,6 +437,7 @@ const DEFAULT_TRIP_INFO = {
   return_airport_hint: "",
   travel_purpose: "",
   traveler_profile: "",
+  additional_info: "",
 };
 
 function renderFiles(files) {
@@ -2208,6 +2216,390 @@ function syncCombinedPreviews() {
   }
 }
 
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function loadTranslationTemplates() {
+  const res = await fetch("/api/translate/templates");
+  const data = await res.json();
+  translationTemplatesCache = data.templates || [];
+}
+
+async function loadTranslationSourceFiles() {
+  const inputDir = inputDirEl.value.trim() || "input";
+  const res = await fetch(`/api/files?input_dir=${encodeURIComponent(inputDir)}`);
+  const data = await res.json();
+  translationSourceFilesCache = data.files || [];
+}
+
+function translationTemplateOptionsHtml(selectedName = "a4.html") {
+  if (!translationTemplatesCache.length) {
+    return '<option value="">(Không có template)</option>';
+  }
+  return translationTemplatesCache
+    .map((tpl) => {
+      const sel = tpl.name === selectedName ? "selected" : "";
+      return `<option value="${escapeHtml(tpl.name)}" ${sel}>${escapeHtml(tpl.name)}</option>`;
+    })
+    .join("");
+}
+
+function translationFileOptionsHtml(selectedValue = "") {
+  const options = ['<option value="">-- Chọn file cần dịch --</option>'];
+  for (const f of translationSourceFilesCache) {
+    const value = f.rel_path || f.name || "";
+    const sel = value === selectedValue ? "selected" : "";
+    options.push(
+      `<option value="${escapeHtml(value)}" ${sel}>${escapeHtml(value)}</option>`
+    );
+  }
+  return options.join("");
+}
+
+function updateTranslateFlowStep(flowId, step, state, message = "") {
+  const iconEl = document.getElementById(`transStepIcon-${flowId}-${step}`);
+  const msgEl = document.getElementById(`transStepMsg-${flowId}-${step}`);
+  const rowEl = document.getElementById(`transStepRow-${flowId}-${step}`);
+  if (!iconEl || !msgEl || !rowEl) return;
+
+  if (state === "running") {
+    iconEl.textContent = "⏳";
+    rowEl.style.background = "#fffbeb";
+    rowEl.style.borderColor = "#fcd34d";
+    msgEl.textContent = message || "Đang xử lý...";
+    msgEl.style.color = "#d97706";
+  } else if (state === "done") {
+    iconEl.textContent = "✅";
+    rowEl.style.background = "#f0fdf4";
+    rowEl.style.borderColor = "#86efac";
+    msgEl.textContent = message || "Xong";
+    msgEl.style.color = "#16a34a";
+  } else if (state === "error") {
+    iconEl.textContent = "❌";
+    rowEl.style.background = "#fef2f2";
+    rowEl.style.borderColor = "#fca5a5";
+    msgEl.textContent = message || "Lỗi";
+    msgEl.style.color = "#dc2626";
+  } else {
+    iconEl.textContent = "⬜";
+    rowEl.style.background = "#fff";
+    rowEl.style.borderColor = "#e2e8f0";
+    msgEl.textContent = "";
+    msgEl.style.color = "#94a3b8";
+  }
+}
+
+function createTranslateFlow() {
+  if (!translateFlowsContainerEl) return;
+  translationFlowCounter += 1;
+  const flowId = translationFlowCounter;
+  const html = `
+    <section class="translate-flow-card" id="translateFlow-${flowId}">
+      <div class="card-header-row">
+        <h3 style="margin:0;">Luồng dịch #${flowId}</h3>
+      </div>
+      <div class="row">
+        <div>
+          <label for="transUpload-${flowId}">Upload file cần dịch từ máy</label>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+            <input id="transUpload-${flowId}" type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.webp,.txt,.doc,.docx" />
+            <button id="transUploadBtn-${flowId}" type="button" style="padding:8px 14px; background:#4f46e5;">📤 Upload</button>
+          </div>
+          <input id="transUploadedRef-${flowId}" type="hidden" value="" />
+          <input id="transUploadedName-${flowId}" type="hidden" value="" />
+        </div>
+        <div>
+          <label for="transTemplate-${flowId}">HTML template</label>
+          <select id="transTemplate-${flowId}">${translationTemplateOptionsHtml("a4.html")}</select>
+        </div>
+        <button id="transRunBtn-${flowId}" style="background:#2563eb;">🚀 OCR + Dịch + Tạo HTML</button>
+      </div>
+
+      <div class="translate-status" id="transStatus-${flowId}">Chưa chạy.</div>
+
+      <div style="margin-top:8px;">
+        <div id="transStepRow-${flowId}-1" style="display:flex; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; margin-bottom:4px;">
+          <span id="transStepIcon-${flowId}-1">⬜</span>
+          <span style="font-size:0.9em; color:#475569;">OCR văn bản</span>
+          <span id="transStepMsg-${flowId}-1" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
+        </div>
+        <div id="transStepRow-${flowId}-2" style="display:flex; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; margin-bottom:4px;">
+          <span id="transStepIcon-${flowId}-2">⬜</span>
+          <span style="font-size:0.9em; color:#475569;">Dịch sang tiếng Anh</span>
+          <span id="transStepMsg-${flowId}-2" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
+        </div>
+        <div id="transStepRow-${flowId}-3" style="display:flex; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px;">
+          <span id="transStepIcon-${flowId}-3">⬜</span>
+          <span style="font-size:0.9em; color:#475569;">Tạo HTML theo template</span>
+          <span id="transStepMsg-${flowId}-3" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
+        </div>
+      </div>
+
+      <details style="margin-top:10px;">
+        <summary>🧾 Văn bản OCR</summary>
+        <pre id="transOcr-${flowId}" class="summary" style="min-height:120px;">Chưa có dữ liệu.</pre>
+      </details>
+
+      <details style="margin-top:8px;">
+        <summary>🌐 Bản dịch tiếng Anh</summary>
+        <pre id="transTranslated-${flowId}" class="summary" style="min-height:120px;">Chưa có dữ liệu.</pre>
+      </details>
+
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <label for="transSaveName-${flowId}">Tên file HTML lưu vào dich/html</label>
+          <input id="transSaveName-${flowId}" type="text" placeholder="VD: khai-sinh-da-dich.html" />
+        </div>
+        <button id="transSaveHtmlBtn-${flowId}" type="button" style="background:#16a34a;">💾 Lưu HTML</button>
+      </div>
+      <input id="transHtmlRaw-${flowId}" type="hidden" value="" />
+
+      <div style="margin-top:8px;">
+        <label>Kết quả HTML</label>
+        <iframe id="transPreview-${flowId}" class="itinerary-frame" title="Translation HTML Preview"></iframe>
+      </div>
+    </section>
+  `;
+  translateFlowsContainerEl.insertAdjacentHTML("beforeend", html);
+
+  const runBtn = document.getElementById(`transRunBtn-${flowId}`);
+  if (runBtn) {
+    runBtn.addEventListener("click", () => runTranslateFlow(flowId));
+  }
+
+  const uploadBtn = document.getElementById(`transUploadBtn-${flowId}`);
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", () => uploadTranslateFile(flowId));
+  }
+  const saveBtn = document.getElementById(`transSaveHtmlBtn-${flowId}`);
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => saveTranslateHtml(flowId));
+  }
+}
+
+async function uploadTranslateFile(flowId) {
+  const inputEl = document.getElementById(`transUpload-${flowId}`);
+  const statusEl = document.getElementById(`transStatus-${flowId}`);
+  const uploadBtn = document.getElementById(`transUploadBtn-${flowId}`);
+  const uploadedRefEl = document.getElementById(`transUploadedRef-${flowId}`);
+  const uploadedNameEl = document.getElementById(`transUploadedName-${flowId}`);
+  if (!inputEl || !statusEl || !uploadBtn || !uploadedRefEl || !uploadedNameEl) return;
+
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Vui lòng chọn file để upload.</span>`;
+    return;
+  }
+
+  const originalText = uploadBtn.textContent;
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = "⏳ Đang upload...";
+  statusEl.textContent = "Đang upload file...";
+
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const pid = getProjectId();
+    const url = "/api/translate/upload" + (pid ? `?project_id=${pid}` : "");
+    const res = await fetch(url, { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ Upload lỗi: ${escapeHtml(data.error || "không xác định")}</span>`;
+      return;
+    }
+
+    const fileRef = data.file_ref;
+    const uploadedDisplayName = data.filename || file.name;
+    uploadedRefEl.value = fileRef;
+    uploadedNameEl.value = uploadedDisplayName;
+    statusEl.innerHTML = `<span style="color:#16a34a;">✅ Upload thành công: <b>${escapeHtml(uploadedDisplayName)}</b></span>`;
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Upload lỗi: ${escapeHtml(e.message)}</span>`;
+  } finally {
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = originalText;
+  }
+}
+
+async function saveTranslateHtml(flowId) {
+  const htmlRawEl = document.getElementById(`transHtmlRaw-${flowId}`);
+  const saveNameEl = document.getElementById(`transSaveName-${flowId}`);
+  const saveBtn = document.getElementById(`transSaveHtmlBtn-${flowId}`);
+  const statusEl = document.getElementById(`transStatus-${flowId}`);
+  if (!htmlRawEl || !saveNameEl || !saveBtn || !statusEl) return;
+
+  const htmlContent = (htmlRawEl.value || "").trim();
+  const fileName = (saveNameEl.value || "").trim();
+  if (!htmlContent) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Chưa có HTML để lưu.</span>`;
+    return;
+  }
+  if (!fileName) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Vui lòng nhập tên file trước khi lưu.</span>`;
+    return;
+  }
+
+  const original = saveBtn.textContent;
+  saveBtn.disabled = true;
+  saveBtn.textContent = "⏳ Đang lưu...";
+  try {
+    const res = await fetch("/api/translate/save_html", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        file_name: fileName,
+        html_content: htmlContent,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lưu HTML lỗi: ${escapeHtml(data.error || "không xác định")}</span>`;
+      return;
+    }
+    statusEl.innerHTML = `<span style="color:#16a34a;">✅ Đã lưu HTML: <b>${escapeHtml(data.saved_name || fileName)}</b> (dich/html)</span>`;
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lưu HTML lỗi: ${escapeHtml(e.message)}</span>`;
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = original;
+  }
+}
+
+async function runTranslateFlow(flowId) {
+  const templateEl = document.getElementById(`transTemplate-${flowId}`);
+  const runBtn = document.getElementById(`transRunBtn-${flowId}`);
+  const statusEl = document.getElementById(`transStatus-${flowId}`);
+  const ocrEl = document.getElementById(`transOcr-${flowId}`);
+  const translatedEl = document.getElementById(`transTranslated-${flowId}`);
+  const previewEl = document.getElementById(`transPreview-${flowId}`);
+  const uploadedRefEl = document.getElementById(`transUploadedRef-${flowId}`);
+  const uploadedNameEl = document.getElementById(`transUploadedName-${flowId}`);
+  const htmlRawEl = document.getElementById(`transHtmlRaw-${flowId}`);
+  const saveNameEl = document.getElementById(`transSaveName-${flowId}`);
+  if (!templateEl || !runBtn || !statusEl || !ocrEl || !translatedEl || !previewEl || !uploadedRefEl || !uploadedNameEl || !htmlRawEl || !saveNameEl) return;
+
+  const inputFile = (uploadedRefEl.value || "").trim();
+  const templateName = templateEl.value || "a4.html";
+  if (!inputFile) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Vui lòng upload file trước khi chạy.</span>`;
+    return;
+  }
+
+  const originalText = runBtn.textContent;
+  runBtn.disabled = true;
+  runBtn.textContent = "⏳ Đang chạy...";
+  statusEl.textContent = "Đang xử lý...";
+  updateTranslateFlowStep(flowId, 1, "idle");
+  updateTranslateFlowStep(flowId, 2, "idle");
+  updateTranslateFlowStep(flowId, 3, "idle");
+
+  try {
+    const res = await fetch("/api/translate/run_stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input_dir: inputDirEl.value.trim() || "input",
+        file_ref: inputFile,
+        template_name: templateName,
+        flow_id: flowId,
+        project_id: getProjectId(),
+      }),
+    });
+    if (!res.ok || !res.body) {
+      let detail = "Không thể chạy dịch.";
+      try {
+        const data = await res.json();
+        detail = data.error || detail;
+      } catch (e) {}
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${escapeHtml(detail)}</span>`;
+      updateTranslateFlowStep(flowId, 1, "error", detail);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalData = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        let evt = null;
+        try {
+          evt = JSON.parse(line.slice(6));
+        } catch (e) {
+          continue;
+        }
+        const step = Number(evt.step || 0);
+        const msg = String(evt.msg || "");
+        if (step === -1) {
+          statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${escapeHtml(msg || "Có lỗi xảy ra.")}</span>`;
+          updateTranslateFlowStep(flowId, 1, "error", msg);
+          updateTranslateFlowStep(flowId, 2, "error", msg);
+          updateTranslateFlowStep(flowId, 3, "error", msg);
+          return;
+        }
+        if (step >= 1 && step <= 3) {
+          if (msg.startsWith("✅")) {
+            updateTranslateFlowStep(flowId, step, "done", msg.replace(/^✅\s*/, ""));
+          } else if (msg.startsWith("⏳")) {
+            updateTranslateFlowStep(flowId, step, "running", msg.replace(/^⏳\s*/, ""));
+          }
+        }
+        if (step === 4 && evt.data) {
+          finalData = evt.data;
+        }
+      }
+    }
+
+    if (finalData) {
+      ocrEl.textContent = finalData.ocr_text || "Không có OCR.";
+      translatedEl.textContent = finalData.translated_text || "Không có bản dịch.";
+      previewEl.srcdoc = finalData.html || "<p>Không có HTML.</p>";
+      htmlRawEl.value = finalData.html || "";
+      const uploadedName = uploadedNameEl.value || "translated-document";
+      const base = uploadedName.replace(/\.[^.]+$/, "");
+      saveNameEl.value = `${base}.translated.html`;
+      statusEl.innerHTML = `<span style="color:#16a34a;">✅ Hoàn tất. Đã tạo HTML từ template <b>${escapeHtml(templateName)}</b>.</span>`;
+    } else {
+      statusEl.innerHTML = '<span style="color:#dc2626;">❌ Không nhận được kết quả từ server.</span>';
+      updateTranslateFlowStep(flowId, 3, "error", "Không có dữ liệu trả về");
+    }
+  } catch (error) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${escapeHtml(error.message)}</span>`;
+    updateTranslateFlowStep(flowId, 1, "error", error.message);
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = originalText;
+  }
+}
+
+async function initTranslationSection() {
+  if (!translateFlowsContainerEl) return;
+  if (translateFlowsContainerEl.dataset.inited === "1") return;
+  try {
+    await loadTranslationTemplates();
+    if ((translationTemplatesCache || []).length === 0) {
+      console.warn("No translation templates found.");
+    }
+    createTranslateFlow();
+    translateFlowsContainerEl.dataset.inited = "1";
+  } catch (e) {
+    translateFlowsContainerEl.innerHTML = `<div class="card" style="color:#dc2626;">❌ Không thể khởi tạo tab dịch: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
 function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -2215,7 +2607,7 @@ function setActiveTab(tab) {
 
   // Hide all sections first
   const allSections = [letterSection, itinerarySection, bookingSection,
-    outputsSection, classifierSection, pdfSection];
+    outputsSection, translateSection, classifierSection, pdfSection];
   const aisplitterSection = document.getElementById("aisplitterSection");
   const precheckSection = document.getElementById("precheckSection");
   if (aisplitterSection) allSections.push(aisplitterSection);
@@ -2238,6 +2630,9 @@ function setActiveTab(tab) {
     loadLatestItinerary().then(syncCombinedPreviews);
     loadLatestBooking().then(syncCombinedPreviews);
     syncCombinedPreviews();
+  } else if (tab === "translate") {
+    if (translateSection) translateSection.classList.remove("hidden");
+    initTranslationSection();
   } else if (tab === "classifier") {
     classifierSection.classList.remove("hidden");
     loadClassifierFiles();
@@ -2427,6 +2822,8 @@ function formatTripInfo(info) {
     lines.push(`🎯 Mục đích: ${info.travel_purpose}`);
   if (info.traveler_profile)
     lines.push(`💼 Profile: ${info.traveler_profile}`);
+  if (info.additional_info)
+    lines.push(`📝 Thông tin bổ sung: ${info.additional_info}`);
   if (info.city_stays && info.city_stays.length > 0)
     lines.push(
       `🏨 Phân bổ đêm: ${info.city_stays
@@ -2469,6 +2866,7 @@ function setTripInfoForm(info) {
   tripReturnAirportHintEl.value = merged.return_airport_hint || "";
   tripTravelPurposeEl.value = merged.travel_purpose || "";
   tripTravelerProfileEl.value = merged.traveler_profile || "";
+  if (tripAdditionalInfoEl) tripAdditionalInfoEl.value = merged.additional_info || "";
 }
 
 function getTripInfoFromForm() {
@@ -2505,6 +2903,7 @@ function getTripInfoFromForm() {
     return_airport_hint: tripReturnAirportHintEl.value.trim().toUpperCase(),
     travel_purpose: tripTravelPurposeEl.value.trim(),
     traveler_profile: tripTravelerProfileEl.value.trim(),
+    additional_info: (tripAdditionalInfoEl?.value || "").trim(),
   });
 }
 
@@ -3242,6 +3641,13 @@ tabButtons.forEach((btn) => {
   btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
 });
 
+if (addTranslateFlowBtn) {
+  addTranslateFlowBtn.addEventListener("click", async () => {
+    await loadTranslationTemplates();
+    createTranslateFlow();
+  });
+}
+
 window.addEventListener("load", async () => {
   setActiveTab("precheck");
   await fetchFiles();
@@ -3252,6 +3658,7 @@ window.addEventListener("load", async () => {
   await loadLatestTripInfo();
   await loadDestinations();
   await loadClassifierFiles();
+  await initTranslationSection();
   syncCombinedPreviews();
   await loadOutputHistory();
 });

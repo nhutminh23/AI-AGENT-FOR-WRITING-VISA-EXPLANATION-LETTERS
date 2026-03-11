@@ -30,6 +30,7 @@
         <button class="tab-btn" data-tab="itinerary">⑤ Lịch trình</button>
         <button class="tab-btn" data-tab="letter">⑥ Thư giải trình</button>
         <button class="tab-btn" data-tab="outputs">⑦ Kết quả</button>
+        <button class="tab-btn" data-tab="translate">⑧ Dịch thuật</button>
       </div>
 
       <!-- ⓪ Pre-Check Section -->
@@ -151,6 +152,12 @@
             <div>
               <label for="tripTravelerProfile">Traveler profile (optional)</label>
               <input id="tripTravelerProfile" type="text" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="tripAdditionalInfo">Thông tin bổ sung (tên khách sạn, địa chỉ, khu vực ưu tiên, yêu cầu phòng...)</label>
+              <textarea id="tripAdditionalInfo" rows="4" placeholder="VD: Ưu tiên khách sạn khu trung tâm Paris gần Champs-Élysées; nếu có thể chọn Rochester Champs Elysees Hotel, 92 Rue la Boétie..."></textarea>
             </div>
           </div>
           <div id="tripInfoPanel" class="hint" style="white-space:pre-wrap; margin-top:8px;">Chưa trích xuất.</div>
@@ -411,6 +418,20 @@
           </div>
           <iframe id="combinedHotelBookingResult" class="booking-frame" title="Combined Hotel Preview"></iframe>
         </section>
+      </div>
+
+      <div id="translateSection" class="section hidden">
+        <section class="card">
+          <div class="card-header-row">
+            <h2>Dịch tài liệu (đa luồng)</h2>
+            <button id="addTranslateFlowBtn" style="background:#16a34a;">➕ Thêm luồng mới</button>
+          </div>
+          <div class="hint">
+            Mặc định có 1 luồng. Mỗi luồng dịch hoạt động độc lập: chọn file -> OCR -> dịch -> tạo HTML theo template.
+          </div>
+        </section>
+
+        <div id="translateFlowsContainer"></div>
       </div>
 
       <div id="classifierSection" class="section hidden">

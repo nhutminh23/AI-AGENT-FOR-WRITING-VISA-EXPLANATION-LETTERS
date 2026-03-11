@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sổ đỏ</title>
+
+    <style>
+        body {
+            background: #666;
+            font-family: "Times New Roman", Times, serif;
+            margin: 0;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .paper {
+            width: 210mm;
+            height: 297mm;
+            background: #fff;
+            padding: 18mm 16mm;
+            box-sizing: border-box;
+            box-shadow: 0 0 14px rgba(0,0,0,0.45);
+            position: relative;
+            color: #000;
+            font-size: 13pt;
+            line-height: 1.35;
+            border: 1px solid #cfcfcf;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .header .state {
+            font-weight: bold;
+            font-size: 12pt;
+        }
+
+        .header .motto {
+            display: inline-block;
+            font-size: 11pt;
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+            padding-bottom: 2px;
+            margin-top: 3px;
+        }
+
+        .main-title {
+            text-transform: uppercase;
+            color: #b22222;
+            font-weight: bold;
+            margin-top: 10px;
+            line-height: 1.1;
+        }
+
+        .title-large {
+            font-size: 20pt;
+        }
+
+        .title-medium {
+            font-size: 16pt;
+            margin-top: 6px;
+        }
+
+        .content {
+            margin-top: 8px;
+            text-align: left;
+        }
+
+        .section {
+            margin-bottom: 12px;
+        }
+
+        .section .sec-title {
+            font-weight: bold;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .col {
+            margin-left: 16px;
+        }
+
+        .two-col {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .col-50 {
+            width: 50%;
+        }
+
+        .footer {
+            position: absolute;
+            right: 16mm;
+            bottom: 30mm;
+            text-align: center;
+            width: 48%;
+        }
+
+        .date-line {
+            font-style: italic;
+        }
+
+        .sign-block {
+            margin-top: 8px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 11pt;
+        }
+
+        .sign-name {
+            margin-top: 76px;
+            font-weight: bold;
+        }
+
+        .entry-number {
+            position: absolute;
+            left: 16mm;
+            bottom: 14mm;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 12pt;
+        }
+
+        .map-area {
+            width: 100%;
+            height: 320px;
+            border: 1px dashed #bbb;
+            margin: 10px 0;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(0,0,0,0.02) 0px,
+                rgba(0,0,0,0.02) 8px,
+                transparent 8px,
+                transparent 16px
+            );
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+        }
+
+        th,
+        td {
+            border: 1px solid #000;
+            padding: 6px;
+            vertical-align: top;
+        }
+
+        th {
+            background: #fff;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .footer-note {
+            position: absolute;
+            left: 16mm;
+            bottom: 10mm;
+            right: 16mm;
+            font-size: 10pt;
+            font-style: italic;
+            text-align: justify;
+        }
+
+        .barcode {
+            position: absolute;
+            left: 16mm;
+            bottom: 28mm;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 11pt;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="paper">
+    <div class="header">
+        
+
+        <div class="state">SOCIALIST REPUBLIC OF VIETNAM</div>
+        <div class="motto">Independence - Freedom - Happiness</div>
+        
+        <div class="main-title">
+            <div class="title-large">CERTIFICATE</div>
+            <div class="title-medium">OF LAND USE RIGHTS,</div>
+            <div class="title-medium">
+                OWNERSHIP OF HOUSE AND OTHER ASSETS ATTACHED TO THE LAND
+            </div>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <span class="sec-title">
+                I. Land user, owner of house and other assets attached to the land
+            </span>
+
+            <div class="col">
+                Mr: NGUYEN PHUNG<br>
+                Year of birth: 1979, ID card number: 191409025<br>
+                Permanent address: Phu Dien Commune, Phu Vang District, Thua Thien Hue Province
+            </div>
+
+            <div class="col" style="margin-top:10px;">
+                Mrs: TRAN THI LE<br>
+                Year of birth: 1979, ID card number: 191458680<br>
+                Permanent address: Phu Dien Commune, Phu Vang District, Thua Thien Hue Province
+            </div>
+        </div>
+
+        <div class="section">
+            <span class="sec-title">
+                II. The parcel of land, house and other assets attached to the land
+            </span>
+
+            <div class="col">
+                1. Land parcel:<br>
+
+                <div style="margin-left:16px;">
+                    a) Parcel number: 611<br>
+                    b) Address: Dien Loc Hamlet, Phu Dien Commune, Phu Vang District, Thua Thien Hue Province<br>
+                    c) Area: 152.0 m2 (in words: One hundred fifty-two point zero square meters)<br>
+                    d) Form of use: private: 152.0 m2; share: - m2<br>
+                    e) Purpose of use: Residential land in rural area<br>
+                    f) Term of use: Long term<br>
+                    g) Origin of use: Land allocated by the State with land use fee; (auction)
+                </div>
+
+                <div style="margin-top:8px;">
+                    2. House:
+                </div>
+
+                <div style="margin-top:6px;">
+                    3. Other constructions: -<br>
+                    4. Production forest is planted forest: - / -<br>
+                    5. Perennial crops: - / -<br>
+                    6. Notes: None
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="date-line">Phu Vang, 16 September 2014</div>
+
+        <div class="sign-block">
+            ON BEHALF OF PHU VANG DISTRICT PEOPLE'S COMMITTEE<br>
+            ACTING FOR THE CHAIRMAN<br>
+            DEPUTY CHAIRMAN
+        </div>
+
+        <div class="sign-name">
+            (seal, signature)<br>
+            HO VAN CUONG
+        </div>
+    </div>
+
+    <div class="entry-number">
+        Entry number in the Certificate issuance register: CH001089/
+    </div>
+
+    <div class="barcode">1992114007733</div>
+</div>
+
+<div class="paper">
+    <div class="content">
+        <div class="section">
+            <span class="sec-title">
+                III. Diagram of the land parcel, house and assets attached to the land
+            </span>
+            <div class="map-area"></div>
+        </div>
+
+        <div class="section">
+            <span class="sec-title">
+                IV. Changes after issuance of the Certificate
+            </span>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:69%;">Content of changes and legal basis</th>
+                        <th style="width:31%;">Confirmation of the competent authority</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            Transfer of the land use right to Ms. NGUYEN THI TRO, born in 1971, ID Card No. 191556171, permanently residing in Phú Diên Commune, Phú Vang District, Thừa Thiên Huế Province, in accordance with file No. 000630x.
+                        </td>
+                        <td>
+                            12, February, 2020<br>
+                            (seal, signature)<br>
+                            Nguyen Hieu Thuan
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        The person to whom the Certificate is issued is not permitted to amend, erase or add any content in the Certificate; when the Certificate is lost or damaged it must be reported immediately to the issuing authority
+    </div>
+</div>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Giấy khai sinh</title>
+
+<style>
+@page {
+    size: A4;
+    margin: 0;
+}
+
+body {
+    margin: 0;
+    background: #eee;
+    font-family: "Times New Roman", serif;
+    font-size: 12pt;
+    line-height: 1.4;
+}
+
+.a4 {
+    width: 210mm;
+    height: 297mm;
+    margin: auto;
+    padding: 20mm 22mm;
+    background: #fff;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.center { text-align: center; }
+.bold { font-weight: bold; }
+.italic { font-style: italic; }
+.uppercase { text-transform: uppercase; }
+.red { color: #b30000; }
+
+.header-top {
+    text-align: center;
+    font-size: 12pt;
+}
+
+.header-top .line {
+    border-bottom: 1px solid #000;
+    display: inline-block;
+    padding-bottom: 2px;
+}
+
+.serial {
+    position: absolute;
+    top: 20mm;
+    right: 22mm;
+    font-size: 12pt;
+}
+
+.emblem {
+    text-align: center;
+    margin: 10px 0 5px 0;
+}
+
+.emblem img {
+    width: 65px;
+}
+
+.title {
+    text-align: center;
+    font-size: 22pt;
+    font-weight: bold;
+    color: #b30000;
+    letter-spacing: 1px;
+}
+
+.subtitle {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 12px;
+}
+
+.content p {
+    margin: 4px 0;
+    text-align: justify;
+}
+
+.label {
+    font-weight: normal;
+}
+
+.footer {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5pt;
+}
+
+.footer-left,
+.footer-right {
+    width: 48%;
+    text-align: center;
+}
+
+.stamp {
+    border: 2px solid red;
+    color: red;
+    width: 150px;
+    margin: 10px auto;
+    padding: 6px;
+    font-size: 9pt;
+    transform: rotate(-6deg);
+}
+
+@media print {
+    body { background: #fff; }
+}
+</style>
+</head>
+
+<body>
+<div class="a4">
+
+    <div class="header-top">
+        <div class="bold uppercase">SOCIALIST REPUBLIC OF VIETNAM</div>
+        <div class="line">Independence - Freedom - Happiness</div>
+    </div>
+
+    <div class="serial">
+        <span class="bold">No.: 197</span>
+    </div>
+
+    <div class="emblem">
+        <!-- Đặt file Emblem_of_Vietnam.png cùng thư mục với file HTML -->
+        <img src="Emblem_of_Vietnam.png" alt="Quốc huy Việt Nam">
+    </div>
+
+    <div class="title">BIRTH CERTIFICATE</div>
+    <div class="subtitle">(COPY)</div>
+
+    <div class="content">
+
+        <p>
+            <span class="bold uppercase">Surname, middle name(s), given name:</span>
+            <span class="bold uppercase">PHẠM NGUYỄN PHƯƠNG TRANG</span>
+        </p>
+
+        <p>
+            <span class="label">Date, month, year of birth: 18/05/2012</span>
+            &nbsp;&nbsp;
+            <span class="label">
+                Written in words: Day eighteen, month five, year two thousand zero hundred twelve
+            </span>
+        </p>
+
+        <p>
+            <span class="label">Sex: Female</span>
+            &nbsp;&nbsp;
+            <span class="label">Ethnicity: Kinh</span>
+            &nbsp;&nbsp;
+            <span class="label">Nationality: Vietnamese</span>
+        </p>
+
+        <p>
+            <span class="label">
+                Place of birth: Da Nang Obstetrics and Pediatrics Hospital
+            </span>
+        </p>
+
+        <!-- MẸ -->
+        <p>
+            <span class="bold uppercase">
+                Surname, middle name(s), given name of mother:
+            </span>
+            <span class="bold uppercase">NGUYỄN THỊ THANH NGA</span>
+        </p>
+
+        <p>
+            <span class="label">Year of birth: 1987</span>
+            &nbsp;&nbsp;
+            <span class="label">Ethnicity: Kinh</span>
+            &nbsp;&nbsp;
+            <span class="label">Nationality: Vietnamese</span>
+        </p>
+
+        <p>
+            <span class="label">
+                Place of residence: Group 23, Nai Hien Dong Ward, Son Tra District, Da Nang City
+            </span>
+        </p>
+
+        <!-- CHA -->
+        <p>
+            <span class="bold uppercase">
+                Surname, middle name(s), given name of father:
+            </span>
+            <span class="bold uppercase">PHẠM MINH THẢO</span>
+        </p>
+
+        <p>
+            <span class="label">Year of birth: 1987</span>
+            &nbsp;&nbsp;
+            <span class="label">Ethnicity: Kinh</span>
+            &nbsp;&nbsp;
+            <span class="label">Nationality: Vietnamese</span>
+        </p>
+
+        <p>
+            <span class="label">
+                Place of residence: Regiment 83, Hai Chau military unit in Da Nang
+            </span>
+        </p>
+
+        <!-- NGƯỜI ĐI KHAI SINH -->
+        <p>
+            <span class="bold uppercase">
+                Surname, middle name(s), given name of person registering the birth:
+            </span>
+            <span class="bold uppercase">PHẠM MINH THẢO</span>
+        </p>
+
+        <p>
+            <span class="label">
+                Place of birth registration: People's Committee of Nai Hien Dong Ward, Son Tra District, Da Nang City
+            </span>
+        </p>
+
+        <p>
+            <span class="label">
+                Date, month, year of registration: 20/06/2012
+            </span>
+        </p>
+
+    </div>
+
+    <div class="footer">
+        <div class="footer-right">
+            <div class="bold">SIGNATORY OF THE BIRTH CERTIFICATE</div>
+            <div class="italic">(Signed)</div>
+            <div class="bold">ĐỖ THỊ MINH HƯƠNG</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-left">
+            <div class="label">DA NANG CITY</div>
+            <div class="label">SON TRÀ DISTRICT</div>
+            <div class="bold uppercase">PEOPLE'S COMMITTEE OF NẠI HIÊN ĐÔNG WARD</div>
+            <div>No.: 394/GKS-BS</div>
+        </div>
+
+        <div class="footer-right">
+            <div class="italic" style="margin-top:6px;">
+                Extract from the Birth Registration Book
+            </div>
+            <div class="bold">Nại Hiên Đông, day 03 month 05 year 2024</div>
+            <div class="bold">Vice Chairman</div>
+            <div class="bold">PHAN THÙY DUNG</div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
