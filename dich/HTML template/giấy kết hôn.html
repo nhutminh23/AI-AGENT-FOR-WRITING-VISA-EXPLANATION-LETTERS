@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Marriage Certificate</title>
+<style>
+@page { size: A4; margin: 0; }
+body {
+    margin: 0;
+    background: #eee;
+    font-family: "Times New Roman", serif;
+    font-size: 12pt;
+    line-height: 1.35;
+}
+.a4 {
+    width: 210mm;
+    height: 297mm;
+    margin: auto;
+    padding: 18mm 20mm;
+    background: #fff;
+    box-sizing: border-box;
+    position: relative;
+}
+.header-top { text-align: center; font-size: 12pt; }
+.header-top .line { display: inline-block; padding-bottom: 2px; border-bottom: 1px solid #000; }
+.serial { position: absolute; top: 18mm; right: 20mm; font-size: 12pt; }
+.emblem { text-align: center; margin: 8px 0 6px 0; }
+.emblem img { width: 72px; display: inline-block; }
+.title { text-align: center; font-size: 22pt; font-weight: bold; color: #b30000; margin-top: 4px; }
+.content { margin-top: 8px; }
+.two-col { display: flex; gap: 16px; }
+.col { width: 50%; box-sizing: border-box; }
+.label-line { margin: 6px 0; }
+.bold { font-weight: bold; }
+.uppercase { text-transform: uppercase; }
+.center { text-align: center; }
+.small { font-size: 11.5pt; }
+.sign-area { margin-top: 18px; display: flex; justify-content: space-between; gap: 12px; }
+.sign-block { width: 33.333%; text-align: center; box-sizing: border-box; }
+.sign-block .line { margin-top: 6px; }
+.footer-note { margin-top: 10px; text-align: left; }
+@media print { body { background: #fff; } }
+</style>
+</head>
+<body>
+<div class="a4">
+
+    <div class="header-top">
+        <div class="bold uppercase">SOCIALIST REPUBLIC OF VIETNAM</div>
+        <div class="line">Independence - Freedom - Happiness</div>
+    </div>
+
+    <div class="serial">
+        <span class="bold">No.: 26/2017</span>
+    </div>
+
+    <div class="emblem">
+        <img src="Emblem_of_Vietnam.png" alt="Quốc huy" class="emblem">
+    </div>
+
+    <div class="title">MARRIAGE CERTIFICATE</div>
+
+    <div class="content">
+
+        <div class="two-col small">
+            <div class="col">
+                <div class="label-line"><span class="bold">Surname, middle name(s) and given name of wife:</span></div>
+                <div class="label-line bold uppercase">TRAN THI HUYEN CHI</div>
+
+                <div class="label-line"><span class="bold">Date of birth:</span> 13 November 1985</div>
+                <div class="label-line"><span class="bold">Ethnicity:</span> Kinh</div>
+                <div class="label-line"><span class="bold">Nationality:</span> Vietnam</div>
+                <div class="label-line"><span class="bold">Residence:</span> No. 177 Hai Ba Trung Street, An Bien Ward, Le Chan District, Hai Phong City.</div>
+                <div class="label-line"><span class="bold">Identification document:</span> Identity Card No. 031356740 issued by Hai Phong Police on 03 July 2013.</div>
+            </div>
+
+            <div class="col">
+                <div class="label-line"><span class="bold">Surname, middle name(s) and given name of husband:</span></div>
+                <div class="label-line bold uppercase">LE BINH TUAN</div>
+
+                <div class="label-line"><span class="bold">Date of birth:</span> 19 October 1982</div>
+                <div class="label-line"><span class="bold">Ethnicity:</span> Kinh</div>
+                <div class="label-line"><span class="bold">Nationality:</span> Vietnam</div>
+                <div class="label-line"><span class="bold">Residence:</span> No. 162 Cau Dat Street, Cau Dat Ward, Ngo Quyen District, Hai Phong City.</div>
+                <div class="label-line"><span class="bold">Identification document:</span> Identity Card No. 031235514 issued by Hai Phong Police on 16 April 2014.</div>
+            </div>
+        </div>
+
+        <div style="margin-top:10px;" class="small">
+            <div class="label-line"><span class="bold">Place of marriage registration:</span> Cau Dat Ward People's Committee</div>
+            <div class="label-line">Ngo Quyen District, Hai Phong City</div>
+            <div class="label-line"><span class="bold">Date of registration:</span> 12 July 2017</div>
+        </div>
+
+        <div class="sign-area">
+            <div class="sign-block">
+                <div class="bold">Wife</div>
+                <div class="line">(Sign, write full surname, middle name(s) and given name)</div>
+                <div class="line">[signed]</div>
+                <div class="line">Tran Thi Huyen Chi</div>
+            </div>
+
+            <div class="sign-block">
+                <div class="bold">Husband</div>
+                <div class="line">(Sign, write full surname, middle name(s) and given name)</div>
+                <div class="line">[signed]</div>
+                <div class="line">Le Binh Tuan</div>
+            </div>
+
+            <div class="sign-block">
+                <div class="bold">PERSON SIGNING THE MARRIAGE CERTIFICATE</div>
+                <div class="line">(Sign, write full surname, middle name(s) and given name, title and affix seal)</div>
+                <div class="line">[signed]</div>
+                <div class="line bold">CHAIRMAN</div>
+                <div class="line">Pham Xuan Tien</div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+</body>
+</html>

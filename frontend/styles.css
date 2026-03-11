@@ -356,3 +356,17 @@ input[type="number"] {
 .tabs {
   flex-wrap: wrap;
 }
+
+.translate-flow-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.translate-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
