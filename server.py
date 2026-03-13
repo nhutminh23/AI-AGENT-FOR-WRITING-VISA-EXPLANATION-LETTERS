@@ -1988,6 +1988,7 @@ from booking.generator import (
     generate_all_bookings,
     fill_hotel_template,
     fill_flight_template,
+    fill_vivavivu_template,
     generate_bookings_from_ai,
 )
 from booking.ai_agent import (
@@ -2288,6 +2289,9 @@ def ai_generate_booking():
     output_dir = payload.get("output_dir", "output")
     model = payload.get("model") or get_text_model()  # booking uses text reasoning
     force_new = payload.get("force_new", False)
+    target = (payload.get("target") or "both").strip().lower()
+    if target not in ["both", "hotel", "flight"]:
+        target = "both"
     trip_info_override = payload.get("trip_info")
     project_id = payload.get("project_id")
 
@@ -2352,9 +2356,15 @@ def ai_generate_booking():
     )
 
     try:
+        selected_booking_data = dict(booking_data or {})
+        if target == "hotel":
+            selected_booking_data["flight"] = {}
+        elif target == "flight":
+            selected_booking_data["hotels"] = []
+
         # Generate HTML files from AI decisions
         result = generate_bookings_from_ai(
-            ai_booking_data=booking_data,
+            ai_booking_data=selected_booking_data,
             hotel_template_path=hotel_template_path,
             flight_template_path=flight_template_path,
             output_dir=output_dir,
@@ -2362,11 +2372,14 @@ def ai_generate_booking():
 
         # Save to DB
         if project_id:
+            existing = db.get_latest_booking(int(project_id)) or {}
+            final_hotel_htmls = result["hotel_htmls"] if target in ["both", "hotel"] else existing.get("hotel_htmls", [])
+            final_flight_html = result["flight_html"] if target in ["both", "flight"] else existing.get("flight_html", "")
             db.save_booking(
                 int(project_id),
                 booking_data=booking_data,
-                hotel_htmls=result["hotel_htmls"],
-                flight_html=result["flight_html"],
+                hotel_htmls=final_hotel_htmls,
+                flight_html=final_flight_html,
                 reasoning=booking_data.get("reasoning", ""),
             )
 
@@ -2396,6 +2409,9 @@ def ai_generate_booking_stream():
     output_dir = payload.get("output_dir", "output")
     model = payload.get("model") or get_text_model()
     force_new = payload.get("force_new", False)
+    target = (payload.get("target") or "both").strip().lower()
+    if target not in ["both", "hotel", "flight"]:
+        target = "both"
     trip_info_override = payload.get("trip_info")
     project_id = payload.get("project_id")
 
@@ -2470,12 +2486,28 @@ def ai_generate_booking_stream():
                     return
 
                 # Step 2: AI select bookings (use mini model for cost savings)
-                yield from send_event(2, "⏳ AI đang chọn khách sạn & chuyến bay...")
+                if target == "hotel":
+                    yield from send_event(2, "⏳ AI đang chọn khách sạn...")
+                elif target == "flight":
+                    yield from send_event(2, "⏳ AI đang chọn chuyến bay...")
+                else:
+                    yield from send_event(2, "⏳ AI đang chọn khách sạn & chuyến bay...")
                 booking_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
                 booking_data = ai_select_bookings(booking_llm, trip_info)
-                yield from send_event(2, "✅ AI đã chọn xong khách sạn & chuyến bay")
+                if target == "hotel":
+                    yield from send_event(2, "✅ AI đã chọn xong khách sạn")
+                elif target == "flight":
+                    yield from send_event(2, "✅ AI đã chọn xong chuyến bay")
+                else:
+                    yield from send_event(2, "✅ AI đã chọn xong khách sạn & chuyến bay")
 
-                if not booking_data or not booking_data.get("hotels"):
+                if not booking_data:
+                    yield from send_event(-1, "❌ AI không thể tạo booking")
+                    return
+                if target in ["both", "hotel"] and not booking_data.get("hotels"):
+                    yield from send_event(-1, "❌ AI không thể tạo booking khách sạn")
+                    return
+                if target in ["both", "flight"] and not booking_data.get("flight"):
                     yield from send_event(-1, "❌ AI không thể tạo booking")
                     return
 
@@ -2489,29 +2521,48 @@ def ai_generate_booking_stream():
                 return
 
         # Step 3: Generate HTML
-        yield from send_event(3, "⏳ Đang tạo file HTML booking...")
+        if target == "hotel":
+            yield from send_event(3, "⏳ Đang tạo file HTML khách sạn...")
+        elif target == "flight":
+            yield from send_event(3, "⏳ Đang tạo file HTML máy bay...")
+        else:
+            yield from send_event(3, "⏳ Đang tạo file HTML booking...")
 
         hotel_template_path = os.path.join(os.path.dirname(__file__), "templates", "hotel_booking.html")
         flight_template_path = os.path.join(os.path.dirname(__file__), "templates", "flight_booking.html")
 
         try:
+            selected_booking_data = dict(booking_data or {})
+            if target == "hotel":
+                selected_booking_data["flight"] = {}
+            elif target == "flight":
+                selected_booking_data["hotels"] = []
+
             result = generate_bookings_from_ai(
-                ai_booking_data=booking_data,
+                ai_booking_data=selected_booking_data,
                 hotel_template_path=hotel_template_path,
                 flight_template_path=flight_template_path,
                 output_dir=output_dir,
             )
 
             if project_id:
+                existing = db.get_latest_booking(int(project_id)) or {}
+                final_hotel_htmls = result["hotel_htmls"] if target in ["both", "hotel"] else existing.get("hotel_htmls", [])
+                final_flight_html = result["flight_html"] if target in ["both", "flight"] else existing.get("flight_html", "")
                 db.save_booking(
                     int(project_id),
                     booking_data=booking_data,
-                    hotel_htmls=result["hotel_htmls"],
-                    flight_html=result["flight_html"],
+                    hotel_htmls=final_hotel_htmls,
+                    flight_html=final_flight_html,
                     reasoning=booking_data.get("reasoning", ""),
                 )
 
-            yield from send_event(3, "✅ Tạo HTML booking hoàn tất")
+            if target == "hotel":
+                yield from send_event(3, "✅ Tạo HTML khách sạn hoàn tất")
+            elif target == "flight":
+                yield from send_event(3, "✅ Tạo HTML máy bay hoàn tất")
+            else:
+                yield from send_event(3, "✅ Tạo HTML booking hoàn tất")
 
             # Final result
             final = {
@@ -2537,6 +2588,213 @@ def ai_generate_booking_stream():
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
     })
+
+
+# ==================== SERPAPI FLIGHT SEARCH ENDPOINTS ====================
+
+def _get_serpapi_key() -> str:
+    return os.getenv("SERPAPI_KEY", "5ce801b1ff2274fc0f430d0fb53c26570893c0edbfede9ffe68a342ca05bf557")
+
+
+@app.post("/api/flights/search")
+def search_flights():
+    """Search flights using SerpAPI Google Flights engine."""
+    try:
+        from serpapi import GoogleSearch
+    except ImportError:
+        return jsonify({"error": "google-search-results package not installed. Run: pip install google-search-results"}), 500
+
+    payload = request.get_json(force=True) or {}
+    flight_type = str(payload.get("type", 2))
+    departure_id = payload.get("departure_id", "")
+    arrival_id = payload.get("arrival_id", "")
+    outbound_date = payload.get("outbound_date", "")
+
+    if not departure_id or not outbound_date:
+        return jsonify({"error": "departure_id and outbound_date are required"}), 400
+    if flight_type != "3" and not arrival_id:
+        return jsonify({"error": "arrival_id is required for non-multi-city searches"}), 400
+
+    params = {
+        "engine": "google_flights",
+        "hl": payload.get("hl", "en"),
+        "gl": payload.get("gl", "vn"),
+        "type": flight_type,
+        "departure_id": departure_id,
+        "arrival_id": arrival_id,
+        "outbound_date": outbound_date,
+        "adults": int(payload.get("adults", 1)),
+        "currency": payload.get("currency", "VND"),
+        "api_key": _get_serpapi_key(),
+    }
+
+    if payload.get("return_date"):
+        params["return_date"] = payload["return_date"]
+    if payload.get("children"):
+        params["children"] = int(payload["children"])
+    if payload.get("departure_token"):
+        params["departure_token"] = payload["departure_token"]
+    if payload.get("multi_city_json"):
+        params["multi_city_json"] = payload["multi_city_json"]
+
+    try:
+        search = GoogleSearch(params)
+        results = search.get_dict()
+    except Exception as e:
+        return jsonify({"error": f"SerpAPI error: {str(e)}"}), 500
+
+    return jsonify({
+        "best_flights": results.get("best_flights", []),
+        "other_flights": results.get("other_flights", []),
+        "search_parameters": results.get("search_parameters", {}),
+    })
+
+
+def _serp_dt_parts(dt_str: str) -> tuple[str, str]:
+    if not dt_str:
+        return "", ""
+    parts = dt_str.strip().split(" ")
+    if len(parts) < 2:
+        return "", ""
+    ymd = parts[0]
+    hm = parts[1]
+    try:
+        yyyy, mm, dd = ymd.split("-")
+        return f"{dd}/{mm}/{yyyy}", hm
+    except Exception:
+        return "", hm
+
+
+def _serp_minutes_to_duration(minutes: Any) -> str:
+    try:
+        total = int(minutes or 0)
+    except Exception:
+        total = 0
+    h = total // 60
+    m = total % 60
+    if h and m:
+        return f"{h}h {m}m"
+    if h:
+        return f"{h}h"
+    return f"{m}m"
+
+
+def _map_serp_option_to_vna_segment(option: Dict[str, Any]) -> Dict[str, Any]:
+    flights = option.get("flights", []) if isinstance(option, dict) else []
+    first = flights[0] if flights else {}
+    last = flights[-1] if flights else {}
+
+    dep_air = first.get("departure_airport", {}) if isinstance(first, dict) else {}
+    arr_air = last.get("arrival_airport", {}) if isinstance(last, dict) else {}
+    dep_date, dep_time = _serp_dt_parts(dep_air.get("time", ""))
+    arr_date, arr_time = _serp_dt_parts(arr_air.get("time", ""))
+
+    all_numbers = [
+        (f.get("flight_number") or "").strip()
+        for f in flights
+        if isinstance(f, dict) and (f.get("flight_number") or "").strip()
+    ]
+    flight_number = " / ".join(all_numbers)
+
+    baggage = ""
+    for ext in option.get("extensions", []) or []:
+        if isinstance(ext, str) and "baggage" in ext.lower():
+            baggage = ext
+            break
+
+    return {
+        "flight_number": flight_number,
+        "airline": first.get("airline", ""),
+        "departure_date": dep_date,
+        "departure_time": dep_time,
+        "departure_airport": dep_air.get("id", ""),
+        "departure_city": dep_air.get("name", ""),
+        "departure_terminal": "",
+        "arrival_date": arr_date,
+        "arrival_time": arr_time,
+        "arrival_airport": arr_air.get("id", ""),
+        "arrival_city": arr_air.get("name", ""),
+        "arrival_terminal": "",
+        "duration": _serp_minutes_to_duration(option.get("total_duration")),
+        "baggage": baggage,
+    }
+
+
+@app.post("/api/flights/generate_from_serp")
+def generate_flight_from_serp():
+    """Generate flight booking HTML from selected SerpAPI options."""
+    payload = request.get_json(force=True) or {}
+    template_type = (payload.get("template_type") or "vivavivu").strip().lower()
+
+    selected_outbound = payload.get("selected_outbound") or {}
+    selected_return = payload.get("selected_return") or {}
+    trip_type = payload.get("trip_type", "One way")
+    passengers = payload.get("passengers") or []
+
+    if not selected_outbound:
+        return jsonify({"error": "selected_outbound is required"}), 400
+
+    output_dir = payload.get("output_dir", "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    if template_type == "vietnam_airlines":
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "flight_booking.html")
+        if not os.path.exists(template_path):
+            return jsonify({"error": "Vietnam Airlines template not found"}), 500
+
+        mapped_outbound = _map_serp_option_to_vna_segment(selected_outbound)
+        mapped_return = _map_serp_option_to_vna_segment(selected_return or selected_outbound)
+
+        flight_data = {
+            "trip_type": trip_type,
+            "booking_reference": "",
+            "passengers": [
+                {"name": (p.get("name") or "").strip(), "type": "Adult"}
+                for p in passengers
+                if isinstance(p, dict) and (p.get("name") or "").strip()
+            ],
+            "outbound_flight": mapped_outbound,
+            "return_flight": mapped_return,
+        }
+        html = fill_flight_template(template_path, flight_data)
+    else:
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "flight_vivavivu.html")
+        if not os.path.exists(template_path):
+            return jsonify({"error": "Vivavivu template not found"}), 500
+
+        flight_data = {
+            "booking_code": payload.get("booking_code"),
+            "trip_type": trip_type,
+            "contact": payload.get("contact", {}),
+            "passengers": passengers,
+            "total_price": payload.get("total_price", "0"),
+            "discount": payload.get("discount", "0"),
+            "currency": payload.get("currency", "VND"),
+            "directions": payload.get("directions", []),
+        }
+        html = fill_vivavivu_template(template_path, flight_data)
+
+    output_path = os.path.join(output_dir, "booking_flight.html")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    project_id = payload.get("project_id")
+    if project_id:
+        existing = db.get_latest_booking(int(project_id)) or {}
+        db.save_booking(
+            int(project_id),
+            booking_data=existing.get("booking_data", {}),
+            hotel_htmls=existing.get("hotel_htmls", []),
+            flight_html=html,
+            reasoning=existing.get("reasoning", ""),
+        )
+
+    return jsonify({
+        "status": "success",
+        "flight_html": html,
+        "flight_path": output_path,
+    })
+
 
 # ==================== AI PDF SPLITTER ENDPOINTS ====================
 

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Flight - 86VY7WRN | Vivavivu</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #ddd;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #fff;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #eee;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            color: #00a651;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .contact-info {
+            text-align: right;
+            font-size: 13px;
+            color: #555;
+        }
+        .status {
+            background: #fff;
+            padding: 15px 30px;
+            border-bottom: 1px solid #eee;
+        }
+        .status-badge {
+            display: inline-block;
+            background: #00a651;
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 15px;
+        }
+        .code {
+            padding: 20px 30px;
+            font-size: 18px;
+            font-weight: 500;
+            background: #f9f9f9;
+        }
+        .message {
+            padding: 30px;
+            font-size: 15px;
+        }
+        .message p {
+            margin-bottom: 15px;
+        }
+        .payment-link {
+            display: block;
+            background: #ff0000;
+            color: #fff;
+            text-align: center;
+            padding: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            margin: 0 30px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        .section {
+            padding: 20px 30px;
+            border-top: 1px solid #eee;
+        }
+        .section-title {
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #0066cc;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: 500;
+        }
+        .total {
+            font-size: 18px;
+            font-weight: 700;
+            text-align: right;
+            padding: 15px 30px;
+            background: #f9f9f9;
+        }
+        .flight-details {
+            padding: 25px 30px;
+        }
+        .faq {
+            padding: 25px 30px;
+            background: #f9f9f9;
+        }
+        .faq h3 {
+            font-size: 16px;
+            margin: 20px 0 8px;
+        }
+        .footer {
+            padding: 25px 30px;
+            background: #f5f5f5;
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+        }
+        .address {
+            margin-top: 15px;
+            font-size: 13px;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: underline;
+        }
+
+        /* ==================== CẤU TRÚC MỚI GIỐNG HÌNH 2 (NỀN TRẮNG) ==================== */
+        .flight-itinerary {
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .itinerary-header {
+            background: #f8f9fa;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #eee;
+        }
+        .itinerary-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .flight-segment {
+            padding: 22px 20px;
+            display: flex;
+            gap: 30px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .flight-segment:last-child {
+            border-bottom: none;
+        }
+        .left-side {
+            flex: 1;
+        }
+        .dep-time {
+            font-size: 24px;
+            font-weight: 700;
+            color: #222;
+        }
+        .airport {
+            color: #555;
+            font-size: 15px;
+            display: block;
+            margin-top: 2px;
+        }
+        .travel-time {
+            color: #0066cc;
+            font-weight: 500;
+            margin: 14px 0;
+            font-size: 15px;
+        }
+        .airline-info {
+            margin-top: 18px;
+            padding: 10px 14px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #444;
+        }
+        .right-side {
+            width: 260px;
+            background: #f9f9f9;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 13.5px;
+            line-height: 1.65;
+            border: 1px solid #eee;
+            align-self: flex-start;
+        }
+        .right-side strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .layover-box {
+            background: #fff9e6;
+            padding: 14px 20px;
+            text-align: center;
+            font-weight: 500;
+            color: #d97706;
+            border-bottom: 1px solid #eee;
+        }
+        .flight-note {
+            background: #f8f9fa;
+            padding: 14px 20px;
+            font-size: 13.5px;
+            color: #555;
+            border-top: 1px solid #eee;
+        }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .container { box-shadow: none; border: none; max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="logo">Vivavivu</div>
+            <div class="contact-info">
+                T2-T6: 8:00-20:00 • T7: 8:00-17:00 • CN: 9:00-17:00<br>
+                1900 6042 • (028) 7300 8858 • (024) 7300 8858 • (0236) 730 8858
+            </div>
+        </div>
+
+        <!-- STATUS -->
+        <div class="status">
+            <strong>Booking status:</strong> 
+            <span class="status-badge">Successful</span>
+        </div>
+
+        <!-- MESSAGE -->
+        <div class="message">
+            <p>Hello, Vivavivu has received your booking request.</p>
+            <p>However, we regret to inform you that your booking is not yet complete. Currently, one of our consultants is processing your request and will contact you within 30 minutes (during our business hours). For urgent processing, please call our hotline at <strong>090 1818 567</strong> or email <a href="mailto:info@vivavivu.com">info@vivavivu.com</a>.</p>
+            <p>We guarantee you'll have a wonderful time at Vivavivu. Rest assured!</p>
+        </div>
+
+        <!-- PAYMENT LINK -->
+        <a href="#" class="payment-link">To review your booking or make a payment, please click here.</a>
+
+        <!-- CONTACT INFO -->
+        <div class="section">
+            <div class="section-title">Contact information</div>
+            <table>
+                <tr>
+                    <td><strong>Customer Name :</strong></td>
+                    <td>NGUYEN THI THU THANH</td>
+                </tr>
+                <tr>
+                    <td><strong>Email:</strong></td>
+                    <td>nhutminh203.work@gmail.com</td>
+                </tr>
+                <tr>
+                    <td><strong>Phone number :</strong></td>
+                    <td>0354101244</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- PASSENGER LIST -->
+        <div class="section">
+            <div class="section-title">Passenger list &amp; price details</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Passenger</th>
+                        <th>Date of birth</th>
+                        <th>Ticket prices</th>
+                        <th>Ticket issuance fee</th>
+                        <th>Total amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1. NGUYEN THI THU THANH</td>
+                        <td>–</td>
+                        <td>31.586.000 ₫</td>
+                        <td>–</td>
+                        <td>31.586.000 ₫</td>
+                    </tr>
+                    <tr>
+                        <td>2. HA THI HUONG</td>
+                        <td>–</td>
+                        <td>31.586.000 ₫</td>
+                        <td>–</td>
+                        <td>31.586.000 ₫</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="total">
+                Total price <strong>63.172.000 ₫</strong><br>
+                Discount <strong>0 ₫</strong>
+            </div>
+        </div>
+
+        <!-- FLIGHT DETAILS - CẤU TRÚC MỚI GIỐNG HÌNH 2 (NỀN TRẮNG) -->
+        <div class="flight-details">
+            <div class="section-title">Flight details</div>
+            
+            <div class="flight-itinerary">
+                
+                <!-- HEADER (đã thêm phần khoanh đỏ: One way • 1 stop) -->
+                <div class="itinerary-header">
+                    <div class="itinerary-header-left">
+                        <img src="https://www.gstatic.com/flights/airline_logos/70px/BA.png" width="42" alt="British Airways">
+                        <div>
+                            <strong>Departure - Tuesday, March 3, 2026</strong>
+                        </div>
+                    </div>
+                    <!-- Vị trí khoanh đỏ - đã bổ sung loại chuyến bay -->
+                    <div style="text-align: right; font-size: 15px; font-weight: 500; color: #0066cc;">
+                        One way • 1 stop
+                    </div>
+                </div>
+
+                <!-- LEG 1 -->
+                <div class="flight-segment">
+                    <!-- LEFT SIDE -->
+                    <div class="left-side">
+                        <div class="dep-time">10:10 AM</div>
+                        <div class="airport">Paris Charles de Gaulle Airport (CDG)</div>
+                        
+                        <div class="travel-time">Travel time: 1 hr 30 min</div>
+                        
+                        <div class="dep-time">10:40 AM</div>
+                        <div class="airport">Heathrow Airport (LHR)</div>
+                        
+                        <div class="airline-info">
+                            British Airways • Economy • Airbus A319 • BA 301
+                        </div>
+                    </div>
+                    
+                    <!-- RIGHT SIDE - AMENITIES -->
+                    <div class="right-side">
+                        <strong>Below average legroom (29 in)</strong>
+                        In-seat USB outlet<br>
+                        Carbon emissions estimate: 63 kg
+                    </div>
+                </div>
+
+                <!-- LAYOVER -->
+                <div class="layover-box">
+                    1 hr 30 min layover • Heathrow Airport (LHR)
+                </div>
+
+                <!-- LEG 2 -->
+                <div class="flight-segment">
+                    <!-- LEFT SIDE -->
+                    <div class="left-side">
+                        <div class="dep-time">12:10 PM</div>
+                        <div class="airport">Heathrow Airport (LHR)</div>
+                        
+                        <div class="travel-time">Travel time: 10 hr 40 min</div>
+                        
+                        <div class="dep-time">4:50 PM</div>
+                        <div class="airport">Austin-Bergstrom International Airport (AUS)</div>
+                        
+                        <div class="airline-info">
+                            British Airways • Economy • Airbus A350 • BA 191
+                        </div>
+                    </div>
+                    
+                    <!-- RIGHT SIDE - AMENITIES -->
+                    <div class="right-side">
+                        <strong>Average legroom (31 in)</strong>
+                        Wi-Fi for a fee<br>
+                        In-seat power &amp; USB outlets<br>
+                        On-demand video<br>
+                        Carbon emissions estimate: 461 kg
+                    </div>
+                </div>
+
+                <!-- NOTE CUỐI -->
+                <div class="flight-note">
+                    Checked baggage for a fee • Full refund for cancellations • Free change, possible fare difference
+                </div>
+            </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="faq">
+            <div class="section-title">Frequently Asked Questions</div>
+            
+            <h3>Change or cancel your reservation?</h3>
+            <p>Before tickets are issued, you can change or cancel your booking request free of charge. Please contact our Call Center at 1900 6042 - (028) 7300 8858 - (024) 7300 8858 - (0236) 730 8858 so that our staff can help you.</p>
+            
+            <h3>Do you need an invoice?</h3>
+            <p>If you require a printed financial invoice, please provide the information to Vivavivu.com as soon as possible. Invoices can only be issued within 24 hours of ticket issuance. Once issued, invoices cannot be reissued under any circumstances.</p>
+            
+            <p>Additionally, if you have any further questions, you can refer to the <a href="#">frequently asked questions section</a>.</p>
+        </div>
+
+        <!-- CONTACT ADDRESS -->
+        <div class="section">
+            <div class="section-title">Contact address</div>
+            <div class="address">
+                HCM: Room 201, Saigon Riverside Office Center, 2A-4A Ton Duc Thang Street, Saigon Ward, Ho Chi Minh City<br>
+                HN: Room 603, Thang Long Ford Building, 105 Lang Ha Street, Dong Da Ward, Hanoi City
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            © 2022 Vivavivu. All Rights Reserved.
+        </div>
+    </div>
+</body>
+</html>
