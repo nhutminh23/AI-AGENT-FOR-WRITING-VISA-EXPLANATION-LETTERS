@@ -69,11 +69,21 @@
       <!-- NEW: AI Booking Section -->
       <div id="bookingSection" class="section">
         <section class="card">
-          <h2>🤖 AI Tạo Booking (Khách sạn + Máy bay)</h2>
+          <h2>🤖 Booking</h2>
           <div class="hint">
-            AI tự đọc hồ sơ từ thư mục input → trích xuất thông tin chuyến đi → chọn khách sạn & chuyến bay THẬT cho mọi quốc gia.
+            Chọn loại booking trước, sau đó hệ thống chỉ hiển thị đúng trang Hotel hoặc Máy bay.
           </div>
         </section>
+
+        <section class="card">
+          <h2>🧭 Chọn trang booking</h2>
+          <div class="row">
+            <button id="bookingModeHotelBtn" style="background:#2563eb;">🏨 Booking Hotel</button>
+            <button id="bookingModeFlightBtn" style="background:#64748b;">✈️ Booking Máy bay</button>
+          </div>
+        </section>
+
+        <div id="bookingHotelPage">
 
         <section class="card">
           <h2 style="display:flex; align-items:center; gap:8px;">
@@ -162,7 +172,6 @@
           </div>
           <div id="tripInfoPanel" class="hint" style="white-space:pre-wrap; margin-top:8px;">Chưa trích xuất.</div>
         </section>
-
         <!-- Step 2: AI Generate Booking -->
         <section class="card">
           <h2>✈️ Bước 2: AI Tạo Booking</h2>
@@ -171,7 +180,7 @@
               <label for="bookingOutputAI">Thư mục output</label>
               <input id="bookingOutputAI" type="text" value="output" />
             </div>
-            <button id="runAIBookingBtn">🤖 AI Tạo Booking</button>
+            <button id="runAIBookingHotelBtn" style="background:#2563eb;">🏨 Tạo Booking Khách sạn</button>
           </div>
           <div id="aiBookingStatus" class="step-progress" style="margin-top:8px;">Chưa chạy.</div>
         </section>
@@ -185,7 +194,7 @@
         </section>
 
         <!-- Hotel Results -->
-        <section class="card">
+        <section class="card" id="hotelBookingPart">
           <div class="card-header-row">
             <h2>Kết quả Booking Khách sạn</h2>
             <div class="export-btn-group">
@@ -197,17 +206,129 @@
           <iframe id="hotelBookingResult" class="booking-frame" title="Hotel Booking Preview"></iframe>
         </section>
 
+        </div>
+
+        <div id="bookingFlightPage" class="hidden">
+
+        <!-- SerpAPI Flight Search -->
+        <section class="card" id="serpFlightSearchSection">
+          <h2>🔍 Tìm & Tạo vé máy bay (Google Flights)</h2>
+          <div class="hint">
+            Thông tin hành khách được tự động lấy từ phần trích xuất. Tìm chuyến bay → chọn → tạo vé.
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="serpContactName">Tên khách hàng</label>
+              <input id="serpContactName" type="text" placeholder="NGUYEN VAN A" />
+            </div>
+            <div>
+              <label for="serpContactEmail">Email</label>
+              <input id="serpContactEmail" type="email" placeholder="email@example.com" />
+            </div>
+            <div>
+              <label for="serpContactPhone">Số điện thoại</label>
+              <input id="serpContactPhone" type="text" placeholder="0354101244" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div style="flex:1;">
+              <label for="serpPassengerNames">Danh sách hành khách (mỗi dòng 1 người)</label>
+              <textarea id="serpPassengerNames" rows="3" placeholder="NGUYEN VAN A&#10;TRAN THI B"></textarea>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #e2e8f0; margin-top:14px; padding-top:14px;">
+          <div class="row">
+            <div>
+              <label for="serpFlightType">Loại chuyến bay</label>
+              <select id="serpFlightType">
+                <option value="2">Một chiều (One way)</option>
+                <option value="1">Khứ hồi (Round trip)</option>
+                <option value="3">Nhiều chặng (Multi-city)</option>
+              </select>
+            </div>
+            <div>
+              <label for="serpFlightTemplate">Template vé</label>
+              <select id="serpFlightTemplate">
+                <option value="vivavivu">Vivavivu</option>
+                <option value="vietnam_airlines">Vietnam Airlines</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Standard params (One way / Round trip) -->
+          <div id="serpStandardParams">
+            <div class="row" style="margin-top:10px;">
+              <div>
+                <label for="serpDepartureId">Sân bay đi (IATA)</label>
+                <input id="serpDepartureId" type="text" placeholder="VD: HAN" />
+              </div>
+              <div>
+                <label for="serpArrivalId">Sân bay đến (IATA)</label>
+                <input id="serpArrivalId" type="text" placeholder="VD: SYD" />
+              </div>
+              <div>
+                <label for="serpOutboundDate">Ngày đi</label>
+                <input id="serpOutboundDate" type="date" />
+              </div>
+              <div id="serpReturnDateDiv">
+                <label for="serpReturnDate">Ngày về</label>
+                <input id="serpReturnDate" type="date" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Multi-city params -->
+          <div id="serpMultiCityParams" style="display:none; margin-top:10px;">
+            <div id="serpMultiCityLegs"></div>
+            <button id="serpAddLegBtn" type="button" style="margin-top:6px; padding:4px 12px; font-size:13px; background:#e2e8f0; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer;">+ Thêm chặng</button>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="serpAdults">Người lớn</label>
+              <input id="serpAdults" type="number" value="1" min="1" max="9" />
+            </div>
+            <div>
+              <label for="serpChildren">Trẻ em</label>
+              <input id="serpChildren" type="number" value="0" min="0" max="9" />
+            </div>
+            <div>
+              <label for="serpCurrency">Tiền tệ</label>
+              <input id="serpCurrency" type="text" value="VND" />
+            </div>
+            <button id="serpSearchBtn" style="background:#4f46e5;">🔍 Tìm chuyến bay</button>
+          </div>
+          </div>
+
+          <div id="serpSearchStatus" style="margin-top:8px;"></div>
+
+          <!-- Outbound results -->
+          <div id="serpOutboundResults" style="margin-top:12px;"></div>
+
+          <!-- Return results (round trip only) -->
+          <div id="serpReturnResults" style="margin-top:12px;"></div>
+
+          <!-- Generate button (shown after selecting flight) -->
+          <div id="serpGenerateArea" style="display:none; margin-top:16px; border-top:2px solid #e2e8f0; padding-top:16px;">
+            <button id="serpGenerateBtn" style="background:#16a34a;">✅ Tạo vé booking</button>
+            <div id="serpGenerateStatus" style="margin-top:8px;"></div>
+          </div>
+        </section>
+
         <!-- Flight Results -->
-        <section class="card">
+        <section class="card" id="flightBookingPart">
           <div class="card-header-row">
             <h2>Kết quả Booking Máy bay</h2>
             <button id="exportFlightPdfBtn" class="export-pdf-btn" style="display:none;">📄 Xuất PDF</button>
           </div>
           <iframe id="flightBookingResult" class="booking-frame" title="Flight Booking Preview"></iframe>
         </section>
+        </div>
 
         <!-- Manual Override (collapsible) -->
-        <section class="card">
+        <section class="card" id="manualBookingOverrideSection">
           <details class="collapsible">
             <summary>⚙️ Chỉnh sửa thủ công (tạo booking bằng database)</summary>
             <div class="row" style="margin-top:12px;">

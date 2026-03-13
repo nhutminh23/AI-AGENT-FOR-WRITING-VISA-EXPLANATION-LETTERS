@@ -10,3 +10,4 @@ PyMuPDF
 google-generativeai
 openai
 sqlalchemy
+google-search-results

@@ -845,6 +845,285 @@ def generate_all_bookings(
     return hotel_bookings, flight_booking
 
 
+def _generate_vivavivu_code() -> str:
+    """Generate a random 8-char alphanumeric Vivavivu booking code."""
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    return "".join(random.choice(chars) for _ in range(8))
+
+
+def _format_serpapi_time(time_str: str) -> str:
+    """Convert '2026-03-03 10:10' to '10:10 AM'."""
+    if not time_str:
+        return ""
+    try:
+        dt = datetime.strptime(time_str.strip(), "%Y-%m-%d %H:%M")
+        return dt.strftime("%I:%M %p").lstrip("0")
+    except ValueError:
+        return time_str
+
+
+def _format_serpapi_date(time_str: str) -> str:
+    """Convert '2026-03-03 10:10' to 'Tuesday, March 3, 2026'."""
+    if not time_str:
+        return ""
+    try:
+        dt = datetime.strptime(time_str.strip()[:10], "%Y-%m-%d")
+        day = dt.strftime("%A, %B {d}, %Y").replace("{d}", str(dt.day))
+        return day
+    except ValueError:
+        return time_str
+
+
+def _format_duration_minutes(minutes: int) -> str:
+    """Convert 90 to '1 hr 30 min'."""
+    if not minutes:
+        return ""
+    h, m = divmod(int(minutes), 60)
+    parts = []
+    if h:
+        parts.append(f"{h} hr")
+    if m:
+        parts.append(f"{m} min")
+    return " ".join(parts) or "0 min"
+
+
+def _format_price_vnd(amount, currency: str = "VND") -> str:
+    """Format a numeric price with dot separators, e.g. 24717930 -> '24.717.930 ₫'."""
+    try:
+        num = int(float(amount))
+    except (ValueError, TypeError):
+        return str(amount)
+    if currency.upper() == "VND":
+        formatted = f"{num:,}".replace(",", ".")
+        return f"{formatted} ₫"
+    formatted = f"{num:,.2f}"
+    return f"{formatted} {currency}"
+
+
+def fill_vivavivu_template(template_path: str, flight_data: Dict) -> str:
+    """
+    Generate Vivavivu booking HTML from SerpAPI flight data.
+
+    flight_data keys:
+        booking_code: str (auto-generated if missing)
+        trip_type: "One way" | "Round trip" | "Multi-city"
+        contact: {name, email, phone}
+        passengers: [{name, dob?, ticket_price?, fee?, total?}]
+        total_price: str or number
+        discount: str (default "0")
+        currency: str (default "VND")
+        directions: [
+            {
+                label: "Departure" | "Return" | custom,
+                flights: [ <SerpAPI flight objects> ],
+                layovers: [ <SerpAPI layover objects> ],
+                extensions: [ <baggage/refund strings> ],
+                airline_logo: str (optional override),
+            }
+        ]
+    """
+    with open(template_path, "r", encoding="utf-8") as f:
+        template_html = f.read()
+    css_match = re.search(r"<style>(.*?)</style>", template_html, re.DOTALL)
+    css = css_match.group(1) if css_match else ""
+
+    booking_code = flight_data.get("booking_code") or _generate_vivavivu_code()
+    trip_type = flight_data.get("trip_type", "One way")
+    contact = flight_data.get("contact", {})
+    passengers = flight_data.get("passengers", [])
+    total_price = flight_data.get("total_price", "0")
+    discount = flight_data.get("discount", "0")
+    currency = flight_data.get("currency", "VND")
+    directions = flight_data.get("directions", [])
+
+    if isinstance(total_price, (int, float)):
+        total_price = _format_price_vnd(total_price, currency)
+
+    # --- Passenger rows ---
+    passenger_rows = []
+    for i, p in enumerate(passengers, 1):
+        name = p.get("name", "")
+        dob = p.get("dob", "\u2013")
+        tp = p.get("ticket_price", "\u2013")
+        fee = p.get("fee", "\u2013")
+        total = p.get("total", "\u2013")
+        if isinstance(tp, (int, float)):
+            tp = _format_price_vnd(tp, currency)
+        if isinstance(total, (int, float)):
+            total = _format_price_vnd(total, currency)
+        passenger_rows.append(
+            f"<tr><td>{i}. {name}</td><td>{dob}</td>"
+            f"<td>{tp}</td><td>{fee}</td><td>{total}</td></tr>"
+        )
+    passenger_rows_html = "\n".join(passenger_rows)
+
+    # --- Flight itinerary blocks ---
+    flight_blocks = []
+    for direction in directions:
+        flights = direction.get("flights", [])
+        layovers = direction.get("layovers", [])
+        dir_extensions = direction.get("extensions", [])
+
+        if not flights:
+            continue
+
+        first_flight = flights[0]
+        logo = direction.get("airline_logo") or first_flight.get("airline_logo", "")
+        dep_time_str = first_flight.get("departure_airport", {}).get("time", "")
+        date_label = direction.get("date") or _format_serpapi_date(dep_time_str)
+        dir_label = direction.get("label", "Departure")
+
+        num_stops = len(layovers)
+        if num_stops == 0:
+            stops_text = "Nonstop"
+        else:
+            stops_text = f"{num_stops} stop{'s' if num_stops > 1 else ''}"
+        type_badge = f"{trip_type} \u2022 {stops_text}"
+
+        # Build segments
+        segments_html = []
+        for fi, fl in enumerate(flights):
+            dep_airport = fl.get("departure_airport", {})
+            arr_airport = fl.get("arrival_airport", {})
+            dep_t = _format_serpapi_time(dep_airport.get("time", ""))
+            arr_t = _format_serpapi_time(arr_airport.get("time", ""))
+            dur = _format_duration_minutes(fl.get("duration", 0))
+            exts = fl.get("extensions", [])
+            legroom_line = exts[0] if exts else ""
+            amenities_lines = "<br>".join(exts[1:]) if len(exts) > 1 else ""
+
+            seg = f"""<div class="flight-segment">
+    <div class="left-side">
+        <div class="dep-time">{dep_t}</div>
+        <div class="airport">{dep_airport.get('name', '')} ({dep_airport.get('id', '')})</div>
+        <div class="travel-time">Travel time: {dur}</div>
+        <div class="dep-time">{arr_t}</div>
+        <div class="airport">{arr_airport.get('name', '')} ({arr_airport.get('id', '')})</div>
+        <div class="airline-info">
+            {fl.get('airline', '')} \u2022 {fl.get('travel_class', 'Economy')} \u2022 {fl.get('airplane', '')} \u2022 {fl.get('flight_number', '')}
+        </div>
+    </div>
+    <div class="right-side">
+        <strong>{legroom_line}</strong>
+        {amenities_lines}
+    </div>
+</div>"""
+            segments_html.append(seg)
+
+            if fi < len(flights) - 1 and fi < len(layovers):
+                lo = layovers[fi]
+                lo_dur = _format_duration_minutes(lo.get("duration", 0))
+                lo_name = lo.get("name", "")
+                lo_id = lo.get("id", "")
+                segments_html.append(
+                    f'<div class="layover-box">{lo_dur} layover \u2022 {lo_name} ({lo_id})</div>'
+                )
+
+        note_text = " \u2022 ".join(dir_extensions) if dir_extensions else ""
+
+        block = f"""<div class="flight-itinerary" style="margin-bottom:20px;">
+    <div class="itinerary-header">
+        <div class="itinerary-header-left">
+            <img src="{logo}" width="42" alt="Airline">
+            <div><strong>{dir_label} - {date_label}</strong></div>
+        </div>
+        <div style="text-align:right;font-size:15px;font-weight:500;color:#0066cc;">
+            {type_badge}
+        </div>
+    </div>
+    {"".join(segments_html)}
+    <div class="flight-note">{note_text}</div>
+</div>"""
+        flight_blocks.append(block)
+
+    flight_details_html = "\n".join(flight_blocks)
+
+    # --- Assemble full HTML ---
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Flight - {booking_code} | Vivavivu</title>
+    <style>{css}</style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Vivavivu</div>
+            <div class="contact-info">
+                Mon-Fri: 8:00-20:00 &bull; Sat: 8:00-17:00 &bull; Sun: 9:00-17:00<br>
+                1900 6042 &bull; (028) 7300 8858 &bull; (024) 7300 8858 &bull; (0236) 730 8858
+            </div>
+        </div>
+        <div class="status">
+            <strong>Booking status:</strong>
+            <span class="status-badge">Successful</span>
+        </div>
+        <div class="message">
+            <p>Hello, Vivavivu has received your booking request.</p>
+            <p>However, we regret to inform you that your booking is not yet complete. Currently, one of our consultants is processing your request and will contact you within 30 minutes (during our business hours). For urgent processing, please call our hotline at <strong>090 1818 567</strong> or email <a href="mailto:info@vivavivu.com">info@vivavivu.com</a>.</p>
+            <p>We guarantee you'll have a wonderful time at Vivavivu. Rest assured!</p>
+        </div>
+        <a href="#" class="payment-link">To review your booking or make a payment, please click here.</a>
+        <div class="section">
+            <div class="section-title">Contact information</div>
+            <table>
+                <tr><td><strong>Customer Name :</strong></td><td>{contact.get('name', '')}</td></tr>
+                <tr><td><strong>Email:</strong></td><td>{contact.get('email', '')}</td></tr>
+                <tr><td><strong>Phone number :</strong></td><td>{contact.get('phone', '')}</td></tr>
+            </table>
+        </div>
+        <div class="section">
+            <div class="section-title">Passenger list &amp; price details</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Passenger</th>
+                        <th>Date of birth</th>
+                        <th>Ticket prices</th>
+                        <th>Ticket issuance fee</th>
+                        <th>Total amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {passenger_rows_html}
+                </tbody>
+            </table>
+            <div class="total">
+                Total price <strong>{total_price}</strong><br>
+                Discount <strong>{discount} {currency}</strong>
+            </div>
+        </div>
+        <div class="flight-details">
+            <div class="section-title">Flight details</div>
+            {flight_details_html}
+        </div>
+        <div class="faq">
+            <div class="section-title">Frequently Asked Questions</div>
+            <h3>Change or cancel your reservation?</h3>
+            <p>Before tickets are issued, you can change or cancel your booking request free of charge. Please contact our Call Center at 1900 6042 - (028) 7300 8858 - (024) 7300 8858 - (0236) 730 8858 so that our staff can help you.</p>
+            <h3>Do you need an invoice?</h3>
+            <p>If you require a printed financial invoice, please provide the information to Vivavivu.com as soon as possible. Invoices can only be issued within 24 hours of ticket issuance. Once issued, invoices cannot be reissued under any circumstances.</p>
+            <p>Additionally, if you have any further questions, you can refer to the <a href="#">frequently asked questions section</a>.</p>
+        </div>
+        <div class="section">
+            <div class="section-title">Contact address</div>
+            <div class="address">
+                HCM: Room 201, Saigon Riverside Office Center, 2A-4A Ton Duc Thang Street, Saigon Ward, Ho Chi Minh City<br>
+                HN: Room 603, Thang Long Ford Building, 105 Lang Ha Street, Dong Da Ward, Hanoi City
+            </div>
+        </div>
+        <div class="footer">
+            &copy; 2022 Vivavivu. All Rights Reserved.
+        </div>
+    </div>
+</body>
+</html>"""
+
+    return html
+
+
 def generate_bookings_from_ai(
     ai_booking_data: Dict,
     hotel_template_path: str,
