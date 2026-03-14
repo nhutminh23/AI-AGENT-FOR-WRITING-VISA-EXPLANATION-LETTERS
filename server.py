@@ -1363,6 +1363,100 @@ def pdf_rename_suggest_name():
     return jsonify({"suggested_name": suggested})
 
 
+@app.route("/api/pdf/edit", methods=["POST"])
+def edit_pdf():
+    """Find & replace text in an uploaded PDF using PyMuPDF."""
+    import fitz
+    import json as _json
+    import io
+
+    if "file" not in request.files:
+        return jsonify({"error": "missing_file"}), 400
+    f = request.files["file"]
+    if not f.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "not_a_pdf"}), 400
+
+    raw_replacements = request.form.get("replacements", "[]")
+    try:
+        replacements = _json.loads(raw_replacements)
+    except Exception:
+        return jsonify({"error": "invalid_replacements_json"}), 400
+
+    if not replacements or not isinstance(replacements, list):
+        return jsonify({"error": "empty_replacements"}), 400
+
+    try:
+        pdf_bytes = f.read()
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+        for pair in replacements:
+            find_text = pair.get("find", "")
+            replace_text = pair.get("replace", "")
+            if not find_text:
+                continue
+
+            for page in doc:
+                hits = page.search_for(find_text)
+                if not hits:
+                    continue
+
+                # Detect font info from the first hit's span
+                span_font = "helv"
+                span_color = (0, 0, 0)
+                try:
+                    text_dict = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)
+                    for block in text_dict.get("blocks", []):
+                        for line in block.get("lines", []):
+                            for span in line.get("spans", []):
+                                if find_text in span.get("text", ""):
+                                    span_font = span.get("font", "helv")
+                                    c = span.get("color", 0)
+                                    if isinstance(c, int):
+                                        span_color = (
+                                            ((c >> 16) & 0xFF) / 255.0,
+                                            ((c >> 8) & 0xFF) / 255.0,
+                                            (c & 0xFF) / 255.0,
+                                        )
+                                    raise StopIteration
+                except StopIteration:
+                    pass
+
+                for rect in hits:
+                    expanded = fitz.Rect(
+                        rect.x0 - 0.5, rect.y0 - 0.5,
+                        rect.x1 + 0.5, rect.y1 + 0.5,
+                    )
+                    shape = page.new_shape()
+                    shape.draw_rect(expanded)
+                    shape.finish(color=(1, 1, 1), fill=(1, 1, 1))
+                    shape.commit()
+
+                    fontsize = rect.height * 0.75
+                    if fontsize < 4:
+                        fontsize = 10
+                    page.insert_text(
+                        fitz.Point(rect.x0, rect.y0 + rect.height * 0.8),
+                        replace_text,
+                        fontsize=fontsize,
+                        color=span_color,
+                    )
+
+        out_buf = io.BytesIO()
+        doc.save(out_buf, garbage=4, deflate=True)
+        doc.close()
+        out_buf.seek(0)
+
+        from flask import send_file
+        return send_file(
+            out_buf,
+            mimetype="application/pdf",
+            as_attachment=False,
+            download_name=f.filename.replace(".pdf", "_edited.pdf"),
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.get("/api/steps")
 def list_steps():
     project_id = request.args.get("project_id", type=int)

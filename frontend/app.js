@@ -95,6 +95,7 @@ const outputsSection = document.getElementById("outputsSection");
 const translateSection = document.getElementById("translateSection");
 const classifierSection = document.getElementById("classifierSection");
 const pdfSection = document.getElementById("pdfSection");
+const editpdfSection = document.getElementById("editpdfSection");
 
 // Booking elements
 const guestNameEl = document.getElementById("guestName");
@@ -2666,7 +2667,7 @@ function setActiveTab(tab) {
 
   // Hide all sections first
   const allSections = [letterSection, itinerarySection, bookingSection,
-    outputsSection, translateSection, classifierSection, pdfSection];
+    outputsSection, translateSection, classifierSection, pdfSection, editpdfSection];
   const aisplitterSection = document.getElementById("aisplitterSection");
   const precheckSection = document.getElementById("precheckSection");
   if (aisplitterSection) allSections.push(aisplitterSection);
@@ -2704,6 +2705,9 @@ function setActiveTab(tab) {
     loadSplitterFileList();
   } else if (tab === "precheck") {
     if (precheckSection) precheckSection.classList.remove("hidden");
+  } else if (tab === "editpdf") {
+    if (editpdfSection) editpdfSection.classList.remove("hidden");
+    initEditPdfUI();
   }
 }
 
@@ -5028,3 +5032,116 @@ if (sendCleanToClassifierBtn) {
     }
   } catch (e) { /* ignore restore errors */ }
 })();
+
+// ==================== EDIT PDF FUNCTIONS ====================
+
+let editPdfInited = false;
+
+function initEditPdfUI() {
+  if (editPdfInited) return;
+  editPdfInited = true;
+
+  const pairsContainer = document.getElementById("editPdfPairs");
+  const addBtn = document.getElementById("editPdfAddPairBtn");
+  const runBtn = document.getElementById("editPdfRunBtn");
+
+  addEditPdfPair(pairsContainer);
+
+  addBtn.addEventListener("click", () => addEditPdfPair(pairsContainer));
+  runBtn.addEventListener("click", runEditPdf);
+}
+
+let editPdfPairCount = 0;
+
+function addEditPdfPair(container) {
+  editPdfPairCount++;
+  const idx = editPdfPairCount;
+  const box = document.createElement("div");
+  box.style.cssText = "border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-bottom:10px; background:#f8fafc; position:relative;";
+  box.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <strong style="font-size:13px; color:#475569;">Cặp thay thế #${idx}</strong>
+      <button type="button" class="editpdf-remove-btn" style="background:none; border:none; cursor:pointer; color:#94a3b8; font-size:18px; line-height:1;" title="Xóa">&times;</button>
+    </div>
+    <div class="row">
+      <div style="flex:1;">
+        <label>Text cần tìm</label>
+        <input type="text" class="editpdf-find" placeholder="Text gốc trong PDF" style="width:100%;" />
+      </div>
+      <div style="flex:1;">
+        <label>Text thay thế</label>
+        <input type="text" class="editpdf-replace" placeholder="Text mới" style="width:100%;" />
+      </div>
+    </div>
+  `;
+  container.appendChild(box);
+
+  box.querySelector(".editpdf-remove-btn").addEventListener("click", () => {
+    if (container.children.length > 1) {
+      box.remove();
+    }
+  });
+}
+
+async function runEditPdf() {
+  const fileInput = document.getElementById("editPdfFileInput");
+  const statusEl = document.getElementById("editPdfStatus");
+  const resultSection = document.getElementById("editPdfResultSection");
+  const previewEl = document.getElementById("editPdfPreview");
+  const downloadLink = document.getElementById("editPdfDownloadLink");
+
+  if (!fileInput.files || !fileInput.files[0]) {
+    alert("Vui lòng chọn file PDF.");
+    return;
+  }
+
+  const pairsContainer = document.getElementById("editPdfPairs");
+  const boxes = pairsContainer.children;
+  const replacements = [];
+  for (const box of boxes) {
+    const find = box.querySelector(".editpdf-find")?.value || "";
+    const replace = box.querySelector(".editpdf-replace")?.value || "";
+    if (find.trim()) {
+      replacements.push({ find: find, replace: replace });
+    }
+  }
+
+  if (replacements.length === 0) {
+    alert("Vui lòng nhập ít nhất 1 cặp text cần tìm & thay thế.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", fileInput.files[0]);
+  formData.append("replacements", JSON.stringify(replacements));
+
+  statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;"><div class="spinner" style="width:18px;height:18px;border:3px solid #e5e7eb;border-top:3px solid #4f46e5;border-radius:50%;animation:spin 0.8s linear infinite;"></div> Đang xử lý...</div>`;
+  resultSection.style.display = "none";
+
+  try {
+    const resp = await fetch("/api/pdf/edit", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${err.error || resp.statusText}</span>`;
+      return;
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+
+    previewEl.src = url;
+    downloadLink.href = url;
+    downloadLink.download = fileInput.files[0].name.replace(/\.pdf$/i, "_edited.pdf");
+    downloadLink.style.display = "inline-block";
+    resultSection.style.display = "block";
+
+    const count = replacements.length;
+    statusEl.innerHTML = `<span style="color:#16a34a;">✅ Đã xử lý ${count} cặp thay thế thành công.</span>`;
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  }
+}
