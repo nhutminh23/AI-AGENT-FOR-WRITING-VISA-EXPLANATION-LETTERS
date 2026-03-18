@@ -754,24 +754,44 @@
         <section class="card">
           <h2>✏️ Sửa PDF</h2>
           <div class="hint">
-            Upload file PDF → nhập text cần tìm & text thay thế → bấm Sửa để xem kết quả.
+            Upload file PDF → xem nội dung trực quan → click vào text để sửa → Enter lưu → bấm 💾 Lưu PDF.
           </div>
 
-          <div class="row" style="margin-top:12px;">
+          <div class="row" style="margin-top:12px; align-items:center; gap:12px;">
             <div>
               <label for="editPdfFileInput">Chọn file PDF</label>
               <input type="file" id="editPdfFileInput" accept=".pdf" />
             </div>
+            <div id="editPdfEditCount" style="font-size:13px; color:#64748b;"></div>
           </div>
 
-          <div id="editPdfPairs" style="margin-top:16px;"></div>
-
-          <button id="editPdfAddPairBtn" type="button" style="margin-top:8px; padding:6px 14px; font-size:13px; background:#e2e8f0; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer;">+ Thêm cặp thay thế</button>
-
-          <div style="margin-top:14px;">
-            <button id="editPdfRunBtn" style="background:#4f46e5;">✏️ Sửa PDF</button>
-          </div>
           <div id="editPdfStatus" style="margin-top:8px;"></div>
+
+          <!-- Visual PDF viewer -->
+          <div id="editPdfViewer" style="margin-top:16px; display:none; text-align:center;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:13px; color:#64748b;">Trang:</span>
+                <button id="editPdfPrevPage" style="padding:5px 14px; border:1px solid #cbd5e1; border-radius:4px; background:#f1f5f9; cursor:pointer; font-size:14px; color:#334155;">&#9664; Trước</button>
+                <span id="editPdfPageInfo" style="font-size:13px; font-weight:600;">1 / 1</span>
+                <button id="editPdfNextPage" style="padding:5px 14px; border:1px solid #cbd5e1; border-radius:4px; background:#f1f5f9; cursor:pointer; font-size:14px; color:#334155;">Sau &#9654;</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:13px; color:#64748b;">Zoom:</span>
+                <button id="editPdfZoomOut" style="padding:5px 14px; border:1px solid #cbd5e1; border-radius:4px; background:#f1f5f9; cursor:pointer; font-size:18px; font-weight:bold; color:#334155; line-height:1;">-</button>
+                <span id="editPdfZoomInfo" style="font-size:13px; font-weight:600;">100%</span>
+                <button id="editPdfZoomIn" style="padding:5px 14px; border:1px solid #cbd5e1; border-radius:4px; background:#f1f5f9; cursor:pointer; font-size:18px; font-weight:bold; color:#334155; line-height:1;">+</button>
+              </div>
+              <button id="editPdfSaveBtn" style="padding:8px 20px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600;">&#128190; Lưu PDF</button>
+            </div>
+            <div style="font-size:12px; color:#94a3b8; margin-bottom:8px;">
+              💡 Click vào text để sửa · Enter = lưu · Shift+Enter = xuống dòng · Esc = hủy
+            </div>
+            <div id="editPdfCanvasWrap" style="position:relative; display:inline-block; border:1px solid #e2e8f0; border-radius:8px; overflow:auto; max-width:100%; max-height:80vh; background:#e5e7eb; margin:0 auto;">
+              <canvas id="editPdfCanvas"></canvas>
+              <div id="editPdfOverlay" style="position:absolute; top:0; left:0; width:100%; height:100%;"></div>
+            </div>
+          </div>
         </section>
 
         <section class="card" id="editPdfResultSection" style="display:none;">
@@ -779,7 +799,7 @@
             <h2>📄 Kết quả PDF đã sửa</h2>
             <a id="editPdfDownloadLink" href="#" download style="display:none; padding:8px 16px; background:#16a34a; color:#fff; border-radius:6px; text-decoration:none; font-size:13px;">⬇️ Tải PDF</a>
           </div>
-          <iframe id="editPdfPreview" style="width:100%; height:600px; border:1px solid #e2e8f0; border-radius:8px;" title="Edited PDF Preview"></iframe>
+          <iframe id="editPdfPreview" style="width:100%; height:85vh; border:1px solid #e2e8f0; border-radius:8px;" title="Edited PDF Preview"></iframe>
         </section>
       </div>
 
@@ -798,6 +818,8 @@
       .resizable-th { user-select: none; overflow: hidden; }
       .precheck-table td { overflow: hidden; text-overflow: ellipsis; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
     <script src="app.js"></script>
   </body>
 </html>
