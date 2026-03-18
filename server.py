@@ -116,6 +116,31 @@ def _img_bytes_to_data_url(image_bytes: bytes) -> str:
     return f"data:image/png;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
 
 
+class QuotaExhaustedError(Exception):
+    """Raised when OpenAI API returns a quota/rate-limit error."""
+    pass
+
+
+def _is_quota_error(exc: Exception) -> bool:
+    """Check if an exception is an OpenAI quota/rate-limit/billing error."""
+    msg = str(exc).lower()
+    quota_keywords = [
+        "quota", "rate_limit", "rate limit", "insufficient_quota",
+        "billing", "exceeded", "limit reached", "too many requests",
+        "429", "billing_hard_limit", "exceeded your current quota",
+        "you exceeded", "plan limit",
+    ]
+    return any(kw in msg for kw in quota_keywords)
+
+
+def _check_and_raise_quota(exc: Exception) -> None:
+    """If exc is a quota error, raise QuotaExhaustedError with user-friendly message."""
+    if _is_quota_error(exc):
+        raise QuotaExhaustedError(
+            "⚠️ Đã hết quota OpenAI API! Vui lòng kiểm tra billing tại https://platform.openai.com/account/billing hoặc chờ reset quota."
+        ) from exc
+
+
 def _ocr_image_bytes(llm: Any, image_bytes: bytes, page_idx: int, total_pages: int) -> str:
     prompt = (
         f"{OCR_VIETNAMESE_ADMIN_PROMPT}\n\n"
@@ -127,51 +152,133 @@ def _ocr_image_bytes(llm: Any, image_bytes: bytes, page_idx: int, total_pages: i
             {"type": "image_url", "image_url": {"url": _img_bytes_to_data_url(image_bytes)}},
         ]
     )
-    result = llm.invoke([SystemMessage(content="Bạn là OCR engine chính xác."), msg])
+    try:
+        result = llm.invoke([SystemMessage(content="Bạn là OCR engine chính xác."), msg])
+    except QuotaExhaustedError:
+        raise
+    except Exception as exc:
+        _check_and_raise_quota(exc)
+        raise
     return (result.content or "").strip()
 
 
-def _ocr_document_for_translation(llm: Any, file_path: str) -> str:
+def _ocr_document_for_translation(llm: Any, file_path: str, page_callback: Any = None) -> str:
+    """OCR a document. page_callback(page_idx, total_pages) is called per page for progress."""
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".pdf":
         try:
             import pdfplumber
             from PIL import Image
-            page_texts: List[str] = []
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            # Render all page images first (fast, CPU-bound)
+            page_images: List[tuple] = []  # [(idx, image_bytes)]
             with pdfplumber.open(file_path) as pdf:
                 total = len(pdf.pages)
                 for idx, page in enumerate(pdf.pages, start=1):
                     try:
-                        page_img = page.to_image(resolution=200).original
+                        page_img = page.to_image(resolution=150).original  # 150 DPI — good balance of speed vs quality
                         if isinstance(page_img, Image.Image):
                             buff = BytesIO()
                             page_img.save(buff, format="PNG")
-                            page_texts.append(_ocr_image_bytes(llm, buff.getvalue(), idx, total))
+                            page_images.append((idx, buff.getvalue()))
                     except Exception:
                         continue
+
+            if not page_images:
+                return extract_text_with_openai(llm, file_path)
+
+            total = len(page_images)
+
+            # OCR pages in parallel (IO-bound LLM calls)
+            def _ocr_one(args):
+                idx, img_bytes = args
+                return idx, _ocr_image_bytes(llm, img_bytes, idx, total)
+
+            results: dict = {}
+            max_workers = min(4, total)  # Cap at 4 concurrent LLM calls
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {pool.submit(_ocr_one, item): item[0] for item in page_images}
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        page_idx, text = future.result()
+                        results[page_idx] = text
+                        if page_callback:
+                            page_callback(page_idx, total)
+                    except QuotaExhaustedError:
+                        # Cancel remaining and propagate
+                        for f in futures:
+                            f.cancel()
+                        raise
+                    except Exception:
+                        continue
+
+            # Reassemble in page order
+            page_texts = [results[i] for i in sorted(results.keys()) if results.get(i)]
             return "\n\n".join(t for t in page_texts if t).strip()
-        except Exception:
+        except QuotaExhaustedError:
+            raise
+        except Exception as exc:
+            _check_and_raise_quota(exc)
             # Fallback: use existing extractor if image-render OCR fails
             return extract_text_with_openai(llm, file_path)
 
     if ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"]:
+        if page_callback:
+            page_callback(1, 1)
         try:
             from PIL import Image
             img = Image.open(file_path)
             buff = BytesIO()
             img.save(buff, format="PNG")
             return _ocr_image_bytes(llm, buff.getvalue(), 1, 1)
-        except Exception:
+        except QuotaExhaustedError:
+            raise
+        except Exception as exc:
+            _check_and_raise_quota(exc)
             return extract_text_with_openai(llm, file_path)
 
     # Non-image docs fallback
+    if page_callback:
+        page_callback(1, 1)
     return extract_text_with_openai(llm, file_path)
 
 
-def _translate_ocr_text(llm: Any, ocr_text: str) -> str:
-    prompt = TRANSLATE_TO_EN_PROMPT.format(ocr_text=ocr_text)
-    result = llm.invoke([SystemMessage(content="You are a strict legal translator."), HumanMessage(content=prompt)])
+def _translate_ocr_text(llm: Any, ocr_text: str, source_lang: str = "tiếng Việt") -> str:
+    prompt = TRANSLATE_TO_EN_PROMPT.format(ocr_text=ocr_text, source_lang=source_lang)
+    try:
+        result = llm.invoke([SystemMessage(content="You are a strict legal translator."), HumanMessage(content=prompt)])
+    except QuotaExhaustedError:
+        raise
+    except Exception as exc:
+        _check_and_raise_quota(exc)
+        raise
     return (result.content or "").strip()
+
+
+def _auto_detect_template(ocr_text: str) -> str:
+    """Auto-detect document type from OCR text and return matching template filename.
+    Uses keyword matching (no LLM call needed — fast & free).
+    """
+    text_lower = ocr_text.lower()
+    # Keyword → template mapping (order matters: more specific first)
+    patterns = [
+        (["khai sinh", "giấy khai sinh", "trích lục khai sinh", "birth certificate"], "giấy khai sinh.html"),
+        (["kết hôn", "giấy chứng nhận kết hôn", "đăng ký kết hôn", "marriage"], "giấy kết hôn.html"),
+        (["hộ khẩu", "sổ hộ khẩu", "đăng ký thường trú", "household"], "hộ khẩu.html"),
+        (["hợp đồng lao động", "người lao động", "người sử dụng lao động", "labor contract", "employment contract"], "hợp đồng lao động.html"),
+        (["sổ đỏ", "quyền sử dụng đất", "giấy chứng nhận quyền sử dụng", "land use right"], "sổ đỏ.html"),
+    ]
+    for keywords, template_name in patterns:
+        for kw in keywords:
+            if kw in text_lower:
+                # Verify template file exists
+                tpl_path = os.path.join(TRANSLATE_TEMPLATE_DIR, template_name)
+                if os.path.exists(tpl_path):
+                    return template_name
+    return TRANSLATE_DEFAULT_TEMPLATE  # fallback: a4.html
+
 
 
 def _build_translation_html(
@@ -185,7 +292,13 @@ def _build_translation_html(
         template_html=template_html,
         translated_text=translated_text,
     )
-    result = llm.invoke([SystemMessage(content="You output valid HTML only."), HumanMessage(content=prompt)])
+    try:
+        result = llm.invoke([SystemMessage(content="You output valid HTML only."), HumanMessage(content=prompt)])
+    except QuotaExhaustedError:
+        raise
+    except Exception as exc:
+        _check_and_raise_quota(exc)
+        raise
     html_text = (result.content or "").strip()
     if not html_text:
         html_text = template_html.replace("{{CONTENT}}", translated_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
@@ -497,10 +610,14 @@ Return ONLY JSON, nothing else."""}
     doc.close()
     
     from langchain_core.messages import HumanMessage, SystemMessage
-    result = llm.invoke([
-        SystemMessage(content="You are a document classifier. Answer only with JSON."),
-        HumanMessage(content=content_parts),
-    ])
+    try:
+        result = llm.invoke([
+            SystemMessage(content="You are a document classifier. Answer only with JSON."),
+            HumanMessage(content=content_parts),
+        ])
+    except Exception as exc:
+        _check_and_raise_quota(exc)
+        raise
     
     # Parse response
     import re
@@ -1830,6 +1947,8 @@ def pdf_rename_suggest_name():
     try:
         result = llm.invoke([system, human])
     except Exception as exc:
+        if _is_quota_error(exc):
+            return jsonify({"error": "quota_exceeded", "detail": "⚠️ Đã hết quota OpenAI API! Vui lòng kiểm tra billing."}), 429
         return jsonify({"error": "llm_error", "detail": str(exc)}), 500
 
     suggested = (getattr(result, "content", "") or "").strip().upper()
@@ -4297,18 +4416,21 @@ def run_translate_stream():
     file_ref = (payload.get("file_ref") or "").strip()
     template_name = (payload.get("template_name") or TRANSLATE_DEFAULT_TEMPLATE).strip()
     flow_id = payload.get("flow_id") or 1
-    ocr_model = payload.get("ocr_model") or get_text_model()  # default gpt-5-mini
-    translate_model = payload.get("translate_model") or get_text_model()
+    source_lang = (payload.get("source_lang") or "tiếng Việt").strip()
+    ocr_model = payload.get("ocr_model") or "gpt-4o-mini"
+    translate_model = payload.get("translate_model") or "gpt-5-mini"
 
     if not file_ref:
         return jsonify({"error": "missing_file_ref"}), 400
 
     _ensure_translate_template_dir()
-    template_name = _safe_name(template_name) or TRANSLATE_DEFAULT_TEMPLATE
-    template_path = os.path.abspath(os.path.join(TRANSLATE_TEMPLATE_DIR, template_name))
-    template_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
-    if not template_path.startswith(template_root) or not os.path.exists(template_path):
-        return jsonify({"error": "template_not_found"}), 404
+    is_auto_template = template_name.lower() in ("auto", "")
+    if not is_auto_template:
+        template_name = _safe_name(template_name) or TRANSLATE_DEFAULT_TEMPLATE
+        template_path = os.path.abspath(os.path.join(TRANSLATE_TEMPLATE_DIR, template_name))
+        template_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
+        if not template_path.startswith(template_root) or not os.path.exists(template_path):
+            return jsonify({"error": "template_not_found"}), 404
 
     source_path = _resolve_translate_source_path(input_dir, file_ref)
     if not source_path:
@@ -4317,10 +4439,8 @@ def run_translate_stream():
     if file_ref.startswith("upload_token:"):
         upload_token = file_ref.split(":", 1)[1].strip()
 
-    with open(template_path, "r", encoding="utf-8") as f:
-        template_html = f.read()
-
     def generate():
+        nonlocal template_name
         def send_event(step: int, msg: str, data: Optional[Dict[str, Any]] = None):
             evt: Dict[str, Any] = {"step": step, "msg": msg}
             if data is not None:
@@ -4328,32 +4448,53 @@ def run_translate_stream():
             yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
 
         try:
-            # Step 1: OCR
+            # Step 1: OCR with per-page progress
             yield from send_event(1, "⏳ Đang OCR tài liệu...")
             llm_ocr = ChatOpenAI(model=ocr_model, temperature=0)
-            ocr_text = _ocr_document_for_translation(llm_ocr, source_path)
+            page_events: List[str] = []
+
+            def on_page(page_idx: int, total: int) -> None:
+                page_events.append(f"data: {json.dumps({'step': 1, 'msg': f'⏳ OCR trang {page_idx}/{total}...'}, ensure_ascii=False)}\n\n")
+
+            ocr_text = _ocr_document_for_translation(llm_ocr, source_path, page_callback=on_page)
+            # Yield page progress events
+            for pe in page_events:
+                yield pe
             if not ocr_text.strip():
                 yield from send_event(-1, "❌ Không trích xuất được OCR từ file")
                 return
             yield from send_event(1, "✅ OCR hoàn tất")
 
+            # Auto-detect template from OCR text if needed
+            if is_auto_template:
+                template_name = _auto_detect_template(ocr_text)
+                yield from send_event(1, f"🔍 Tự động chọn template: {template_name}")
+
+            # Load template HTML
+            tpl_path = os.path.abspath(os.path.join(TRANSLATE_TEMPLATE_DIR, template_name))
+            tpl_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
+            if not tpl_path.startswith(tpl_root) or not os.path.exists(tpl_path):
+                tpl_path = os.path.join(TRANSLATE_TEMPLATE_DIR, TRANSLATE_DEFAULT_TEMPLATE)
+            with open(tpl_path, "r", encoding="utf-8") as f:
+                template_html = f.read()
+
             # Step 2: Translate
-            yield from send_event(2, "⏳ Đang dịch sang tiếng Anh...")
+            yield from send_event(2, f"⏳ Đang dịch {source_lang} sang tiếng Anh...")
             llm_translate = ChatOpenAI(model=translate_model, temperature=0)
-            translated_text = _translate_ocr_text(llm_translate, ocr_text)
+            translated_text = _translate_ocr_text(llm_translate, ocr_text, source_lang=source_lang)
             if not translated_text.strip():
                 yield from send_event(-1, "❌ Không tạo được bản dịch")
                 return
             yield from send_event(2, "✅ Dịch hoàn tất")
 
-            # Step 3: Build HTML
+            # Step 3: Build HTML — use truncated OCR for layout hints only (saves tokens)
             yield from send_event(3, "⏳ Đang tạo HTML theo template...")
-            source_pdf_text = extract_text_with_openai(llm_ocr, source_path) or ocr_text
+            layout_hint = ocr_text[:1500] + ("\n..." if len(ocr_text) > 1500 else "")
             html_result = _build_translation_html(
                 llm_translate,
                 translated_text,
                 template_html,
-                source_pdf_text,
+                layout_hint,
             )
             if not html_result.strip():
                 yield from send_event(-1, "❌ Không tạo được HTML")
@@ -4389,8 +4530,14 @@ def run_translate_stream():
                     },
                 },
             )
+        except QuotaExhaustedError as qe:
+            yield from send_event(-1, f"⚠️ HẾT QUOTA OpenAI! {str(qe)}")
         except Exception as e:
-            yield from send_event(-1, f"❌ Lỗi: {str(e)}")
+            # Check if it's a quota error in disguise
+            if _is_quota_error(e):
+                yield from send_event(-1, "⚠️ HẾT QUOTA OpenAI! Vui lòng kiểm tra billing tại https://platform.openai.com/account/billing")
+            else:
+                yield from send_event(-1, f"❌ Lỗi: {str(e)}")
         finally:
             # Cleanup temporary uploaded file (if any)
             if upload_token:
@@ -4448,6 +4595,40 @@ def translate_save_html():
             "saved_name": os.path.basename(out_path),
         }
     )
+
+
+@app.post("/api/translate/rebuild_html")
+def translate_rebuild_html():
+    """Rebuild HTML from edited translated text without re-OCR."""
+    payload = request.get_json(force=True) or {}
+    translated_text = (payload.get("translated_text") or "").strip()
+    ocr_text = (payload.get("ocr_text") or "").strip()
+    template_name = (payload.get("template_name") or TRANSLATE_DEFAULT_TEMPLATE).strip()
+
+    if not translated_text:
+        return jsonify({"error": "missing_translated_text"}), 400
+
+    _ensure_translate_template_dir()
+    template_name = _safe_name(template_name) or TRANSLATE_DEFAULT_TEMPLATE
+    template_path = os.path.abspath(os.path.join(TRANSLATE_TEMPLATE_DIR, template_name))
+    template_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
+    if not template_path.startswith(template_root) or not os.path.exists(template_path):
+        return jsonify({"error": "template_not_found"}), 404
+
+    with open(template_path, "r", encoding="utf-8") as f:
+        template_html = f.read()
+
+    try:
+        llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
+        html_result = _build_translation_html(llm, translated_text, template_html, ocr_text or translated_text)
+        return jsonify({"html": html_result})
+    except QuotaExhaustedError as qe:
+        return jsonify({"error": "quota_exceeded", "detail": str(qe)}), 429
+    except Exception as e:
+        if _is_quota_error(e):
+            return jsonify({"error": "quota_exceeded", "detail": "⚠️ Đã hết quota OpenAI API! Vui lòng kiểm tra billing."}), 429
+        return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == "__main__":
