@@ -937,18 +937,43 @@ def fill_vivavivu_template(template_path: str, flight_data: Dict) -> str:
     directions = flight_data.get("directions", [])
 
     if isinstance(total_price, (int, float)):
+        total_price_num = total_price
         total_price = _format_price_vnd(total_price, currency)
+    else:
+        # Try to parse numeric value from formatted string
+        try:
+            total_price_num = float(re.sub(r'[^\d.]', '', str(total_price).replace('.', '').replace(',', '.')))
+        except (ValueError, TypeError):
+            total_price_num = 0
+
+    # Auto-calculate per-person price if passengers don't have individual prices
+    num_passengers = max(len(passengers), 1)
+    per_person_price = total_price_num / num_passengers if total_price_num > 0 else 0
 
     # --- Passenger rows ---
     passenger_rows = []
     for i, p in enumerate(passengers, 1):
         name = p.get("name", "")
         dob = p.get("dob", "\u2013")
-        tp = p.get("ticket_price", "\u2013")
-        fee = p.get("fee", "\u2013")
-        total = p.get("total", "\u2013")
+        tp = p.get("ticket_price") or p.get("price")
+        fee = p.get("fee", "0")
+        total = p.get("total")
+
+        # If no individual price, use calculated per-person price
+        if tp is None or tp == "" or tp == "\u2013":
+            tp = per_person_price
+        if total is None or total == "" or total == "\u2013":
+            # total = ticket_price + fee
+            try:
+                fee_num = float(re.sub(r'[^\d.]', '', str(fee).replace('.', '').replace(',', '.'))) if fee and fee != "0" else 0
+            except (ValueError, TypeError):
+                fee_num = 0
+            total = (float(tp) if isinstance(tp, (int, float)) else per_person_price) + fee_num
+
         if isinstance(tp, (int, float)):
             tp = _format_price_vnd(tp, currency)
+        if isinstance(fee, (int, float)):
+            fee = _format_price_vnd(fee, currency)
         if isinstance(total, (int, float)):
             total = _format_price_vnd(total, currency)
         passenger_rows.append(

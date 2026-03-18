@@ -5,38 +5,43 @@ echo   AI Visa Explanation Letter Generator
 echo ============================================
 echo.
 
-:: ---- Check Python ----
-python --version 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo ❌ Khong tim thay Python! Cai dat Python 3.10+ tu:
-    echo    https://www.python.org/downloads/
-    echo    Nho tich "Add Python to PATH" khi cai dat.
-    pause
-    exit /b 1
-)
-
-python -c "import sys; exit(0 if sys.version_info >= (3, 9) else 1)" 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo ❌ Python qua cu! Can Python 3.9 tro len.
-    python --version
-    pause
-    exit /b 1
-)
-
 :: ---- Auto-detect or create venv ----
 set VENV_DIR=
-if exist venv\Scripts\activate.bat set VENV_DIR=venv
 if exist myenv\Scripts\activate.bat set VENV_DIR=myenv
-if exist .venv\Scripts\activate.bat set VENV_DIR=.venv
+if exist venv\Scripts\activate.bat if "%VENV_DIR%"=="" set VENV_DIR=venv
+if exist .venv\Scripts\activate.bat if "%VENV_DIR%"=="" set VENV_DIR=.venv
 
 if "%VENV_DIR%"=="" (
     echo [*] Lan dau chay - tao moi truong ao...
-    python -m venv venv
-    set VENV_DIR=venv
+    :: Try py launcher first (finds newest Python), then python3, then python
+    where py >nul 2>nul
+    if %ERRORLEVEL% equ 0 (
+        py -3 -m venv myenv
+    ) else (
+        where python3 >nul 2>nul
+        if %ERRORLEVEL% equ 0 (
+            python3 -m venv myenv
+        ) else (
+            python -m venv myenv
+        )
+    )
+    set VENV_DIR=myenv
     echo ✅ Da tao moi truong ao!
 ) else (
     echo ✅ Moi truong ao: %VENV_DIR%
 )
+
+:: ---- Check Python version in venv ----
+%VENV_DIR%\Scripts\python.exe -c "import sys; exit(0 if sys.version_info >= (3, 9) else 1)" 2>nul
+if %ERRORLEVEL% neq 0 (
+    %VENV_DIR%\Scripts\python.exe --version
+    echo ❌ Python trong %VENV_DIR% qua cu! Can Python 3.9 tro len.
+    echo    Xoa thu muc %VENV_DIR% va cai Python 3.10+ roi chay lai.
+    pause
+    exit /b 1
+)
+
+for /f "tokens=*" %%v in ('%VENV_DIR%\Scripts\python.exe --version 2^>^&1') do echo ✅ %%v
 
 :: ---- Activate ----
 call %VENV_DIR%\Scripts\activate.bat

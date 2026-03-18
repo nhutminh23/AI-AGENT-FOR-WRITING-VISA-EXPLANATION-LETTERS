@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -18,6 +19,108 @@ def _sanitize_name(value: str, fallback: str) -> str:
     text = re.sub(r'[\\/:*?"<>|]+', " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text or fallback
+
+
+# ==================== NORMALIZE VIETNAMESE NAME ====================
+
+def normalize_vietnamese_name(name: str) -> str:
+    """Convert Vietnamese name to ASCII uppercase with underscores.
+
+    'NGÔ NGÂN HÀ' → 'NGO_NGAN_HA'
+    'TRẦN TRUNG ANH - CHỒNG' → 'TRAN_TRUNG_ANH'
+    """
+    text = (name or "").strip()
+    # Remove relationship suffixes like "- CHỒNG", "- VỢ", "- CON"
+    text = re.sub(r'\s*[-–]\s*(CHỒNG|VỢ|CON|MẸ|BỐ|CHA|ANH|CHỊ|EM|BÀ|ÔNG).*$', '', text, flags=re.IGNORECASE)
+    # Remove Vietnamese diacritics
+    nfkd = unicodedata.normalize('NFKD', text)
+    ascii_text = ''.join(c for c in nfkd if not unicodedata.combining(c))
+    # Replace Đ/đ
+    ascii_text = ascii_text.replace('Đ', 'D').replace('đ', 'd')
+    # Uppercase, replace spaces with _
+    ascii_text = ascii_text.upper().strip()
+    ascii_text = re.sub(r'[^A-Z0-9]+', '_', ascii_text)
+    ascii_text = ascii_text.strip('_')
+    return ascii_text or "UNKNOWN"
+
+
+# ==================== CLASSIFY DOC TYPE ONLY ====================
+
+def classify_doc_type_only(llm: Any, filename: str, file_path: str) -> Dict[str, Any]:
+    """Classify a file to get doc_type_en only (person_name comes from folder).
+
+    Also detects if the file contains multiple document types (needs_split).
+    Returns: {"doc_type_en": "PASSPORT", "needs_split": False, "doc_count": 1}
+    """
+    ext = os.path.splitext(filename)[1].lower()
+
+    # Non-PDF files: classify from filename + content
+    if ext in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
+        result = _classify_single(llm, filename, f"[Image file: {filename}]")
+        return {
+            "doc_type_en": result.get("doc_type_en", "DOCUMENT") if result else "DOCUMENT",
+            "needs_split": False,
+            "doc_count": 1,
+        }
+
+    if ext in ['.docx', '.doc']:
+        text = _read_docx_text(file_path)
+        if not text.strip():
+            return {"doc_type_en": "APPLICATION FORM", "needs_split": False, "doc_count": 1}
+        result = _classify_single(llm, filename, text)
+        return {
+            "doc_type_en": result.get("doc_type_en", "DOCUMENT") if result else "DOCUMENT",
+            "needs_split": False,
+            "doc_count": 1,
+        }
+
+    if ext != '.pdf':
+        return {"doc_type_en": "DOCUMENT", "needs_split": False, "doc_count": 1}
+
+    # PDF: extract text → classify + detect multi-doc
+    try:
+        page_texts = _extract_pdf_pages_text(file_path)
+    except Exception:
+        return {"doc_type_en": "DOCUMENT", "needs_split": False, "doc_count": 1}
+
+    total_pages = len(page_texts)
+    non_empty = sum(1 for t in page_texts if len(t.strip()) > 30)
+
+    # Scanned PDF (mostly no text)
+    if non_empty < max(1, total_pages * 0.3):
+        partial_text = "\n".join(t for t in page_texts if t.strip())
+        if partial_text.strip():
+            context = f"[Scanned PDF, có một phần text:]\n{partial_text[:3000]}"
+        else:
+            context = f"[Scanned PDF: {filename}, {total_pages} trang, không có text.]"
+        result = _classify_single(llm, filename, context)
+        return {
+            "doc_type_en": result.get("doc_type_en", "DOCUMENT") if result else "DOCUMENT",
+            "needs_split": False,
+            "doc_count": 1,
+        }
+
+    # Digital PDF with text → detect multi-doc
+    docs = _classify_multi_page_pdf(llm, filename, page_texts)
+    if not docs:
+        return {"doc_type_en": "DOCUMENT", "needs_split": False, "doc_count": 1}
+
+    if len(docs) == 1:
+        return {
+            "doc_type_en": docs[0].get("doc_type_en", "DOCUMENT"),
+            "needs_split": False,
+            "doc_count": 1,
+        }
+
+    # Multiple documents detected
+    doc_types = [d.get("doc_type_en", "UNKNOWN") for d in docs]
+    return {
+        "doc_type_en": doc_types[0],  # primary doc type
+        "needs_split": True,
+        "doc_count": len(docs),
+        "doc_types": doc_types,
+        "documents": docs,
+    }
 
 
 # Known Vietnamese document type keywords (used to separate person name from doc type in filename)

@@ -1,4 +1,9 @@
+# ===== SECRETS (QUAN TRỌNG - KHÔNG BAO GIỜ PUSH) =====
 .env
+*.key
+*.pem
+
+# ===== Python =====
 __pycache__/
 *.pyc
 *.pyo
@@ -7,14 +12,39 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Virtual environments
+# ===== Virtual environments =====
 myenv/
 venv/
 .venv/
+env/
 
-# Runtime data
-output/
+# ===== Runtime data (hồ sơ visa người dùng) =====
 input/
+output/
 splitter_uploads/
 splitter_outputs/
+phanloai/
+dich/
+pdf/
+test_dir/
+
+# ===== Database =====
 visa_app.db
+*.db
+
+# ===== AI/Tools local index =====
+.gitnexus/
+.brain/
+
+# ===== Editor & OS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store
+
+# ===== Logs =====
+*.log
+logs/

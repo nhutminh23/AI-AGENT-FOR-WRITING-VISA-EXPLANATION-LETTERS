@@ -22,47 +22,52 @@
       </header>
 
       <div class="tabs">
-        <button class="tab-btn active" data-tab="precheck">⓪ Kiểm tra file</button>
+        <button class="tab-btn active" data-tab="precheck">⓪ Xử lý hồ sơ</button>
         <button class="tab-btn" data-tab="aisplitter">① Tách PDF (AI)</button>
-        <button class="tab-btn" data-tab="pdf">② Tách/Rename PDF</button>
-        <button class="tab-btn" data-tab="classifier">③ Phân loại file</button>
-        <button class="tab-btn" data-tab="booking">④ Booking</button>
-        <button class="tab-btn" data-tab="itinerary">⑤ Lịch trình</button>
-        <button class="tab-btn" data-tab="letter">⑥ Thư giải trình</button>
-        <button class="tab-btn" data-tab="outputs">⑦ Kết quả</button>
-        <button class="tab-btn" data-tab="translate">⑧ Dịch thuật</button>
-        <button class="tab-btn" data-tab="editpdf">⑨ Sửa PDF</button>
+        <button class="tab-btn" data-tab="pdf">② Tách/Nối PDF</button>
+        <button class="tab-btn" data-tab="booking">③ Booking</button>
+        <button class="tab-btn" data-tab="itinerary">④ Lịch trình</button>
+        <button class="tab-btn" data-tab="letter">⑤ Thư giải trình</button>
+        <button class="tab-btn" data-tab="outputs">⑥ Kết quả</button>
+        <button class="tab-btn" data-tab="translate">⑦ Dịch thuật</button>
+        <button class="tab-btn" data-tab="editpdf">⑧ Sửa PDF</button>
       </div>
 
-      <!-- ⓪ Pre-Check Section -->
+      <!-- ⓪ Xử lý hồ sơ Section -->
       <div id="precheckSection" class="section">
         <section class="card">
-          <h2>🔍 Kiểm tra file đầu vào</h2>
+          <h2>📂 Xử lý hồ sơ</h2>
           <div class="hint">
-            AI quét tất cả file trong thư mục input → phát hiện file nào chứa nhiều giấy tờ ghép chung (cần tách) và file nào sạch (đi thẳng phân loại).
+            AI quét tất cả file trong thư mục <code>input/</code> → phân loại loại giấy tờ → đổi tên theo chuẩn <code>[TÊN_NGƯỜI]_[LOẠI_GIẤY_TỜ].ext</code> → phát hiện file ghép nhiều giấy tờ.
           </div>
           <div class="row" style="margin-top: 10px;">
             <div>
-              <label for="precheckInputDir">Thư mục cần kiểm tra</label>
+              <label for="precheckInputDir">Thư mục cần xử lý</label>
               <input id="precheckInputDir" type="text" value="input" />
             </div>
-            <button id="precheckScanBtn">🔍 Quét tất cả file</button>
+            <button id="precheckScanBtn">🔍 Quét & Phân loại</button>
           </div>
           <div id="precheckProgress" style="margin-top: 10px; display:none;">
             <div style="display:flex; align-items:center; gap:8px;">
               <div class="spinner" style="width:20px;height:20px;border:3px solid #e5e7eb;border-top:3px solid #4f46e5;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-              <span id="precheckStatusText">Đang quét file...</span>
+              <span id="precheckStatusText">Đang quét & phân loại file...</span>
             </div>
           </div>
         </section>
 
         <section class="card" id="precheckResultsCard" style="display:none;">
-          <h2>📋 Kết quả kiểm tra</h2>
+          <h2>📋 Kết quả phân loại</h2>
           <div id="precheckSummary" style="margin-bottom:12px; padding:10px; background:#f0fdf4; border-radius:8px; font-weight:600;"></div>
-          <div id="precheckResults" style="max-height:500px; overflow-y:auto;"></div>
+          <div id="precheckResults" style="max-height:600px; overflow-y:auto;"></div>
           <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button id="sendMultiToSplitterBtn" style="background:#dc2626;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;display:none;">⚠️ Gửi file cần tách → Tab ① Tách PDF (AI)</button>
-            <button id="sendCleanToClassifierBtn" style="background:#16a34a;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;display:none;">✅ Gửi file sạch → Tab ③ Phân loại</button>
+            <button id="applyRenameBtn" style="background:#16a34a;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;display:none;">✅ Áp dụng đổi tên tất cả</button>
+            <button id="sendMultiToSplitterBtn" style="background:#dc2626;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;display:none;">⚠️ Gửi file ghép → Tab ① Tách PDF (AI)</button>
+          </div>
+          <div id="renameProgress" style="margin-top:10px; display:none;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="spinner" style="width:20px;height:20px;border:3px solid #e5e7eb;border-top:3px solid #4f46e5;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+              <span id="renameStatusText">Đang đổi tên file...</span>
+            </div>
           </div>
         </section>
       </div>
@@ -677,50 +682,7 @@
           </div>
         </section>
 
-        <section class="card">
-          <h2>Đổi tên PDF theo chuẩn hồ sơ</h2>
-          <div class="hint">
-            Đặt lại tên file PDF theo chuẩn loại hồ sơ + loại giấy tờ (tiếng Anh, ngắn gọn). File được đổi tên trực tiếp trong <code>pdf/input</code>.
-          </div>
-          <div class="row" style="margin-top: 10px;">
-            <div>
-              <label for="pdfRenameSourceFile">Chọn file PDF cần đổi tên</label>
-              <select id="pdfRenameSourceFile"></select>
-            </div>
-          </div>
-          <div class="row" style="margin-top: 10px; align-items: flex-end;">
-            <div style="flex: 1; min-width: 180px;">
-              <label for="pdfRenamePrefix">Tiền tố loại hồ sơ</label>
-              <select id="pdfRenamePrefix"></select>
-            </div>
-            <div style="flex: 2; min-width: 220px; margin-left: 12px;">
-              <label for="pdfRenameDocType">Tên giấy tờ (EN, ngắn gọn)</label>
-              <select id="pdfRenameDocType"></select>
-              <input
-                id="pdfRenameDocTypeCustom"
-                type="text"
-                placeholder="Nhập mô tả tiếng Việt hoặc tên EN tuỳ ý"
-                style="margin-top: 6px; display: none;"
-              />
-            </div>
-            <div style="margin-left: 12px;">
-              <button id="pdfRenameGenBtn" type="button">Gen tên EN</button>
-            </div>
-          </div>
-          <div class="row" style="margin-top: 10px;">
-            <div style="flex: 1;">
-              <small id="pdfRenamePreview" class="hint">Tên mới sẽ có dạng: [PREFIX] - [DOC_TYPE].pdf</small>
-            </div>
-            <div>
-              <button id="pdfRunRenameBtn">Đổi tên file</button>
-            </div>
-          </div>
-        </section>
 
-        <section class="card">
-          <h2>Kết quả tách/nối PDF</h2>
-          <pre id="pdfToolsResult" class="summary">Chưa chạy.</pre>
-        </section>
       </div>
 
       <!-- AI PDF Splitter Section -->

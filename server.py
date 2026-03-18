@@ -537,7 +537,7 @@ Return ONLY JSON, nothing else."""}
 
 @app.post("/api/precheck/scan")
 def precheck_scan():
-    """Scan all files in a folder to detect multi-document files."""
+    """Scan all files in input/ subfolders: classify doc type + detect multi-doc + suggest rename."""
     payload = request.get_json(force=True) or {}
     input_dir = payload.get("input_dir", "input")
     model = payload.get("model") or get_vision_model()
@@ -546,78 +546,311 @@ def precheck_scan():
         return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
 
     from langchain_openai import ChatOpenAI
-    from classifier.agent import _extract_pdf_pages_text, _classify_multi_page_pdf
+    from classifier.agent import classify_doc_type_only, normalize_vietnamese_name
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     llm = ChatOpenAI(model=model, temperature=0)
 
-    # Collect all files first
-    all_files = []
-    for root, _, filenames in os.walk(input_dir):
-        for fname in sorted(filenames):
-            path = os.path.join(root, fname)
-            ext = os.path.splitext(fname)[1].lower()
-            rel_path = os.path.relpath(path, input_dir).replace("\\", "/")
-            all_files.append((fname, path, ext, rel_path))
+    IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
 
-    def _scan_one_file(fname, path, ext, rel_path):
-        """Scan a single file — runs in a thread."""
-        if ext != ".pdf":
-            return {
-                "filename": fname, "rel_path": rel_path, "path": path, "ext": ext,
-                "page_count": 1, "doc_count": 1, "doc_types": ["SINGLE FILE"],
-                "needs_split": False,
+    # Collect files grouped by person subfolder (RECURSIVE with os.walk)
+    folders_data = {}
+    for item in sorted(os.listdir(input_dir)):
+        folder_path = os.path.join(input_dir, item)
+        if not os.path.isdir(folder_path):
+            continue
+        if item.startswith('.') or item.startswith('_'):
+            continue
+        person_normalized = normalize_vietnamese_name(item)
+        files_in_folder = []
+        # Walk recursively into all subfolders
+        for root, _dirs, filenames in os.walk(folder_path):
+            for fname in sorted(filenames):
+                fpath = os.path.join(root, fname)
+                if not os.path.isfile(fpath):
+                    continue
+                rel_path = os.path.relpath(fpath, input_dir).replace("\\", "/")
+                sub_path = os.path.relpath(fpath, folder_path).replace("\\", "/")
+                ext = os.path.splitext(fname)[1].lower()
+                files_in_folder.append({
+                    "filename": fname,
+                    "path": fpath,
+                    "rel_path": rel_path,
+                    "sub_path": sub_path,  # path relative to person folder
+                    "ext": ext,
+                })
+        if files_in_folder:
+            folders_data[item] = {
+                "folder_name": item,
+                "person_name": person_normalized,
+                "files": files_in_folder,
             }
+
+    # Also collect files in root (not in any subfolder)
+    root_files = []
+    for fname in sorted(os.listdir(input_dir)):
+        fpath = os.path.join(input_dir, fname)
+        if os.path.isfile(fpath):
+            ext = os.path.splitext(fname)[1].lower()
+            root_files.append({
+                "filename": fname,
+                "path": fpath,
+                "rel_path": fname,
+                "sub_path": fname,
+                "ext": ext,
+            })
+    if root_files:
+        folders_data["__ROOT__"] = {
+            "folder_name": "(Root)",
+            "person_name": "UNKNOWN",
+            "files": root_files,
+        }
+
+    # Classify all files in parallel
+    def _classify_one(file_info, person_name):
+        fname = file_info["filename"]
+        fpath = file_info["path"]
+        ext = file_info["ext"]
         try:
-            page_texts = _extract_pdf_pages_text(path)
-            total_pages = len(page_texts)
-            non_empty = sum(1 for t in page_texts if len(t.strip()) > 30)
-            has_text = non_empty >= max(1, total_pages * 0.3)
+            result = classify_doc_type_only(llm, fname, fpath)
+            doc_type = result.get("doc_type_en", "DOCUMENT")
+            needs_split = result.get("needs_split", False)
+            doc_count = result.get("doc_count", 1)
+            doc_types = result.get("doc_types", [doc_type])
 
-            if has_text:
-                docs = _classify_multi_page_pdf(llm, fname, page_texts)
-            else:
-                docs = _vision_detect_pdf_documents(llm, path, fname, total_pages)
+            # Build suggested name: PERSON_DOC_TYPE.ext (images → .pdf)
+            doc_type_clean = doc_type.upper().strip()
+            doc_type_clean = re.sub(r'[^A-Z0-9]+', '_', doc_type_clean).strip('_')
+            out_ext = '.pdf' if ext in IMAGE_EXTS else ext
+            suggested_name = f"{person_name}_{doc_type_clean}{out_ext}"
 
-            doc_count = len(docs) if docs else 1
-            doc_types = [d.get("doc_type_en", "UNKNOWN") for d in docs] if docs else ["UNKNOWN"]
             return {
-                "filename": fname, "rel_path": rel_path, "path": path, "ext": ext,
-                "page_count": total_pages, "doc_count": doc_count, "doc_types": doc_types,
-                "needs_split": doc_count >= 2, "documents": docs if docs else [],
-                "scan_method": "text" if has_text else "vision",
+                **file_info,
+                "person_name": person_name,
+                "doc_type_en": doc_type,
+                "suggested_name": suggested_name,
+                "needs_split": needs_split,
+                "doc_count": doc_count,
+                "doc_types": doc_types,
             }
         except Exception as e:
             return {
-                "filename": fname, "rel_path": rel_path, "path": path, "ext": ext,
-                "page_count": 0, "doc_count": 1, "doc_types": ["ERROR"],
-                "needs_split": False, "error": str(e),
+                **file_info,
+                "person_name": person_name,
+                "doc_type_en": "ERROR",
+                "suggested_name": fname,
+                "needs_split": False,
+                "doc_count": 1,
+                "doc_types": ["ERROR"],
+                "error": str(e),
             }
 
-    # Process files in parallel (5 workers)
-    results = []
+    all_results = []
+    folders_output = []
+
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {
-            executor.submit(_scan_one_file, fname, path, ext, rel_path): fname
-            for fname, path, ext, rel_path in all_files
-        }
-        for future in as_completed(futures):
-            results.append(future.result())
+        future_map = {}
+        for folder_key, folder_data in folders_data.items():
+            for file_info in folder_data["files"]:
+                future = executor.submit(
+                    _classify_one, file_info, folder_data["person_name"]
+                )
+                future_map[future] = folder_key
 
-    # Sort by filename for consistent display
-    results.sort(key=lambda r: r["filename"])
+        for future in as_completed(future_map):
+            result = future.result()
+            all_results.append(result)
 
-    multi_count = sum(1 for r in results if r.get("needs_split"))
-    clean_count = len(results) - multi_count
+    # Group results back by folder
+    folder_results = {}
+    for r in all_results:
+        # Find which folder this file belongs to
+        for folder_key, folder_data in folders_data.items():
+            if any(f["path"] == r["path"] for f in folder_data["files"]):
+                if folder_key not in folder_results:
+                    folder_results[folder_key] = {
+                        "folder_name": folder_data["folder_name"],
+                        "person_name": folder_data["person_name"],
+                        "files": [],
+                    }
+                folder_results[folder_key]["files"].append(r)
+                break
+
+    # Handle duplicate suggested names within each folder
+    for folder_key, folder_data in folder_results.items():
+        name_counts = {}
+        for f in sorted(folder_data["files"], key=lambda x: x["filename"]):
+            sname = f["suggested_name"]
+            if sname in name_counts:
+                name_counts[sname] += 1
+                base, ext = os.path.splitext(sname)
+                f["suggested_name"] = f"{base}_({name_counts[sname]}){ext}"
+            else:
+                name_counts[sname] = 0
+
+    # Sort files within each folder
+    for folder_data in folder_results.values():
+        folder_data["files"].sort(key=lambda x: x["filename"])
+
+    folders_output = sorted(folder_results.values(), key=lambda x: x["folder_name"])
+
+    total_files = sum(len(f["files"]) for f in folders_output)
+    multi_count = sum(1 for r in all_results if r.get("needs_split"))
 
     return jsonify({
         "status": "done",
         "input_dir": input_dir,
-        "total_files": len(results),
+        "total_files": total_files,
         "multi_doc_count": multi_count,
-        "clean_count": clean_count,
-        "files": results,
+        "clean_count": total_files - multi_count,
+        "folders": folders_output,
     })
+
+
+@app.post("/api/processor/apply-rename")
+def processor_apply_rename():
+    """Rename files in-place within input/ subfolders. Converts images to PDF."""
+    payload = request.get_json(force=True) or {}
+    renames = payload.get("renames", [])
+
+    if not renames:
+        return jsonify({"error": "no_renames_provided"}), 400
+
+    IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+    renamed = []
+    errors = []
+
+    for item in renames:
+        old_path = item.get("path", "")
+        new_name = item.get("new_name", "")
+
+        if not old_path or not new_name:
+            errors.append({"path": old_path, "error": "missing path or new_name"})
+            continue
+
+        if not os.path.isfile(old_path):
+            errors.append({"path": old_path, "error": "file_not_found"})
+            continue
+
+        parent_dir = os.path.dirname(old_path)
+        old_ext = os.path.splitext(old_path)[1].lower()
+        new_ext = os.path.splitext(new_name)[1].lower()
+        needs_convert = (old_ext in IMAGE_EXTS and new_ext == '.pdf')
+
+        new_path = os.path.join(parent_dir, new_name)
+
+        # Handle duplicate: add suffix
+        if os.path.exists(new_path) and not os.path.samefile(old_path, new_path):
+            base, ext = os.path.splitext(new_name)
+            idx = 1
+            while os.path.exists(new_path):
+                new_path = os.path.join(parent_dir, f"{base}_({idx}){ext}")
+                idx += 1
+
+        try:
+            if needs_convert:
+                # Convert image → PDF using Pillow
+                from PIL import Image
+                img = Image.open(old_path)
+                if img.mode in ('RGBA', 'P', 'LA'):
+                    img = img.convert('RGB')
+                img.save(new_path, 'PDF', resolution=150)
+                img.close()
+                os.remove(old_path)  # Remove original image
+            else:
+                os.rename(old_path, new_path)
+            renamed.append({
+                "old": os.path.basename(old_path),
+                "new": os.path.basename(new_path),
+                "path": new_path,
+                "converted": needs_convert,
+            })
+        except Exception as e:
+            errors.append({"path": old_path, "error": str(e)})
+
+    return jsonify({
+        "status": "done",
+        "renamed_count": len(renamed),
+        "error_count": len(errors),
+        "renamed": renamed,
+        "errors": errors,
+    })
+
+
+@app.post("/api/processor/merge-files")
+def processor_merge_files():
+    """Merge multiple files (images + PDFs) into a single PDF in user-specified order."""
+    payload = request.get_json(force=True) or {}
+    file_paths = payload.get("files", [])  # ordered list of file paths
+    output_name = payload.get("output_name", "merged.pdf")
+
+    if len(file_paths) < 2:
+        return jsonify({"error": "need_at_least_2_files"}), 400
+
+    from pypdf import PdfWriter, PdfReader
+    from PIL import Image
+    import tempfile
+
+    IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+    writer = PdfWriter()
+    tmp_files = []
+
+    try:
+        for fpath in file_paths:
+            if not os.path.isfile(fpath):
+                return jsonify({"error": f"file_not_found: {fpath}"}), 404
+            ext = os.path.splitext(fpath)[1].lower()
+            if ext in IMAGE_EXTS:
+                # Convert image to temp PDF page
+                img = Image.open(fpath)
+                if img.mode in ('RGBA', 'P', 'LA'):
+                    img = img.convert('RGB')
+                tmp_pdf = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+                img.save(tmp_pdf.name, 'PDF', resolution=150)
+                img.close()
+                tmp_files.append(tmp_pdf.name)
+                reader = PdfReader(tmp_pdf.name)
+                for page in reader.pages:
+                    writer.add_page(page)
+            elif ext == '.pdf':
+                reader = PdfReader(fpath)
+                for page in reader.pages:
+                    writer.add_page(page)
+            else:
+                return jsonify({"error": f"unsupported_format: {ext}"}), 400
+
+        # Output path = same folder as first file
+        parent_dir = os.path.dirname(file_paths[0])
+        if not output_name.lower().endswith('.pdf'):
+            output_name += '.pdf'
+        output_path = os.path.join(parent_dir, output_name)
+
+        # Handle duplicate
+        if os.path.exists(output_path):
+            base, ext = os.path.splitext(output_name)
+            idx = 1
+            while os.path.exists(os.path.join(parent_dir, f"{base}_({idx}){ext}")):
+                idx += 1
+            output_path = os.path.join(parent_dir, f"{base}_({idx}){ext}")
+
+        with open(output_path, 'wb') as out:
+            writer.write(out)
+
+        return jsonify({
+            "status": "done",
+            "output_path": output_path,
+            "output_name": os.path.basename(output_path),
+            "total_pages": len(writer.pages),
+            "merged_count": len(file_paths),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        for tf in tmp_files:
+            try:
+                os.remove(tf)
+            except:
+                pass
 
 
 @app.post("/api/pipeline/send-to-splitter")

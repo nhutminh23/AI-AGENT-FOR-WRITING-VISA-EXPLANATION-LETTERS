@@ -3726,13 +3726,20 @@ async function serpGenerateTicket() {
     });
   }
 
-  let totalPrice = serpSelectedOutbound.price || 0;
+  // SerpAPI Google Flights returns prices that are TOTAL for all passengers.
+  // For round trip, each direction's price is the total for all pax for THAT direction.
+  // We use the higher of outbound/return as the full round-trip total for all pax.
+  let totalPrice;
   if (isRoundTrip && serpSelectedReturn?.price) {
-    totalPrice += serpSelectedReturn.price;
+    // Use the larger price — typically the updated round-trip total
+    totalPrice = Math.max(serpSelectedOutbound.price || 0, serpSelectedReturn.price || 0);
+  } else {
+    totalPrice = serpSelectedOutbound.price || 0;
   }
   const numAdults = parseInt(serpAdultsEl?.value) || 1;
   const numChildren = parseInt(serpChildrenEl?.value) || 0;
   const totalPax = numAdults + numChildren;
+  // Price per person = total / number of passengers
   const perPerson = totalPax > 0 ? Math.round(totalPrice / totalPax) : totalPrice;
   passengers.forEach(p => {
     p.ticket_price = _formatPrice(perPerson, currency);
@@ -3785,9 +3792,9 @@ async function serpGenerateTicket() {
   }
 }
 
-// ==================== PRE-CHECK FUNCTIONS ====================
+// ==================== PRE-CHECK / PROCESS FUNCTIONS ====================
 
-let precheckResults = []; // store scan results globally
+let precheckFolders = []; // store scan results globally (folder-grouped)
 
 async function precheckScan() {
   const inputDir = document.getElementById("precheckInputDir").value.trim() || "input";
@@ -3801,7 +3808,7 @@ async function precheckScan() {
   scanBtn.disabled = true;
   scanBtn.textContent = "⏳ Đang quét...";
   progressDiv.style.display = "block";
-  statusText.textContent = "AI đang quét và phân tích tất cả file... (có thể mất vài phút)";
+  statusText.textContent = "AI đang quét & phân loại tất cả file... (có thể mất vài phút)";
   resultsCard.style.display = "none";
 
   try {
@@ -3816,63 +3823,383 @@ async function precheckScan() {
       return;
     }
 
-    precheckResults = data.files || [];
+    precheckFolders = data.folders || [];
     progressDiv.style.display = "none";
     resultsCard.style.display = "block";
 
     // Summary
     summaryDiv.innerHTML = `
       📁 Tổng: <strong>${data.total_files}</strong> file &nbsp;|&nbsp;
-      ✅ Sạch: <strong>${data.clean_count}</strong> &nbsp;|&nbsp;
+      ✅ OK: <strong>${data.clean_count}</strong> &nbsp;|&nbsp;
       ⚠️ Cần tách: <strong style="color:#dc2626;">${data.multi_doc_count}</strong>
     `;
 
-    // Results table
-    let html = `<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
-      <thead>
-        <tr style="background:#f1f5f9; text-align:left;">
-          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Trạng thái</th>
-          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">File</th>
-          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Trang</th>
-          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Số giấy tờ</th>
-          <th style="padding:8px; border-bottom:2px solid #e2e8f0;">Loại giấy tờ</th>
-        </tr>
-      </thead>
-      <tbody>`;
+    // Results table grouped by folder
+    let html = '';
+    let fileIdx = 0;
+    for (const folder of precheckFolders) {
+      html += `<div style="margin-bottom:20px;">
+        <h3 style="margin:0 0 8px 0; padding:8px 12px; background:#e0e7ff; border-radius:8px; font-size:0.95em;">
+          📁 ${folder.folder_name} <span style="color:#6b7280; font-weight:normal; font-size:0.85em;">→ ${folder.person_name}</span>
+        </h3>
+        <table style="width:100%; border-collapse:collapse; font-size:0.88em;">
+          <thead>
+            <tr style="background:#f1f5f9; text-align:left;">
+              <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">Trạng thái</th>
+              <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">File gốc</th>
+              <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">Loại giấy tờ (AI)</th>
+              <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">Tên mới gợi ý</th>
+            </tr>
+          </thead>
+          <tbody>`;
 
-    for (const f of precheckResults) {
-      const status = f.needs_split
-        ? '<span style="color:#dc2626; font-weight:bold;">⚠️ Cần tách</span>'
-        : '<span style="color:#16a34a;">✅ Sạch</span>';
-      const rowBg = f.needs_split ? "background:#fef2f2;" : "";
-      html += `
-        <tr style="${rowBg} border-bottom:1px solid #e2e8f0;">
-          <td style="padding:8px;">${status}</td>
-          <td style="padding:8px; word-break:break-all;" title="${f.path}">${f.filename}</td>
-          <td style="padding:8px; text-align:center;">${f.page_count}</td>
-          <td style="padding:8px; text-align:center; font-weight:bold; ${f.doc_count >= 2 ? 'color:#dc2626;' : ''}">${f.doc_count}</td>
-          <td style="padding:8px; font-size:0.85em;">${(f.doc_types || []).join(", ")}</td>
-        </tr>`;
+      for (const f of folder.files) {
+        const status = f.needs_split
+          ? '<span style="color:#dc2626; font-weight:bold;">⚠️ Ghép</span>'
+          : '<span style="color:#16a34a;">✅ OK</span>';
+        const rowBg = f.needs_split ? "background:#fef2f2;" : "";
+        const uid = `f${fileIdx++}`;
+        // Show sub_path if file is in a subfolder (not directly in person folder)
+        const subInfo = (f.sub_path && f.sub_path !== f.filename)
+          ? `<div style="font-size:0.7em; color:#6b7280; margin-top:1px;">📂 ${f.sub_path}</div>` : '';
+
+        html += `
+          <tr style="${rowBg} border-bottom:1px solid #e2e8f0;" data-filepath="${f.path}" data-person="${folder.person_name}" data-ext="${f.ext}" data-filename="${f.filename}">
+            <td style="padding:6px 8px;">${status}</td>
+            <td style="padding:6px 8px; word-break:break-all; max-width:200px;" title="${f.path}">${f.filename}${subInfo}</td>
+            <td style="padding:6px 8px;">
+              <input type="text" id="doctype_${uid}" value="${f.doc_type_en || 'DOCUMENT'}"
+                     style="width:180px; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em;"
+                     oninput="updateSuggestedName(this)" />
+              ${f.needs_split ? `<div style="font-size:0.75em; color:#dc2626; margin-top:2px;">${f.doc_count} giấy tờ: ${(f.doc_types||[]).join(', ')}</div>` : ''}
+            </td>
+            <td style="padding:6px 8px;">
+              <input type="text" id="suggested_${uid}" value="${f.suggested_name || f.filename}"
+                     style="width:280px; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em; background:#f9fafb;" />
+            </td>
+          </tr>`;
+      }
+      html += '</tbody></table></div>';
     }
-    html += "</tbody></table>";
     resultsDiv.innerHTML = html;
 
-    // Show/hide pipeline buttons
+    // Detect merge groups (files with similar names: strip numbers and suffixes)
+    detectMergeGroups();
+
+    // Show/hide buttons
+    const applyBtn = document.getElementById("applyRenameBtn");
     const sendMultiBtn = document.getElementById("sendMultiToSplitterBtn");
-    const sendCleanBtn = document.getElementById("sendCleanToClassifierBtn");
+    if (applyBtn) applyBtn.style.display = data.total_files > 0 ? "inline-block" : "none";
     if (sendMultiBtn) sendMultiBtn.style.display = data.multi_doc_count > 0 ? "inline-block" : "none";
-    if (sendCleanBtn) sendCleanBtn.style.display = data.clean_count > 0 ? "inline-block" : "none";
 
   } catch (e) {
     statusText.textContent = `Lỗi: ${e.message}`;
   } finally {
     scanBtn.disabled = false;
-    scanBtn.textContent = "🔍 Quét tất cả file";
+    scanBtn.textContent = "🔍 Quét & Phân loại";
+  }
+}
+
+// Auto-update suggested name when user edits doc_type
+function updateSuggestedName(inputEl) {
+  const row = inputEl.closest("tr");
+  if (!row) return;
+  const person = row.dataset.person || "UNKNOWN";
+  const origExt = row.dataset.ext || "";
+  const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'];
+  const outExt = IMAGE_EXTS.includes(origExt.toLowerCase()) ? '.pdf' : origExt;
+  const docType = inputEl.value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const suggestedInput = row.querySelector('td:last-child input');
+  if (suggestedInput) {
+    suggestedInput.value = `${person}_${docType}${outExt}`;
+  }
+}
+
+// Apply rename to all files
+async function applyRename() {
+  const applyBtn = document.getElementById("applyRenameBtn");
+  const renameProgress = document.getElementById("renameProgress");
+  const renameStatus = document.getElementById("renameStatusText");
+
+  // Collect all rename pairs from the table
+  const rows = document.querySelectorAll("#precheckResults tr[data-filepath]");
+  const renames = [];
+  rows.forEach(row => {
+    const path = row.dataset.filepath;
+    const suggestedInput = row.querySelector('td:last-child input');
+    const newName = suggestedInput ? suggestedInput.value.trim() : "";
+    if (path && newName) {
+      renames.push({ path, new_name: newName });
+    }
+  });
+
+  if (renames.length === 0) { alert("Không có file nào để đổi tên."); return; }
+
+  applyBtn.disabled = true;
+  applyBtn.textContent = "⏳ Đang đổi tên...";
+  renameProgress.style.display = "block";
+  renameStatus.textContent = `Đang đổi tên ${renames.length} file...`;
+
+  try {
+    const res = await fetch("/api/processor/apply-rename", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ renames }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      renameStatus.textContent = `Lỗi: ${data.error}`;
+      return;
+    }
+
+    renameProgress.style.display = "none";
+    const converted = (data.renamed || []).filter(r => r.converted).length;
+    const msg = `✅ Đã đổi tên ${data.renamed_count} file thành công!` +
+      (converted > 0 ? ` 📄 ${converted} file ảnh đã convert sang PDF.` : '') +
+      (data.error_count > 0 ? ` ⚠️ ${data.error_count} file lỗi.` : '');
+    alert(msg);
+
+    // Update table: show new names as "File gốc" and disable inputs
+    if (data.renamed && data.renamed.length > 0) {
+      for (const r of data.renamed) {
+        rows.forEach(row => {
+          const suggestedInput = row.querySelector('td:last-child input');
+          if (suggestedInput && suggestedInput.value.trim() === r.new) {
+            // Update the filename cell
+            const filenameCell = row.querySelector('td:nth-child(2)');
+            if (filenameCell) filenameCell.textContent = r.new;
+            // Update the filepath for splitter
+            row.dataset.filepath = r.path;
+            // Disable inputs since rename is done
+            const docTypeInput = row.querySelector('td:nth-child(3) input');
+            if (docTypeInput) docTypeInput.disabled = true;
+            suggestedInput.disabled = true;
+            suggestedInput.style.background = '#d1fae5';
+          }
+        });
+      }
+    }
+
+    applyBtn.textContent = "✅ Đã đổi tên xong!";
+    applyBtn.style.background = "#6b7280";
+    applyBtn.disabled = true;
+
+  } catch (e) {
+    renameStatus.textContent = `Lỗi: ${e.message}`;
+  }
+}
+
+// ==================== MERGE GROUP DETECTION ====================
+
+function getBaseName(filename) {
+  // Strip extension
+  const dotIdx = filename.lastIndexOf('.');
+  const name = dotIdx > 0 ? filename.substring(0, dotIdx) : filename;
+  // Strip trailing numbers and separators: "BHXH 1" -> "BHXH", "BHXH3" -> "BHXH", "doc (2)" -> "doc"
+  return name
+    .replace(/\s*\(\d+\)\s*$/, '')  // remove trailing (1), (2)
+    .replace(/[\s._-]*\d+\s*$/, '') // remove trailing numbers with separators
+    .trim()
+    .toLowerCase();
+}
+
+function detectMergeGroups() {
+  // Find all tables in the results
+  const tables = document.querySelectorAll('#precheckResults table');
+  tables.forEach(table => {
+    const rows = table.querySelectorAll('tr[data-filepath]');
+    if (rows.length < 2) return;
+
+    // Group by base name
+    const groups = {};
+    rows.forEach(row => {
+      const filename = row.dataset.filename || '';
+      const base = getBaseName(filename);
+      if (!groups[base]) groups[base] = [];
+      groups[base].push({
+        path: row.dataset.filepath,
+        filename: filename,
+        person: row.dataset.person || '',
+        row: row,
+      });
+    });
+
+    // Find groups with 2+ files
+    for (const [base, files] of Object.entries(groups)) {
+      if (files.length < 2) continue;
+      // Highlight the group rows
+      files.forEach(f => {
+        f.row.style.borderLeft = '3px solid #f59e0b';
+        f.row.style.background = (f.row.style.background || '') + '';
+        if (!f.row.style.background.includes('fef2f2')) {
+          f.row.style.background = '#fffbeb';
+        }
+      });
+      // Add a merge button row after the last file in the group
+      const lastRow = files[files.length - 1].row;
+      const mergeRow = document.createElement('tr');
+      const groupId = `grp_${base.replace(/[^a-z0-9]/g, '_')}`;
+      mergeRow.innerHTML = `
+        <td colspan="4" style="padding:6px 8px; text-align:right;">
+          <span style="color:#f59e0b; font-size:0.85em; margin-right:8px;">📎 ${files.length} file giống tên "${files[0].filename.replace(/[\s._-]*\d+|\s*\(\d+\)/g, '').trim()}"</span>
+          <button onclick="openMergeModal('${groupId}')" 
+                  style="padding:4px 12px; background:#f59e0b; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.85em;"
+                  data-merge-group="${groupId}">
+            📎 Gộp thành 1 PDF
+          </button>
+        </td>`;
+      // Store group data
+      mergeRow.dataset.mergeGroupId = groupId;
+      window._mergeGroups = window._mergeGroups || {};
+      window._mergeGroups[groupId] = files.map(f => ({ path: f.path, filename: f.filename, person: f.person }));
+      lastRow.parentNode.insertBefore(mergeRow, lastRow.nextSibling);
+    }
+  });
+}
+
+function openMergeModal(groupId) {
+  const group = (window._mergeGroups || {})[groupId];
+  if (!group || group.length < 2) return;
+
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'mergeModalOverlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+  const person = group[0].person || 'MERGED';
+  const baseClean = getBaseName(group[0].filename).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const defaultName = `${person}_${baseClean}.pdf`;
+
+  let listHtml = '';
+  group.forEach((f, i) => {
+    listHtml += `
+      <div class="merge-item" draggable="true" data-idx="${i}" data-path="${f.path}"
+           style="padding:8px 12px; margin:4px 0; background:white; border:1px solid #d1d5db; border-radius:6px; cursor:grab; display:flex; align-items:center; gap:8px;">
+        <span style="color:#6b7280; font-size:1.1em; cursor:grab;">☰</span>
+        <span style="flex:1;">${f.filename}</span>
+        <button onclick="moveMergeItem(this, -1)" style="border:none;background:none;cursor:pointer;font-size:1em;">⬆️</button>
+        <button onclick="moveMergeItem(this, 1)" style="border:none;background:none;cursor:pointer;font-size:1em;">⬇️</button>
+      </div>`;
+  });
+
+  overlay.innerHTML = `
+    <div style="background:white; border-radius:12px; padding:24px; width:500px; max-width:90vw; max-height:80vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <h3 style="margin:0 0 16px 0; font-size:1.1em;">📎 Gộp ${group.length} file thành 1 PDF</h3>
+      <p style="color:#6b7280; font-size:0.85em; margin:0 0 12px 0;">Kéo thả hoặc dùng nút ⬆️⬇️ để sắp thứ tự trang:</p>
+      <div id="mergeItemList" style="margin-bottom:16px;">
+        ${listHtml}
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:0.85em; color:#4b5563;">Tên file output:</label>
+        <input type="text" id="mergeOutputName" value="${defaultName}" 
+               style="width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-size:0.9em;" />
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="closeMergeModal()" style="padding:8px 16px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Hủy</button>
+        <button onclick="executeMerge('${groupId}')" id="mergeConfirmBtn"
+                style="padding:8px 16px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">
+          📎 Gộp ngay
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  // Setup drag and drop
+  setupMergeDragDrop();
+}
+
+function moveMergeItem(btn, direction) {
+  const item = btn.closest('.merge-item');
+  const list = item.parentNode;
+  const items = [...list.querySelectorAll('.merge-item')];
+  const idx = items.indexOf(item);
+  if (direction === -1 && idx > 0) {
+    list.insertBefore(item, items[idx - 1]);
+  } else if (direction === 1 && idx < items.length - 1) {
+    list.insertBefore(items[idx + 1], item);
+  }
+}
+
+function setupMergeDragDrop() {
+  const list = document.getElementById('mergeItemList');
+  if (!list) return;
+  let dragEl = null;
+  list.addEventListener('dragstart', e => {
+    dragEl = e.target.closest('.merge-item');
+    if (dragEl) {
+      dragEl.style.opacity = '0.5';
+      e.dataTransfer.effectAllowed = 'move';
+    }
+  });
+  list.addEventListener('dragend', e => {
+    if (dragEl) dragEl.style.opacity = '1';
+    dragEl = null;
+  });
+  list.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.merge-item');
+    if (target && target !== dragEl) {
+      const rect = target.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        list.insertBefore(dragEl, target);
+      } else {
+        list.insertBefore(dragEl, target.nextSibling);
+      }
+    }
+  });
+}
+
+function closeMergeModal() {
+  const overlay = document.getElementById('mergeModalOverlay');
+  if (overlay) overlay.remove();
+}
+
+async function executeMerge(groupId) {
+  const list = document.getElementById('mergeItemList');
+  const outputInput = document.getElementById('mergeOutputName');
+  const confirmBtn = document.getElementById('mergeConfirmBtn');
+  if (!list || !outputInput) return;
+
+  const items = [...list.querySelectorAll('.merge-item')];
+  const orderedPaths = items.map(el => el.dataset.path);
+  const outputName = outputInput.value.trim() || 'merged.pdf';
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = '⏳ Đang gộp...';
+
+  try {
+    const res = await fetch('/api/processor/merge-files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: orderedPaths, output_name: outputName }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`Lỗi: ${data.error}`);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '📎 Gộp ngay';
+      return;
+    }
+    alert(`✅ Đã gộp ${data.merged_count} file → ${data.output_name} (${data.total_pages} trang)`);
+    closeMergeModal();
+  } catch (e) {
+    alert(`Lỗi: ${e.message}`);
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '📎 Gộp ngay';
   }
 }
 
 async function sendMultiToSplitter() {
-  const multiFiles = precheckResults.filter(f => f.needs_split).map(f => f.path);
+  // Find all files that need splitting from the folder-grouped data
+  const multiFiles = [];
+  for (const folder of precheckFolders) {
+    for (const f of folder.files) {
+      if (f.needs_split) multiFiles.push(f.path);
+    }
+  }
   if (multiFiles.length === 0) { alert("Không có file cần tách."); return; }
   const btn = document.getElementById("sendMultiToSplitterBtn");
   btn.disabled = true; btn.textContent = "Đang chuyển...";
@@ -3888,27 +4215,7 @@ async function sendMultiToSplitter() {
     alert(`✅ Đã chuyển ${data.count} file sang splitter_uploads.\nHãy upload từng file ở Tab ① để tách.`);
     setActiveTab("aisplitter");
   } catch (e) { alert(`Lỗi: ${e.message}`); }
-  finally { btn.disabled = false; btn.textContent = "⚠️ Gửi file cần tách → Tab ① Tách PDF (AI)"; }
-}
-
-async function sendCleanToClassifier() {
-  const cleanFiles = precheckResults.filter(f => !f.needs_split).map(f => f.path);
-  if (cleanFiles.length === 0) { alert("Không có file sạch."); return; }
-  const btn = document.getElementById("sendCleanToClassifierBtn");
-  btn.disabled = true; btn.textContent = "Đang chuyển...";
-  try {
-    const res = await fetch("/api/pipeline/send-clean-to-classifier", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file_paths: cleanFiles }),
-    });
-    const data = await res.json();
-    if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
-    alert(`✅ Đã chuyển ${data.count} file sạch sang ${data.target_dir}.\nChuyển sang Tab ③ để phân loại.`);
-    setActiveTab("classifier");
-    loadClassifierFiles();
-  } catch (e) { alert(`Lỗi: ${e.message}`); }
-  finally { btn.disabled = false; btn.textContent = "✅ Gửi file sạch → Tab ③ Phân loại"; }
+  finally { btn.disabled = false; btn.textContent = "⚠️ Gửi file ghép → Tab ① Tách PDF (AI)"; }
 }
 
 // ==================== EVENT LISTENERS ====================
@@ -4941,18 +5248,18 @@ if (sendToInputBtn) {
   sendToInputBtn.addEventListener("click", sendToInput);
 }
 
-// Pre-check button listeners
+// Pre-check / Process button listeners
 const precheckScanBtn = document.getElementById("precheckScanBtn");
 if (precheckScanBtn) {
   precheckScanBtn.addEventListener("click", precheckScan);
 }
+const applyRenameBtn = document.getElementById("applyRenameBtn");
+if (applyRenameBtn) {
+  applyRenameBtn.addEventListener("click", applyRename);
+}
 const sendMultiToSplitterBtn = document.getElementById("sendMultiToSplitterBtn");
 if (sendMultiToSplitterBtn) {
   sendMultiToSplitterBtn.addEventListener("click", sendMultiToSplitter);
-}
-const sendCleanToClassifierBtn = document.getElementById("sendCleanToClassifierBtn");
-if (sendCleanToClassifierBtn) {
-  sendCleanToClassifierBtn.addEventListener("click", sendCleanToClassifier);
 }
 
 // Restore last classifier result on page load
