@@ -911,7 +911,7 @@ def fill_vivavivu_template(template_path: str, flight_data: Dict) -> str:
         passengers: [{name, dob?, ticket_price?, fee?, total?}]
         total_price: str or number
         discount: str (default "0")
-        currency: str (default "VND")
+        currency: str (default "USD")
         directions: [
             {
                 label: "Departure" | "Return" | custom,
@@ -933,7 +933,7 @@ def fill_vivavivu_template(template_path: str, flight_data: Dict) -> str:
     passengers = flight_data.get("passengers", [])
     total_price = flight_data.get("total_price", "0")
     discount = flight_data.get("discount", "0")
-    currency = flight_data.get("currency", "VND")
+    currency = flight_data.get("currency", "USD")
     directions = flight_data.get("directions", [])
 
     if isinstance(total_price, (int, float)):
@@ -1060,12 +1060,6 @@ def fill_vivavivu_template(template_path: str, flight_data: Dict) -> str:
             <strong>Booking status:</strong>
             <span class="status-badge">Successful</span>
         </div>
-        <div class="message">
-            <p>Hello, Vivavivu has received your booking request.</p>
-            <p>However, we regret to inform you that your booking is not yet complete. Currently, one of our consultants is processing your request and will contact you within 30 minutes (during our business hours). For urgent processing, please call our hotline at <strong>090 1818 567</strong> or email <a href="mailto:info@vivavivu.com">info@vivavivu.com</a>.</p>
-            <p>We guarantee you'll have a wonderful time at Vivavivu. Rest assured!</p>
-        </div>
-        <a href="#" class="payment-link">To review your booking or make a payment, please click here.</a>
         <div class="section">
             <div class="section-title">Contact information</div>
             <table>
@@ -1098,14 +1092,6 @@ def fill_vivavivu_template(template_path: str, flight_data: Dict) -> str:
         <div class="flight-details">
             <div class="section-title">Flight details</div>
             {flight_details_html}
-        </div>
-        <div class="faq">
-            <div class="section-title">Frequently Asked Questions</div>
-            <h3>Change or cancel your reservation?</h3>
-            <p>Before tickets are issued, you can change or cancel your booking request free of charge. Please contact our Call Center at 1900 6042 - (028) 7300 8858 - (024) 7300 8858 - (0236) 730 8858 so that our staff can help you.</p>
-            <h3>Do you need an invoice?</h3>
-            <p>If you require a printed financial invoice, please provide the information to Vivavivu.com as soon as possible. Invoices can only be issued within 24 hours of ticket issuance. Once issued, invoices cannot be reissued under any circumstances.</p>
-            <p>Additionally, if you have any further questions, you can refer to the <a href="#">frequently asked questions section</a>.</p>
         </div>
         <div class="section">
             <div class="section-title">Contact address</div>

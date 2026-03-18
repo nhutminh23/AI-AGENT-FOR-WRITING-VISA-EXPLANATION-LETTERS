@@ -3489,7 +3489,7 @@ function renderFlightResults(flights, containerId, selectionCallback) {
           </div>
         </div>
         <div style="text-align:right;">
-          <div style="font-weight:700;font-size:16px;color:#16a34a;">${_formatPrice(price, serpCurrencyEl?.value || "VND")}</div>
+          <div style="font-weight:700;font-size:16px;color:#16a34a;">${_formatPrice(price, serpCurrencyEl?.value || "USD")}</div>
           <div style="font-size:13px;color:#6b7280;">${dur} • ${stopsText}</div>
         </div>
       </div>
@@ -3548,7 +3548,7 @@ async function serpSearchFlights() {
         multi_city_json: JSON.stringify(legs),
         adults: parseInt(serpAdultsEl.value) || 1,
         children: parseInt(serpChildrenEl.value) || 0,
-        currency: serpCurrencyEl.value || "VND",
+        currency: serpCurrencyEl.value || "USD",
       };
     } else {
       payload = {
@@ -3558,7 +3558,7 @@ async function serpSearchFlights() {
         outbound_date: serpOutboundDateEl.value,
         adults: parseInt(serpAdultsEl.value) || 1,
         children: parseInt(serpChildrenEl.value) || 0,
-        currency: serpCurrencyEl.value || "VND",
+        currency: serpCurrencyEl.value || "USD",
       };
       if (flightType === "1" && serpReturnDateEl.value) {
         payload.return_date = serpReturnDateEl.value;
@@ -3680,7 +3680,7 @@ async function serpGenerateTicket() {
   }
 
   const templateType = serpFlightTemplateEl?.value || "vivavivu";
-  const currency = serpCurrencyEl?.value || "VND";
+  const currency = serpCurrencyEl?.value || "USD";
 
   const passengerLines = (serpPassengerNamesEl?.value || "").trim().split("\n").filter(Boolean);
   const passengers = passengerLines.map(name => ({
