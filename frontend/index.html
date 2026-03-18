@@ -654,7 +654,6 @@
             <div id="manualSplitResultList"></div>
             <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
               <button id="manualSplitDownloadBtn" style="padding:8px 16px; background:#4f46e5; color:#fff; border:none; border-radius:6px; cursor:pointer;">📦 Download tất cả (ZIP)</button>
-              <button id="manualSplitToClassifierBtn" style="padding:8px 16px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer;">➡️ Chuyển sang Phân loại</button>
             </div>
           </div>
         </section>
@@ -662,13 +661,13 @@
         <section class="card">
           <h2>Nối PDF</h2>
           <div class="hint">
-            Chọn file PDF từ máy tính (giữ Ctrl hoặc Shift để chọn nhiều). Thứ tự chọn = thứ tự trang (chọn trước = trang 1). Kết quả lưu trong <code>pdf/output</code>.
+            Bước 1: Chọn các file PDF cần ghép. Bước 2: Kéo thả ☰ hoặc bấm ⏫⏬ để sắp đúng thứ tự. Bước 3: Đặt tên → Nối PDF.
           </div>
           <div class="row" style="margin-top: 10px;">
             <div>
-              <label for="pdfMergeFileInput">Chọn file PDF từ máy tính</label>
+              <label for="pdfMergeFileInput">Chọn file PDF (chọn nhiều lần để thêm file)</label>
               <input type="file" id="pdfMergeFileInput" multiple accept=".pdf" style="display:block; margin-top:4px;" />
-              <div id="pdfMergeFileList" class="hint" style="margin-top:8px; min-height:24px; padding:8px; background:#f8fafc; border-radius:6px;">Chưa chọn file. Thứ tự hiển thị = thứ tự trang.</div>
+              <div id="pdfMergeFileList" class="hint" style="margin-top:8px; min-height:24px; padding:8px; background:#f8fafc; border-radius:6px;">Chưa chọn file nào. Bấm "Chọn tệp" để thêm file PDF.</div>
             </div>
           </div>
           <div class="row" style="margin-top: 10px;">
@@ -735,7 +734,6 @@
           <div id="splitterResults"></div>
           <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
             <button id="splitterDownloadAllBtn">📦 Tải tất cả (ZIP)</button>
-            <button id="sendToClassifierBtn" style="background:#2563eb;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;">➡️ Chuyển sang Phân loại file → Tab ③</button>
           </div>
         </section>
 
@@ -745,7 +743,6 @@
             <h2 style="margin:0;">📂 Tất cả file đã tách (AI + Thủ công)</h2>
             <button id="refreshOutputHistoryBtn" style="padding:6px 12px; font-size:12px;">🔄 Refresh</button>
             <button id="clearAllOutputsBtn" style="padding:6px 14px; font-size:13px; background:#dc2626; color:#fff; border:none; border-radius:6px; cursor:pointer;">🗑️ Xóa tất cả kết quả</button>
-            <button id="sendAllToClassifierBtn" style="padding:6px 14px; font-size:13px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer;">➡️ Chuyển tất cả sang Phân loại</button>
           </div>
           <div class="hint">Danh sách tất cả file output (AI + thủ công) trong <code>splitter_outputs/</code>. Dữ liệu này không mất khi F5.</div>
           <div id="splitterOutputHistoryList" style="margin-top:8px;">Đang tải...</div>

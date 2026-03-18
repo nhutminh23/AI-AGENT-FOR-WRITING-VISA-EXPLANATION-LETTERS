@@ -782,17 +782,32 @@ function buildManualSegments() {
           </div>
           <div>
             <label for="segmentStart-${i}">Từ trang</label>
-            <input id="segmentStart-${i}" type="number" min="1" />
+            <input id="segmentStart-${i}" type="number" min="1" max="${manualSplitState.pageCount || ''}" value="${i === 1 ? 1 : ''}" />
           </div>
           <div>
             <label for="segmentEnd-${i}">Đến trang</label>
-            <input id="segmentEnd-${i}" type="number" min="1" />
+            <input id="segmentEnd-${i}" type="number" min="1" max="${manualSplitState.pageCount || ''}" />
           </div>
         </div>
       </div>
     `);
   }
   manualSplitSegmentsContainerEl.innerHTML = parts.join("");
+
+  // Auto-cascade: when end page changes, fill next file's start page
+  const maxPage = manualSplitState.pageCount || 9999;
+  for (let i = 1; i <= safeCount; i++) {
+    const endEl = document.getElementById(`segmentEnd-${i}`);
+    if (endEl) {
+      endEl.addEventListener('input', () => {
+        let val = parseInt(endEl.value, 10);
+        if (isNaN(val) || val < 1) return;
+        if (val > maxPage) { val = maxPage; endEl.value = val; }
+        const nextStart = document.getElementById(`segmentStart-${i + 1}`);
+        if (nextStart && val + 1 <= maxPage) nextStart.value = val + 1;
+      });
+    }
+  }
 }
 
 // ==================== MANUAL PDF SPLIT (Tab ②) ====================
@@ -1016,7 +1031,7 @@ function buildPdfManualSegments() {
           </div>
           <div>
             <label for="pdf-segmentStart-${i}">Từ trang</label>
-            <input id="pdf-segmentStart-${i}" type="number" min="1" max="${manualSplitState.pageCount}" />
+            <input id="pdf-segmentStart-${i}" type="number" min="1" max="${manualSplitState.pageCount}" value="${i === 1 ? 1 : ''}" />
           </div>
           <div>
             <label for="pdf-segmentEnd-${i}">Đến trang</label>
@@ -1027,6 +1042,21 @@ function buildPdfManualSegments() {
     `);
   }
   pdfManualSegmentsEl.innerHTML = parts.join("");
+
+  // Auto-cascade: when end page changes, fill next file's start page
+  const maxPage = manualSplitState.pageCount || 9999;
+  for (let i = 1; i <= safeCount; i++) {
+    const endEl = document.getElementById(`pdf-segmentEnd-${i}`);
+    if (endEl) {
+      endEl.addEventListener('input', () => {
+        let val = parseInt(endEl.value, 10);
+        if (isNaN(val) || val < 1) return;
+        if (val > maxPage) { val = maxPage; endEl.value = val; }
+        const nextStart = document.getElementById(`pdf-segmentStart-${i + 1}`);
+        if (nextStart && val + 1 <= maxPage) nextStart.value = val + 1;
+      });
+    }
+  }
 }
 
 async function runPdfManualSplit() {
@@ -1134,49 +1164,100 @@ const manualSplitDownloadBtn = document.getElementById("manualSplitDownloadBtn")
 if (manualSplitDownloadBtn) {
   manualSplitDownloadBtn.addEventListener("click", () => {
     if (!manualSplitState.lastManualId) { alert("Chưa có kết quả tách."); return; }
-    // Download all files individually (no ZIP for manual splits)
-    const links = document.querySelectorAll("#manualSplitResultList a[href*='/download/']");
-    links.forEach((a) => { const w = window.open(a.href, "_blank"); if (w) w.focus(); });
+    // Download all files as ZIP
+    window.location.href = `/api/ai-splitter/download-zip/${manualSplitState.lastManualId}`;
   });
 }
 
-// Send manual split results to classifier
-const manualSplitToClassifierBtn = document.getElementById("manualSplitToClassifierBtn");
-if (manualSplitToClassifierBtn) {
-  manualSplitToClassifierBtn.addEventListener("click", async () => {
-    if (!manualSplitState.lastManualId) { alert("Chưa có kết quả tách."); return; }
-    manualSplitToClassifierBtn.disabled = true;
-    manualSplitToClassifierBtn.textContent = "⏳ Đang chuyển...";
-    try {
-      const res = await fetch("/api/manual-split/send-to-classifier", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ manual_id: manualSplitState.lastManualId }),
-      });
-      const data = await res.json();
-      if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
-      alert(`✅ Đã chuyển ${data.count} file sang ${data.target_dir}`);
-      setActiveTab("classifier");
-      loadClassifierFiles();
-    } catch (e) { alert(`Lỗi: ${e.message}`); }
-    finally {
-      manualSplitToClassifierBtn.disabled = false;
-      manualSplitToClassifierBtn.textContent = "➡️ Chuyển sang Phân loại";
-    }
-  });
-}
+// Track merge files in user-specified order
+let pdfMergeFilesArray = [];
 
 function updatePdfMergeFileListDisplay() {
   if (!pdfMergeFileList || !pdfMergeFileInput) return;
-  const files = Array.from(pdfMergeFileInput.files || []);
-  if (files.length === 0) {
-    pdfMergeFileList.textContent = "Chưa chọn file. Thứ tự hiển thị = thứ tự trang.";
+  // APPEND new files to the end (preserves selection order across multiple picks)
+  const newFiles = Array.from(pdfMergeFileInput.files || []);
+  for (const f of newFiles) {
+    // Skip duplicates (same name + same size)
+    const isDup = pdfMergeFilesArray.some(existing => existing.name === f.name && existing.size === f.size);
+    if (!isDup) {
+      pdfMergeFilesArray.push(f);
+    }
+  }
+  renderPdfMergeFileList();
+}
+
+function renderPdfMergeFileList() {
+  if (!pdfMergeFileList) return;
+  if (pdfMergeFilesArray.length === 0) {
+    pdfMergeFileList.textContent = "Chưa chọn file. Chọn từng file theo thứ tự muốn ghép (file chọn trước = trang trước).";
     pdfMergeFileList.className = "hint";
     return;
   }
   pdfMergeFileList.className = "";
-  pdfMergeFileList.innerHTML = files.map((f, i) => `${i + 1}. ${f.name}`).join("<br>");
+  const n = pdfMergeFilesArray.length;
+  const btnStyle = 'padding:2px 6px; font-size:12px; cursor:pointer; border:1px solid #d1d5db; border-radius:4px; background:#fff; line-height:1;';
+  let html = '<div style="font-size:0.85em; color:#6b7280; margin-bottom:4px;">📌 Kéo thả ☰ để sắp xếp | Bấm nút để di chuyển nhanh</div>';
+  pdfMergeFilesArray.forEach((f, i) => {
+    html += `<div class="merge-file-row" draggable="true" data-idx="${i}"
+      style="display:flex; align-items:center; gap:4px; padding:6px 4px; border-bottom:1px solid #f3f4f6; border:2px solid transparent; border-radius:4px; transition:border-color 0.15s; cursor:grab;">
+      <span style="cursor:grab; font-size:16px; color:#9ca3af; padding-right:2px;" title="Kéo để sắp xếp">☰</span>
+      <span style="min-width:24px; font-weight:600; color:#4f46e5;">${i + 1}.</span>
+      <span style="flex:1; font-size:0.93em; user-select:none;">${f.name}</span>
+      <button type="button" onclick="jumpMergeFile(${i},'top')" style="${btnStyle}"${i === 0 ? ' disabled' : ''} title="Lên đầu">⏫</button>
+      <button type="button" onclick="jumpMergeFile(${i},'bottom')" style="${btnStyle}"${i === n - 1 ? ' disabled' : ''} title="Xuống cuối">⏬</button>
+      <button type="button" onclick="jumpMergeFile(${i},'remove')" style="${btnStyle} color:#dc2626;" title="Xóa file">❌</button>
+    </div>`;
+  });
+  pdfMergeFileList.innerHTML = html;
+
+  // Setup HTML5 drag-and-drop (same technique as ilovepdf)
+  let dragSrcIdx = null;
+  const rows = pdfMergeFileList.querySelectorAll('.merge-file-row');
+  rows.forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      dragSrcIdx = parseInt(row.dataset.idx);
+      e.dataTransfer.effectAllowed = 'move';
+      row.style.opacity = '0.4';
+    });
+    row.addEventListener('dragend', () => {
+      row.style.opacity = '1';
+      rows.forEach(r => r.style.borderColor = 'transparent');
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      rows.forEach(r => r.style.borderColor = 'transparent');
+      row.style.borderColor = '#4f46e5';
+    });
+    row.addEventListener('dragleave', () => {
+      row.style.borderColor = 'transparent';
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const dropIdx = parseInt(row.dataset.idx);
+      if (dragSrcIdx !== null && dragSrcIdx !== dropIdx) {
+        const [item] = pdfMergeFilesArray.splice(dragSrcIdx, 1);
+        pdfMergeFilesArray.splice(dropIdx, 0, item);
+        renderPdfMergeFileList();
+      }
+      dragSrcIdx = null;
+    });
+  });
 }
+
+// Move a file: top, bottom, or remove
+window.jumpMergeFile = function(index, action) {
+  if (action === 'remove') {
+    pdfMergeFilesArray.splice(index, 1);
+  } else if (action === 'top') {
+    const [item] = pdfMergeFilesArray.splice(index, 1);
+    pdfMergeFilesArray.unshift(item);
+  } else if (action === 'bottom') {
+    const [item] = pdfMergeFilesArray.splice(index, 1);
+    pdfMergeFilesArray.push(item);
+  }
+  renderPdfMergeFileList();
+};
 
 if (pdfMergeFileInput) {
   pdfMergeFileInput.addEventListener("change", updatePdfMergeFileListDisplay);
@@ -1187,9 +1268,9 @@ async function runPdfMerge() {
     alert("Không tìm thấy ô chọn file.");
     return;
   }
-  const files = Array.from(pdfMergeFileInput.files || []).filter((f) => f.name && f.name.toLowerCase().endsWith(".pdf"));
+  const files = pdfMergeFilesArray.filter((f) => f.name && f.name.toLowerCase().endsWith(".pdf"));
   if (files.length === 0) {
-    alert("Vui lòng chọn ít nhất 1 file PDF từ máy tính (thứ tự chọn = thứ tự trang).");
+    alert("Vui lòng chọn ít nhất 1 file PDF từ máy tính. Dùng nút ⬆⬇ để sắp xếp thứ tự.");
     return;
   }
   const output_name = (pdfMergeOutputName && pdfMergeOutputName.value || "").trim();
@@ -1671,33 +1752,6 @@ async function runClassifier() {
 
 // ==================== PIPELINE CONNECTION FUNCTIONS ====================
 
-async function sendToClassifier() {
-  const btn = document.getElementById("sendToClassifierBtn");
-  if (!btn) return;
-  const origText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Đang chuyển file...";
-  try {
-    const res = await fetch("/api/pipeline/send-to-classifier", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(`Lỗi: ${data.error}`);
-      return;
-    }
-    alert(`✅ Đã chuyển ${data.count} file sang ${data.target_dir}`);
-    setActiveTab("classifier");
-    loadClassifierFiles();
-  } catch (e) {
-    alert(`Lỗi: ${e.message}`);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = origText;
-  }
-}
 
 async function sendToInput() {
   const btn = document.getElementById("sendToInputBtn");
@@ -3834,6 +3888,21 @@ async function precheckScan() {
       ⚠️ Cần tách: <strong style="color:#dc2626;">${data.multi_doc_count}</strong>
     `;
 
+    // Quota exhausted alert
+    if (data.quota_exhausted) {
+      const alertDiv = document.createElement('div');
+      alertDiv.style.cssText = 'background:#fef2f2; border:2px solid #dc2626; border-radius:8px; padding:12px 16px; margin:8px 0 12px 0; color:#991b1b;';
+      alertDiv.innerHTML = `
+        <strong>⚠️ API Key hết quota!</strong><br>
+        <span style="font-size:0.9em;">
+          OpenAI API đã hết hạn mức sử dụng. <strong>${data.quota_error_count}/${data.total_files}</strong> file không thể phân loại bằng AI.<br>
+          Các file bị ảnh hưởng sẽ được phân loại dựa trên tên file (có thể kém chính xác hơn).<br>
+          👉 Kiểm tra tại: <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#2563eb;">platform.openai.com/account/billing</a>
+        </span>
+      `;
+      summaryDiv.parentElement.insertBefore(alertDiv, summaryDiv.nextSibling);
+    }
+
     // Results table grouped by folder
     let html = '';
     let fileIdx = 0;
@@ -4036,11 +4105,12 @@ function getBaseName(filename) {
 function detectMergeGroups() {
   // Find all tables in the results
   const tables = document.querySelectorAll('#precheckResults table');
-  tables.forEach(table => {
+  window._mergeGroups = {};  // Reset merge groups
+  tables.forEach((table, tableIdx) => {
     const rows = table.querySelectorAll('tr[data-filepath]');
     if (rows.length < 2) return;
 
-    // Group by base name
+    // Group by base name (SCOPED per table/person)
     const groups = {};
     rows.forEach(row => {
       const filename = row.dataset.filename || '';
@@ -4065,13 +4135,14 @@ function detectMergeGroups() {
           f.row.style.background = '#fffbeb';
         }
       });
+      // CRITICAL: include tableIdx in groupId to scope per person/folder
+      const groupId = `grp_t${tableIdx}_${base.replace(/[^a-z0-9]/g, '_')}`;
       // Add a merge button row after the last file in the group
       const lastRow = files[files.length - 1].row;
       const mergeRow = document.createElement('tr');
-      const groupId = `grp_${base.replace(/[^a-z0-9]/g, '_')}`;
       mergeRow.innerHTML = `
         <td colspan="4" style="padding:6px 8px; text-align:right;">
-          <span style="color:#f59e0b; font-size:0.85em; margin-right:8px;">📎 ${files.length} file giống tên "${files[0].filename.replace(/[\s._-]*\d+|\s*\(\d+\)/g, '').trim()}"</span>
+          <span class="merge-badge" data-group="${groupId}" style="color:#f59e0b; font-size:0.85em; margin-right:8px;">📎 ${files.length} file giống tên "${files[0].filename.replace(/[\s._-]*\d+|\s*\(\d+\)/g, '').trim()}"</span>
           <button onclick="openMergeModal('${groupId}')" 
                   style="padding:4px 12px; background:#f59e0b; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.85em;"
                   data-merge-group="${groupId}">
@@ -4080,7 +4151,6 @@ function detectMergeGroups() {
         </td>`;
       // Store group data
       mergeRow.dataset.mergeGroupId = groupId;
-      window._mergeGroups = window._mergeGroups || {};
       window._mergeGroups[groupId] = files.map(f => ({ path: f.path, filename: f.filename, person: f.person }));
       lastRow.parentNode.insertBefore(mergeRow, lastRow.nextSibling);
     }
@@ -4214,6 +4284,48 @@ async function executeMerge(groupId) {
       return;
     }
     alert(`✅ Đã gộp ${data.merged_count} file → ${data.output_name} (${data.total_pages} trang)`);
+
+    // Find the table body where the first original row lived (for inserting merged row)
+    const firstOrigRow = document.querySelector(`tr[data-filepath="${orderedPaths[0]}"]`);
+    const parentTbody = firstOrigRow ? firstOrigRow.parentElement : null;
+    const personName = firstOrigRow ? firstOrigRow.dataset.person : '';
+    const insertBefore = firstOrigRow; // we'll insert before the first original row, then remove originals
+
+    // Remove original file rows from table (they've been deleted on disk)
+    orderedPaths.forEach(p => {
+      const row = document.querySelector(`tr[data-filepath="${CSS.escape(p)}"]`) || document.querySelector(`tr[data-filepath="${p}"]`);
+      if (row) row.remove();
+    });
+
+    // Remove the merge group row (button row)
+    const mergeGroupRow = document.querySelector(`tr[data-merge-group-id="${groupId}"]`);
+    if (mergeGroupRow) mergeGroupRow.remove();
+
+    // Insert a new row for the merged file
+    if (parentTbody && data.output_path) {
+      const newRow = document.createElement('tr');
+      newRow.dataset.filepath = data.output_path;
+      newRow.dataset.person = personName;
+      newRow.dataset.ext = '.pdf';
+      newRow.dataset.filename = data.output_name;
+      newRow.style.background = '#f0fdf4';  // light green = new merged file
+      newRow.style.borderLeft = '3px solid #16a34a';
+      const mergedUid = `merged_${Date.now()}`;
+      newRow.innerHTML = `
+        <td style="padding:6px 8px;"><span style="color:#16a34a;">✅ Gộp</span></td>
+        <td style="padding:6px 8px; overflow:hidden; text-overflow:ellipsis;" title="${data.output_path}">${data.output_name}</td>
+        <td style="padding:6px 8px; overflow:hidden;">
+          <input type="text" id="doctype_${mergedUid}" value="MERGED"
+                 style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em;"
+                 oninput="updateSuggestedName(this)" />
+        </td>
+        <td style="padding:6px 8px; overflow:hidden;">
+          <input type="text" id="suggested_${mergedUid}" value="${data.output_name}"
+                 style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em; background:#f9fafb;" />
+        </td>`;
+      parentTbody.appendChild(newRow);
+    }
+
     closeMergeModal();
   } catch (e) {
     alert(`Lỗi: ${e.message}`);
@@ -5243,36 +5355,8 @@ if (clearAllOutputsBtn) {
   });
 }
 
-// Send all outputs to classifier
-const sendAllToClassifierBtn = document.getElementById("sendAllToClassifierBtn");
-if (sendAllToClassifierBtn) {
-  sendAllToClassifierBtn.addEventListener("click", async () => {
-    sendAllToClassifierBtn.disabled = true;
-    sendAllToClassifierBtn.textContent = "⏳ Đang chuyển...";
-    try {
-      const res = await fetch("/api/pipeline/send-to-classifier", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
-      alert(`✅ Đã chuyển ${data.count} file sang ${data.target_dir}`);
-      setActiveTab("classifier");
-      loadClassifierFiles();
-    } catch (e) { alert(`Lỗi: ${e.message}`); }
-    finally {
-      sendAllToClassifierBtn.disabled = false;
-      sendAllToClassifierBtn.textContent = "➡️ Chuyển tất cả sang Phân loại";
-    }
-  });
-}
 
 // ==================== PIPELINE BUTTON LISTENERS ====================
-const sendToClassifierBtn = document.getElementById("sendToClassifierBtn");
-if (sendToClassifierBtn) {
-  sendToClassifierBtn.addEventListener("click", sendToClassifier);
-}
 const sendToInputBtn = document.getElementById("sendToInputBtn");
 if (sendToInputBtn) {
   sendToInputBtn.addEventListener("click", sendToInput);

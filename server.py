@@ -663,6 +663,82 @@ def precheck_scan():
                 if period_parts:
                     upper_type = f"{upper_type} {' '.join(period_parts)}"
 
+        # ==== VIETNAMESE KEYWORD FALLBACK ====
+        # When AI returns generic DOCUMENT/PHOTO, try to match Vietnamese keywords in filename
+        if upper_type in ['DOCUMENT', 'UNKNOWN DOCUMENT', 'UNKNOWN', 'OTHER', 'PHOTO']:
+            _VN_KEYWORDS = {
+                # Land & Property
+                'SỔ ĐỎ': 'LAND USE RIGHT CERTIFICATE',
+                'SỔ HỒNG': 'LAND USE RIGHT CERTIFICATE',
+                'QUYỀN SỬ DỤNG ĐẤT': 'LAND USE RIGHT CERTIFICATE',
+                'GIẤY CHỨNG NHẬN QSDĐ': 'LAND USE RIGHT CERTIFICATE',
+                # Vehicle
+                'Ô TÔ': 'VEHICLE REGISTRATION',
+                'XE MÁY': 'VEHICLE REGISTRATION',
+                'ĐĂNG KÝ XE': 'VEHICLE REGISTRATION',
+                'ĐĂNG KIỂM': 'VEHICLE INSPECTION',
+                'CAVET': 'VEHICLE REGISTRATION',
+                # Bank & Finance
+                'TÀI KHOẢN': 'BANK ACCOUNT STATEMENT',
+                'SỔ TIẾT KIỆM': 'SAVINGS BOOK',
+                'XÁC NHẬN SỐ DƯ': 'BALANCE CONFIRMATION',
+                # Insurance
+                'BẢO HIỂM XÃ HỘI': 'SOCIAL INSURANCE',
+                'BHXH': 'SOCIAL INSURANCE',
+                'BẢO HIỂM Y TẾ': 'HEALTH INSURANCE',
+                'BHYT': 'HEALTH INSURANCE',
+                'BẢO HIỂM': 'INSURANCE',
+                # Identity
+                'HỘ CHIẾU': 'PASSPORT',
+                'CCCD': 'CITIZEN IDENTITY CARD',
+                'CMND': 'CITIZEN IDENTITY CARD',
+                'GIẤY KHAI SINH': 'BIRTH CERTIFICATE',
+                'KHAI SINH': 'BIRTH CERTIFICATE',
+                'GIẤY ĐĂNG KÝ KẾT HÔN': 'MARRIAGE CERTIFICATE',
+                'KẾT HÔN': 'MARRIAGE CERTIFICATE',
+                'HỘ KHẨU': 'HOUSEHOLD REGISTRATION',
+                # Employment & Tax
+                'HỢP ĐỒNG LAO ĐỘNG': 'LABOR CONTRACT',
+                'HỢP ĐỒNG': 'CONTRACT',
+                'LƯƠNG': 'SALARY CERTIFICATE',
+                'XÁC NHẬN LƯƠNG': 'SALARY CERTIFICATE',
+                'THUẾ': 'TAX CERTIFICATE',
+                'THUẾ TNCN': 'PERSONAL INCOME TAX',
+                'TNCN': 'PERSONAL INCOME TAX',
+                'THÔNG BÁO THUẾ': 'TAX NOTICE',
+                'MST': 'TAX REGISTRATION',
+                # Education
+                'BẰNG': 'DIPLOMA',
+                'BẰNG TỐT NGHIỆP': 'GRADUATION DIPLOMA',
+                'CHỨNG CHỈ': 'CERTIFICATE',
+                # Travel
+                'LỊCH TRÌNH': 'ITINERARY',
+                'VÉ MÁY BAY': 'FLIGHT TICKET',
+                'BOOKING': 'BOOKING CONFIRMATION',
+                'KHÁCH SẠN': 'HOTEL BOOKING',
+                # Business
+                'GIẤY PHÉP KINH DOANH': 'BUSINESS LICENSE',
+                'ĐĂNG KÝ KINH DOANH': 'BUSINESS REGISTRATION',
+                'GPKD': 'BUSINESS LICENSE',
+                'GIẤY ỦY QUYỀN': 'POWER OF ATTORNEY',
+                'ỦY QUYỀN': 'POWER OF ATTORNEY',
+                # Application
+                'FORM': 'APPLICATION FORM',
+                'ĐƠN XIN': 'APPLICATION FORM',
+                # Other common
+                'ORIGIN': 'ORIGIN STATEMENT',
+                'GRANTED': 'GRANT LETTER',
+                'GIẤY XÁC NHẬN': 'CONFIRMATION LETTER',
+            }
+            # Search in both filename and folder path (Vietnamese chars!)
+            fn_upper = filename.upper()
+            sub_upper = sub_path.upper() if sub_path else ""
+            search_text = fn_upper + " " + sub_upper
+            for vn_kw, en_type in _VN_KEYWORDS.items():
+                if vn_kw.upper() in search_text:
+                    upper_type = en_type
+                    break
+
         return upper_type.strip()
 
     def _fix_doc_owner(doc_owner: str, person_name: str, filename: str, doc_type: str) -> str:
@@ -698,11 +774,30 @@ def precheck_scan():
 
         return owner
 
+    import threading
+    _quota_stop = threading.Event()
+
     def _classify_one(file_info, person_name):
         fname = file_info["filename"]
         fpath = file_info["path"]
         ext = file_info["ext"]
         sub_path = file_info.get("sub_path", fname)
+
+        # Early exit if quota already exhausted (don't waste API calls)
+        if _quota_stop.is_set():
+            return {
+                **file_info,
+                "person_name": person_name,
+                "doc_type_en": "QUOTA ERROR",
+                "doc_owner": "",
+                "suggested_name": fname,
+                "needs_split": False,
+                "doc_count": 1,
+                "doc_types": ["ERROR"],
+                "error": "Skipped: API quota exhausted",
+                "quota_error": True,
+            }
+
         try:
             result = classify_doc_type_only(llm, fname, fpath, folder_person=person_name)
             doc_type = result.get("doc_type_en", "DOCUMENT")
@@ -740,33 +835,60 @@ def precheck_scan():
                 "doc_types": doc_types,
             }
         except Exception as e:
+            err_str = str(e).lower()
+            is_quota = 'insufficient_quota' in err_str or '429' in err_str or 'rate limit' in err_str
+            if is_quota:
+                _quota_stop.set()  # Signal all other threads to stop
             return {
                 **file_info,
                 "person_name": person_name,
-                "doc_type_en": "ERROR",
+                "doc_type_en": "QUOTA ERROR" if is_quota else "ERROR",
                 "doc_owner": "",
                 "suggested_name": fname,
                 "needs_split": False,
                 "doc_count": 1,
                 "doc_types": ["ERROR"],
                 "error": str(e),
+                "quota_error": is_quota,
             }
 
     all_results = []
     folders_output = []
 
+    # Build flat list of (file_info, person_name, folder_key) for sequential submit
+    all_tasks = []
+    for folder_key, folder_data in folders_data.items():
+        for file_info in folder_data["files"]:
+            all_tasks.append((file_info, folder_data["person_name"], folder_key))
+
     with ThreadPoolExecutor(max_workers=5) as executor:
         future_map = {}
-        for folder_key, folder_data in folders_data.items():
-            for file_info in folder_data["files"]:
-                future = executor.submit(
-                    _classify_one, file_info, folder_data["person_name"]
-                )
-                future_map[future] = folder_key
+        for file_info, person_name, folder_key in all_tasks:
+            if _quota_stop.is_set():
+                # Quota exhausted — skip remaining, mark as quota error
+                all_results.append({
+                    **file_info,
+                    "person_name": person_name,
+                    "doc_type_en": "QUOTA ERROR",
+                    "doc_owner": "",
+                    "suggested_name": file_info["filename"],
+                    "needs_split": False,
+                    "doc_count": 1,
+                    "doc_types": ["ERROR"],
+                    "error": "Skipped: API quota exhausted",
+                    "quota_error": True,
+                })
+                continue
+            future = executor.submit(_classify_one, file_info, person_name)
+            future_map[future] = (folder_key, file_info, person_name)
 
         for future in as_completed(future_map):
             result = future.result()
             all_results.append(result)
+            # If quota just got exhausted, cancel remaining pending futures
+            if _quota_stop.is_set():
+                for pending in future_map:
+                    pending.cancel()
 
     # Group results back by folder
     folder_results = {}
@@ -803,6 +925,7 @@ def precheck_scan():
 
     total_files = sum(len(f["files"]) for f in folders_output)
     multi_count = sum(1 for r in all_results if r.get("needs_split"))
+    quota_errors = sum(1 for r in all_results if r.get("quota_error"))
 
     return jsonify({
         "status": "done",
@@ -811,6 +934,8 @@ def precheck_scan():
         "multi_doc_count": multi_count,
         "clean_count": total_files - multi_count,
         "folders": folders_output,
+        "quota_exhausted": quota_errors > 0,
+        "quota_error_count": quota_errors,
     })
 
 
@@ -943,12 +1068,26 @@ def processor_merge_files():
         with open(output_path, 'wb') as out:
             writer.write(out)
 
+        # Delete original source files after successful merge
+        deleted_files = []
+        output_abs = os.path.abspath(output_path)
+        for fpath in file_paths:
+            src_abs = os.path.abspath(fpath)
+            if src_abs == output_abs:
+                continue  # don't delete the output file itself
+            try:
+                os.remove(fpath)
+                deleted_files.append(os.path.basename(fpath))
+            except Exception as del_err:
+                print(f"[merge] Warning: could not delete {fpath}: {del_err}")
+
         return jsonify({
             "status": "done",
             "output_path": output_path,
             "output_name": os.path.basename(output_path),
             "total_pages": len(writer.pages),
             "merged_count": len(file_paths),
+            "deleted_files": deleted_files,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -3569,14 +3708,34 @@ def splitter_view_single(file_id: str, filename: str):
 
 @app.get("/api/ai-splitter/download-zip/<file_id>")
 def splitter_download_zip(file_id: str):
-    if file_id not in splitter_jobs:
+    # Try AI splitter pre-built zip first
+    if file_id in splitter_jobs:
+        job = splitter_jobs[file_id]
+        if job["status"] == "completed" and job.get("zip_path"):
+            zip_path = SplitterPath(job["zip_path"])
+            if zip_path.exists():
+                return send_from_directory(str(zip_path.parent), zip_path.name,
+                                            as_attachment=True, mimetype="application/zip")
+
+    # Fallback: create zip on-the-fly from output folder (manual splits)
+    output_folder = SPLITTER_OUTPUT_DIR / file_id
+    if not output_folder.exists():
         return jsonify({"error": "not_found"}), 404
-    job = splitter_jobs[file_id]
-    if job["status"] != "completed" or not job.get("zip_path"):
-        return jsonify({"error": "not_ready"}), 400
-    zip_path = SplitterPath(job["zip_path"])
-    return send_from_directory(str(zip_path.parent), zip_path.name,
-                                as_attachment=True, mimetype="application/zip")
+
+    import io, zipfile as zf
+    buf = io.BytesIO()
+    with zf.ZipFile(buf, "w", zf.ZIP_DEFLATED) as z:
+        for fname in sorted(os.listdir(str(output_folder))):
+            fpath = os.path.join(str(output_folder), fname)
+            if os.path.isfile(fpath) and fname.lower().endswith(".pdf"):
+                z.write(fpath, fname)
+    buf.seek(0)
+    from flask import Response
+    return Response(
+        buf.read(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{file_id}.zip"'}
+    )
 
 
 @app.get("/api/ai-splitter/list-outputs")

@@ -370,8 +370,12 @@ def _classify_image_vision(llm: Any, filename: str, file_path: str, folder_perso
             "doc_type_en": doc_type,
             "doc_owner": doc_owner,
         }
-    except Exception:
-        # Fallback to text-only classify if image reading fails
+    except Exception as vision_err:
+        # If quota exhausted, re-raise so _classify_one can trigger early stop
+        err_msg = str(vision_err).lower()
+        if 'insufficient_quota' in err_msg or '429' in err_msg or 'rate limit' in err_msg:
+            raise
+        # Fallback to text-only classify if image reading fails (non-quota errors only)
         return _classify_single(llm, filename, f"[Image file: {filename}]", folder_person)
 
 
@@ -400,7 +404,11 @@ def _classify_single(llm: Any, filename: str, text: str, folder_person: str = ""
             "doc_type_en": doc_type,
             "doc_owner": doc_owner,
         }
-    except Exception:
+    except Exception as e:
+        # If quota exhausted, re-raise so _classify_one can trigger early stop
+        err_msg = str(e).lower()
+        if 'insufficient_quota' in err_msg or '429' in err_msg or 'rate limit' in err_msg:
+            raise
         return None
 
 
@@ -416,7 +424,10 @@ def _classify_multi_page_pdf(llm: Any, filename: str, page_texts: List[str]) -> 
             parsed = json.loads(match.group())
         else:
             parsed = json.loads(raw)
-    except Exception:
+    except Exception as e:
+        err_msg = str(e).lower()
+        if 'insufficient_quota' in err_msg or '429' in err_msg or 'rate limit' in err_msg:
+            raise
         return []
 
     docs = parsed.get("documents")
