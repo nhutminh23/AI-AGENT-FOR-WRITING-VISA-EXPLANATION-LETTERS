@@ -607,27 +607,133 @@ def precheck_scan():
         }
 
     # Classify all files in parallel
+    # Known bank name keywords for post-processing
+    _BANK_NAMES = {
+        'BIDV': 'BIDV', 'VCB': 'VCB', 'VIETCOMBANK': 'VCB',
+        'TCB': 'TCB', 'TECHCOMBANK': 'TCB', 'ACB': 'ACB',
+        'MBB': 'MB', 'MBBANK': 'MB', 'MB': 'MB',
+        'VPB': 'VPB', 'VPBANK': 'VPB', 'SACOMBANK': 'SACOMBANK',
+        'STB': 'SACOMBANK', 'AGRIBANK': 'AGRIBANK', 'TPBANK': 'TPBANK',
+        'TPB': 'TPBANK', 'HDBank': 'HDBANK', 'SHB': 'SHB',
+        'VIETINBANK': 'VIETINBANK', 'CTG': 'VIETINBANK',
+        'EXIMBANK': 'EXIMBANK', 'SCB': 'SCB', 'OCB': 'OCB',
+    }
+
+    def _enrich_doc_type(doc_type: str, filename: str, sub_path: str) -> str:
+        """Post-process: add bank name and time period to doc_type if AI missed them."""
+        upper_type = doc_type.upper().strip()
+        # Full context for bank name detection
+        context_upper = (filename + " " + sub_path).upper()
+        # ONLY filename for period extraction (avoid folder path duplicates)
+        fname_only = os.path.splitext(filename)[0].upper()
+
+        # Only enrich financial docs (BANK STATEMENT, SAVINGS BOOK, BALANCE, etc.)
+        financial_keywords = ['BANK STATEMENT', 'SAVINGS', 'BALANCE', 'ACCOUNT STATEMENT',
+                              'DEPOSIT', 'SỔ PHỤ', 'SAO KÊ']
+        is_financial = any(kw in upper_type for kw in ['BANK', 'STATEMENT', 'SAVINGS', 'BALANCE', 'DEPOSIT', 'ACCOUNT'])
+        if not is_financial:
+            # Also check if filename suggests financial but AI returned generic DOCUMENT
+            is_financial = any(kw in context_upper for kw in ['SỔ PHỤ', 'SAO KÊ', 'BANK', 'SỔ TIẾT KIỆM'])
+            if is_financial and upper_type in ['DOCUMENT', 'UNKNOWN DOCUMENT']:
+                upper_type = 'BANK STATEMENT'
+
+        if is_financial:
+            # Check if bank name already in doc_type
+            has_bank = any(bk in upper_type for bk in _BANK_NAMES.values())
+            if not has_bank:
+                # Try to find bank name in full path context
+                for keyword, bank_std in _BANK_NAMES.items():
+                    if keyword.upper() in context_upper:
+                        upper_type = f"{upper_type} {bank_std}"
+                        break
+
+            # Check if time period already in doc_type (T01, T06, 2025, 2026, etc.)
+            has_period = bool(re.search(r'T\d{1,2}|20\d{2}', upper_type))
+            if not has_period:
+                # Extract periods from FILENAME ONLY (not folder path!) to avoid duplicates
+                periods = re.findall(r'T(\d{1,2})', fname_only)
+                years = re.findall(r'(20\d{2})', fname_only)
+                period_parts = []
+                if periods:
+                    period_parts.extend([f"T{p.zfill(2)}" for p in periods])
+                if years:
+                    period_parts.extend(years)
+                # Deduplicate while preserving order
+                period_parts = list(dict.fromkeys(period_parts))
+                if period_parts:
+                    upper_type = f"{upper_type} {' '.join(period_parts)}"
+
+        return upper_type.strip()
+
+    def _fix_doc_owner(doc_owner: str, person_name: str, filename: str, doc_type: str) -> str:
+        """Post-process: fix doc_owner to avoid duplicates and detect missing owners."""
+        from classifier.agent import normalize_vietnamese_name
+        owner = (doc_owner or "").strip()
+
+        # If doc_owner is same as folder person → set empty (it's the main applicant)
+        if owner:
+            owner_norm = normalize_vietnamese_name(owner)
+            if owner_norm == person_name or owner_norm in person_name or person_name in owner_norm:
+                return ""
+
+        # If no doc_owner but filename has initials/name different from person
+        # This handles cases like "Hộ chiếu mới NTTO.pdf"
+        if not owner:
+            upper_type = doc_type.upper()
+            # Only for identity docs where owner matters
+            identity_docs = ['PASSPORT', 'CITIZEN IDENTITY', 'CCCD', 'BIRTH CERTIFICATE']
+            if any(kw in upper_type for kw in identity_docs):
+                stem = os.path.splitext(filename)[0]
+                # Look for initials (2-6 uppercase letters at end of filename)
+                # e.g. "Hộ chiếu mới NTTO" → NTTO
+                match = re.search(r'[A-Z]{2,6}(?:\s*\.?\s*$)', stem)
+                if match:
+                    initials = match.group().strip('. ')
+                    # Make sure it's not part of the person name
+                    if initials not in person_name:
+                        return initials
+                # Also check for Vietnamese name clues
+                # "Hộ chiếu mẹ", "Hộ chiếu vợ", etc. → no specific name, just leave empty
+                # But "Hộ chiếu mới NTTO" → NTTO is clearly an abbreviated name
+
+        return owner
+
     def _classify_one(file_info, person_name):
         fname = file_info["filename"]
         fpath = file_info["path"]
         ext = file_info["ext"]
+        sub_path = file_info.get("sub_path", fname)
         try:
-            result = classify_doc_type_only(llm, fname, fpath)
+            result = classify_doc_type_only(llm, fname, fpath, folder_person=person_name)
             doc_type = result.get("doc_type_en", "DOCUMENT")
+            doc_owner = result.get("doc_owner", "")
             needs_split = result.get("needs_split", False)
             doc_count = result.get("doc_count", 1)
             doc_types = result.get("doc_types", [doc_type])
 
-            # Build suggested name: PERSON_DOC_TYPE.ext (images → .pdf)
+            # POST-PROCESSING: enrich doc_type with bank name + period from filename
+            doc_type = _enrich_doc_type(doc_type, fname, sub_path)
+
+            # POST-PROCESSING: fix doc_owner (prevent duplicate, detect missing)
+            doc_owner = _fix_doc_owner(doc_owner, person_name, fname, doc_type)
+
+            # Build suggested name: PERSON_[OWNER_]DOC_TYPE.ext (images → .pdf)
             doc_type_clean = doc_type.upper().strip()
             doc_type_clean = re.sub(r'[^A-Z0-9]+', '_', doc_type_clean).strip('_')
             out_ext = '.pdf' if ext in IMAGE_EXTS else ext
-            suggested_name = f"{person_name}_{doc_type_clean}{out_ext}"
+
+            # If doc_owner exists (different person), include in filename
+            if doc_owner:
+                owner_clean = re.sub(r'[^A-Z0-9]+', '_', doc_owner.upper().strip()).strip('_')
+                suggested_name = f"{person_name}_{owner_clean}_{doc_type_clean}{out_ext}"
+            else:
+                suggested_name = f"{person_name}_{doc_type_clean}{out_ext}"
 
             return {
                 **file_info,
                 "person_name": person_name,
                 "doc_type_en": doc_type,
+                "doc_owner": doc_owner,
                 "suggested_name": suggested_name,
                 "needs_split": needs_split,
                 "doc_count": doc_count,
@@ -638,6 +744,7 @@ def precheck_scan():
                 **file_info,
                 "person_name": person_name,
                 "doc_type_en": "ERROR",
+                "doc_owner": "",
                 "suggested_name": fname,
                 "needs_split": False,
                 "doc_count": 1,

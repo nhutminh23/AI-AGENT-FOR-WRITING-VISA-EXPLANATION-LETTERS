@@ -3842,12 +3842,12 @@ async function precheckScan() {
         <h3 style="margin:0 0 8px 0; padding:8px 12px; background:#e0e7ff; border-radius:8px; font-size:0.95em;">
           📁 ${folder.folder_name} <span style="color:#6b7280; font-weight:normal; font-size:0.85em;">→ ${folder.person_name}</span>
         </h3>
-        <table style="width:100%; border-collapse:collapse; font-size:0.88em;">
+        <table class="precheck-table" style="width:100%; border-collapse:collapse; font-size:0.88em; table-layout:fixed;">
           <thead>
             <tr style="background:#f1f5f9; text-align:left;">
-              <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">Trạng thái</th>
-              <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">File gốc</th>
-              <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">Loại giấy tờ (AI)</th>
+              <th class="resizable-th" style="padding:6px 8px; border-bottom:2px solid #e2e8f0; width:80px; position:relative;">Trạng thái<div class="col-resize-handle"></div></th>
+              <th class="resizable-th" style="padding:6px 8px; border-bottom:2px solid #e2e8f0; width:25%; position:relative;">File gốc<div class="col-resize-handle"></div></th>
+              <th class="resizable-th" style="padding:6px 8px; border-bottom:2px solid #e2e8f0; width:25%; position:relative;">Loại giấy tờ (AI)<div class="col-resize-handle"></div></th>
               <th style="padding:6px 8px; border-bottom:2px solid #e2e8f0;">Tên mới gợi ý</th>
             </tr>
           </thead>
@@ -3866,16 +3866,16 @@ async function precheckScan() {
         html += `
           <tr style="${rowBg} border-bottom:1px solid #e2e8f0;" data-filepath="${f.path}" data-person="${folder.person_name}" data-ext="${f.ext}" data-filename="${f.filename}">
             <td style="padding:6px 8px;">${status}</td>
-            <td style="padding:6px 8px; word-break:break-all; max-width:200px;" title="${f.path}">${f.filename}${subInfo}</td>
-            <td style="padding:6px 8px;">
+            <td style="padding:6px 8px; overflow:hidden; text-overflow:ellipsis;" title="${f.path}">${f.filename}${subInfo}</td>
+            <td style="padding:6px 8px; overflow:hidden;">
               <input type="text" id="doctype_${uid}" value="${f.doc_type_en || 'DOCUMENT'}"
-                     style="width:180px; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em;"
+                     style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em;"
                      oninput="updateSuggestedName(this)" />
               ${f.needs_split ? `<div style="font-size:0.75em; color:#dc2626; margin-top:2px;">${f.doc_count} giấy tờ: ${(f.doc_types||[]).join(', ')}</div>` : ''}
             </td>
-            <td style="padding:6px 8px;">
+            <td style="padding:6px 8px; overflow:hidden;">
               <input type="text" id="suggested_${uid}" value="${f.suggested_name || f.filename}"
-                     style="width:280px; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em; background:#f9fafb;" />
+                     style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em; background:#f9fafb;" />
             </td>
           </tr>`;
       }
@@ -3885,6 +3885,9 @@ async function precheckScan() {
 
     // Detect merge groups (files with similar names: strip numbers and suffixes)
     detectMergeGroups();
+
+    // Initialize column resize handles
+    initColumnResize();
 
     // Show/hide buttons
     const applyBtn = document.getElementById("applyRenameBtn");
@@ -3898,6 +3901,33 @@ async function precheckScan() {
     scanBtn.disabled = false;
     scanBtn.textContent = "🔍 Quét & Phân loại";
   }
+}
+
+// ==================== COLUMN RESIZE ====================
+function initColumnResize() {
+  document.querySelectorAll('.col-resize-handle').forEach(handle => {
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      const th = this.parentElement;
+      const table = th.closest('table');
+      const startX = e.pageX;
+      const startW = th.offsetWidth;
+      this.classList.add('active');
+
+      const onMouseMove = (ev) => {
+        const diff = ev.pageX - startX;
+        const newW = Math.max(50, startW + diff);
+        th.style.width = newW + 'px';
+      };
+      const onMouseUp = () => {
+        this.classList.remove('active');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  });
 }
 
 // Auto-update suggested name when user edits doc_type

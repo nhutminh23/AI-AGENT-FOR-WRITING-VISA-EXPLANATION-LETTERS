@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -46,19 +47,22 @@ def normalize_vietnamese_name(name: str) -> str:
 
 # ==================== CLASSIFY DOC TYPE ONLY ====================
 
-def classify_doc_type_only(llm: Any, filename: str, file_path: str) -> Dict[str, Any]:
+def classify_doc_type_only(llm: Any, filename: str, file_path: str, folder_person: str = "") -> Dict[str, Any]:
     """Classify a file to get doc_type_en only (person_name comes from folder).
 
     Also detects if the file contains multiple document types (needs_split).
-    Returns: {"doc_type_en": "PASSPORT", "needs_split": False, "doc_count": 1}
+    Args:
+        folder_person: The person name derived from the parent folder (e.g. "TRAN TRUNG ANH")
+    Returns: {"doc_type_en": "PASSPORT", "needs_split": False, "doc_count": 1, "doc_owner": ""}
     """
     ext = os.path.splitext(filename)[1].lower()
 
-    # Non-PDF files: classify from filename + content
+    # Image files: use VISION model to actually see the image content
     if ext in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
-        result = _classify_single(llm, filename, f"[Image file: {filename}]")
+        result = _classify_image_vision(llm, filename, file_path, folder_person)
         return {
             "doc_type_en": result.get("doc_type_en", "DOCUMENT") if result else "DOCUMENT",
+            "doc_owner": result.get("doc_owner", "") if result else "",
             "needs_split": False,
             "doc_count": 1,
         }
@@ -66,16 +70,17 @@ def classify_doc_type_only(llm: Any, filename: str, file_path: str) -> Dict[str,
     if ext in ['.docx', '.doc']:
         text = _read_docx_text(file_path)
         if not text.strip():
-            return {"doc_type_en": "APPLICATION FORM", "needs_split": False, "doc_count": 1}
-        result = _classify_single(llm, filename, text)
+            return {"doc_type_en": "APPLICATION FORM", "doc_owner": "", "needs_split": False, "doc_count": 1}
+        result = _classify_single(llm, filename, text, folder_person)
         return {
             "doc_type_en": result.get("doc_type_en", "DOCUMENT") if result else "DOCUMENT",
+            "doc_owner": result.get("doc_owner", "") if result else "",
             "needs_split": False,
             "doc_count": 1,
         }
 
     if ext != '.pdf':
-        return {"doc_type_en": "DOCUMENT", "needs_split": False, "doc_count": 1}
+        return {"doc_type_en": "DOCUMENT", "doc_owner": "", "needs_split": False, "doc_count": 1}
 
     # PDF: extract text → classify + detect multi-doc
     try:
@@ -93,9 +98,10 @@ def classify_doc_type_only(llm: Any, filename: str, file_path: str) -> Dict[str,
             context = f"[Scanned PDF, có một phần text:]\n{partial_text[:3000]}"
         else:
             context = f"[Scanned PDF: {filename}, {total_pages} trang, không có text.]"
-        result = _classify_single(llm, filename, context)
+        result = _classify_single(llm, filename, context, folder_person)
         return {
             "doc_type_en": result.get("doc_type_en", "DOCUMENT") if result else "DOCUMENT",
+            "doc_owner": result.get("doc_owner", "") if result else "",
             "needs_split": False,
             "doc_count": 1,
         }
@@ -214,40 +220,62 @@ def _read_docx_text(path: str) -> str:
 
 # ==================== SINGLE-CALL CLASSIFY PROMPT ====================
 
-def _build_classify_prompt(filename: str, text: str) -> str:
+def _build_classify_prompt(filename: str, text: str, folder_person: str = "") -> str:
     """Single prompt that identifies doc type + person name in ONE call."""
     content = (text or "").strip()
     # Limit text to save tokens
     if len(content) > 4000:
         content = content[:3000] + "\n...[TRUNCATED]...\n" + content[-800:]
 
-    return f"""Bạn là AI phân loại giấy tờ visa. Xác định loại giấy tờ và tên chủ sở hữu.
+    folder_ctx = ""
+    if folder_person:
+        folder_ctx = f"\nChủ hồ sơ (tên folder cha): {folder_person}"
+
+    return f"""Bạn là AI phân loại giấy tờ visa. Xác định loại giấy tờ CỤ THỂ và tên chủ sở hữu.
 
 Trả về JSON duy nhất:
 {{
   "person_name": "NGUYEN VAN A",
-  "doc_type_en": "PASSPORT"
+  "doc_type_en": "BANK STATEMENT BIDV T01 2026",
+  "doc_owner": ""
 }}
 
-Quy tắc:
-- person_name: tên người sở hữu giấy tờ, viết IN HOA, không dấu. Nếu không rõ dùng "UNKNOWN PERSON".
-- doc_type_en: loại giấy tờ tiếng Anh, IN HOA, ngắn gọn. Ví dụ:
-  PASSPORT, CITIZEN IDENTITY CARD, BIRTH CERTIFICATE, MARRIAGE CERTIFICATE,
-  BANK STATEMENT, SAVINGS BOOK, TAX RETURN, SALARY CERTIFICATE,
-  LABOR CONTRACT, BUSINESS LICENSE, SOCIAL INSURANCE RECORD,
-  HOTEL BOOKING, FLIGHT BOOKING, TRAVEL ITINERARY, TRAVEL INSURANCE,
-  VISA GRANT NOTICE, IMMIGRATION RECORD, PROPERTY CERTIFICATE,
-  DRIVER LICENSE, ACADEMIC TRANSCRIPT, APPLICATION FORM, PHOTO, COVER LETTER,
-  POWER OF ATTORNEY, RECEIPT VOUCHER, AGREEMENT, PRICE QUOTATION,
-  REGISTRATION FORM, LAND CERTIFICATE, DECISION
-- Chỉ trả JSON, không giải thích.
+Quy tắc doc_type_en - PHẢI CỤ THỂ, KHÔNG CHUNG CHUNG:
+- doc_type_en PHẢI bao gồm thông tin phụ để PHÂN BIỆT với file khác cùng loại.
+- Viết IN HOA, tiếng Anh.
 
-RẤT QUAN TRỌNG VỀ person_name:
+⚠️ QUY TẮC QUAN TRỌNG - THÊM THÔNG TIN PHỤ:
+  1. Sao kê / sổ phụ ngân hàng → thêm TÊN NGÂN HÀNG + KỲ THÁNG/NĂM
+     VD: "BANK STATEMENT BIDV T01 2026", "BANK STATEMENT VCB T06 T12 2025"
+         "SAVINGS BOOK TECHCOMBANK", "BALANCE CONFIRM ACB 2026"
+  2. Hợp đồng → thêm loại hợp đồng
+     VD: "LABOR CONTRACT", "LAND SALE CONTRACT", "RENTAL AGREEMENT"
+  3. Giấy tờ có thời kỳ → thêm năm/kỳ
+     VD: "TAX RETURN 2025", "SOCIAL INSURANCE 2020 2025", "SALARY CERT T12 2025"
+  4. Bảo hiểm → thêm tên công ty
+     VD: "TRAVEL INSURANCE BAOVIET", "HEALTH INSURANCE PRUDENTIAL"
+  5. Giấy tờ cơ bản (PASSPORT, CCCD, BIRTH CERT...) → giữ ngắn gọn, KHÔNG cần thêm
+  6. Nếu file là ảnh chân dung → "PHOTO"
+
+Quy tắc doc_owner - AI CHỦ SỞ HỮU THỰC SỰ:
+- doc_owner: tên THẬT (IN HOA, không dấu) của người sở hữu giấy tờ này
+  NẾU người đó KHÁC với chủ hồ sơ (folder).
+- Nếu giấy tờ thuộc chính chủ hồ sơ → doc_owner = "" (rỗng)
+- VD: Folder "TRAN TRUNG ANH", file "Hộ chiếu mới NTTO.pdf" → đây là passport
+  của ai đó tên NTTO (vợ/con/người thân) → doc_owner = tên đầy đủ nếu có trong nội dung,
+  nếu không thì dùng viết tắt từ filename: "NTTO"
+- VD: Folder "TRAN TRUNG ANH", file "Hộ chiếu chồng.pdf" → đây là passport
+  của chính chồng (tức TRAN TRUNG ANH) → doc_owner = ""
+
+Quy tắc person_name:
+- person_name: tên người sở hữu giấy tờ, viết IN HOA, không dấu.
 - TÊN FILE rất quan trọng! Nếu tên file có dạng "NGUYEN_LE_KIM_NGAN_Contract.pdf" thì person_name = "NGUYEN LE KIM NGAN".
 - Nếu tên file có dạng "Hộ chiếu của mẹ chồng.pdf" hoặc tên Việt, vẫn cố gắng tìm tên trong NỘI DUNG.
 - Nếu nội dung chứa tên người (trong phần chủ sở hữu, bên ủy quyền, bên được ủy quyền, v.v.), PHẢI dùng tên đó.
 - CHỈ dùng "UNKNOWN PERSON" khi THẬT SỰ không thể tìm ra tên từ cả tên file lẫn nội dung.
 
+- Chỉ trả JSON, không giải thích.
+{folder_ctx}
 Tên file: {filename}
 Nội dung:
 {content}"""
@@ -301,9 +329,55 @@ Tên file: {filename}
 {pages_text}"""
 
 
-def _classify_single(llm: Any, filename: str, text: str) -> Optional[Dict[str, str]]:
+def _classify_image_vision(llm: Any, filename: str, file_path: str, folder_person: str = "") -> Optional[Dict[str, str]]:
+    """Classify an image file using vision model — AI actually SEES the image."""
+    try:
+        with open(file_path, 'rb') as f:
+            img_bytes = f.read()
+        # Determine MIME type
+        ext = os.path.splitext(filename)[1].lower()
+        mime_map = {'.jpg': 'jpeg', '.jpeg': 'jpeg', '.png': 'png', '.bmp': 'bmp', '.tiff': 'tiff', '.tif': 'tiff', '.webp': 'webp'}
+        mime_type = mime_map.get(ext, 'jpeg')
+        b64 = base64.b64encode(img_bytes).decode('utf-8')
+        data_url = f"data:image/{mime_type};base64,{b64}"
+
+        # Build prompt
+        prompt_text = _build_classify_prompt(filename, "[Hình ảnh được đính kèm bên dưới — hãy NHÌN vào hình để phân loại]", folder_person)
+
+        # Send as multimodal message (text + image)
+        message_content = [
+            {"type": "text", "text": prompt_text},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]
+        result = llm.invoke([SystemMessage(content=SYSTEM_BASE), HumanMessage(content=message_content)])
+        raw = result.content or ""
+        # Extract JSON from response
+        match = re.search(r'\{[^{}]*\}', raw, re.DOTALL)
+        if match:
+            parsed = json.loads(match.group())
+        else:
+            parsed = json.loads(raw)
+        person = _sanitize_name(str(parsed.get("person_name", "")), "UNKNOWN PERSON")
+        doc_type = _sanitize_name(str(parsed.get("doc_type_en", "")), "DOCUMENT")
+        doc_owner = (parsed.get("doc_owner") or "").strip()
+        # Fallback: if AI returned UNKNOWN PERSON, try extracting from filename
+        if person == "UNKNOWN PERSON":
+            fname_name = _extract_name_from_filename(filename)
+            if fname_name:
+                person = fname_name
+        return {
+            "person_name": person,
+            "doc_type_en": doc_type,
+            "doc_owner": doc_owner,
+        }
+    except Exception:
+        # Fallback to text-only classify if image reading fails
+        return _classify_single(llm, filename, f"[Image file: {filename}]", folder_person)
+
+
+def _classify_single(llm: Any, filename: str, text: str, folder_person: str = "") -> Optional[Dict[str, str]]:
     """Classify a single-doc file with 1 API call."""
-    prompt = _build_classify_prompt(filename, text)
+    prompt = _build_classify_prompt(filename, text, folder_person)
     try:
         result = llm.invoke([SystemMessage(content=SYSTEM_BASE), HumanMessage(content=prompt)])
         raw = result.content or ""
@@ -315,6 +389,7 @@ def _classify_single(llm: Any, filename: str, text: str) -> Optional[Dict[str, s
             parsed = json.loads(raw)
         person = _sanitize_name(str(parsed.get("person_name", "")), "UNKNOWN PERSON")
         doc_type = _sanitize_name(str(parsed.get("doc_type_en", "")), "DOCUMENT")
+        doc_owner = (parsed.get("doc_owner") or "").strip()
         # Fallback: if AI returned UNKNOWN PERSON, try extracting from filename
         if person == "UNKNOWN PERSON":
             fname_name = _extract_name_from_filename(filename)
@@ -323,6 +398,7 @@ def _classify_single(llm: Any, filename: str, text: str) -> Optional[Dict[str, s
         return {
             "person_name": person,
             "doc_type_en": doc_type,
+            "doc_owner": doc_owner,
         }
     except Exception:
         return None

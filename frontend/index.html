@@ -788,6 +788,19 @@
 
     </div>
 
+    <style>
+      .col-resize-handle {
+        position: absolute; right: 0; top: 0; bottom: 0;
+        width: 5px; cursor: col-resize;
+        background: transparent; z-index: 10;
+        transition: background 0.15s;
+      }
+      .col-resize-handle:hover, .col-resize-handle.active {
+        background: #4f82e6;
+      }
+      .resizable-th { user-select: none; overflow: hidden; }
+      .precheck-table td { overflow: hidden; text-overflow: ellipsis; }
+    </style>
     <script src="app.js"></script>
   </body>
 </html>
