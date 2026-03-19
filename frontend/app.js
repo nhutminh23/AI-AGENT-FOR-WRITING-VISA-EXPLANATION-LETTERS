@@ -1202,7 +1202,7 @@ function renderPdfMergeFileList() {
       style="display:flex; align-items:center; gap:4px; padding:6px 4px; border-bottom:1px solid #f3f4f6; border:2px solid transparent; border-radius:4px; transition:border-color 0.15s; cursor:grab;">
       <span style="cursor:grab; font-size:16px; color:#9ca3af; padding-right:2px;" title="Kéo để sắp xếp">☰</span>
       <span style="min-width:24px; font-weight:600; color:#4f46e5;">${i + 1}.</span>
-      <span style="flex:1; font-size:0.93em; user-select:none;">${f.name}</span>
+      <span style="flex:1; font-size:0.93em; cursor:pointer; user-select:text;" title="Click để dùng tên này" onclick="fillMergeOutputName('${f.name}')" onmouseover="this.style.textDecoration='underline';this.style.color='#4f46e5'" onmouseout="this.style.textDecoration='none';this.style.color='inherit'">${f.name}</span>
       <button type="button" onclick="jumpMergeFile(${i},'top')" style="${btnStyle}"${i === 0 ? ' disabled' : ''} title="Lên đầu">⏫</button>
       <button type="button" onclick="jumpMergeFile(${i},'bottom')" style="${btnStyle}"${i === n - 1 ? ' disabled' : ''} title="Xuống cuối">⏬</button>
       <button type="button" onclick="jumpMergeFile(${i},'remove')" style="${btnStyle} color:#dc2626;" title="Xóa file">❌</button>
@@ -1259,9 +1259,195 @@ window.jumpMergeFile = function(index, action) {
   renderPdfMergeFileList();
 };
 
+// Click a filename to fill the output name input
+window.fillMergeOutputName = function(name) {
+  const input = document.getElementById("pdfMergeOutputName");
+  if (input) {
+    // Remove .pdf extension
+    input.value = name.replace(/\.pdf$/i, "");
+    input.focus();
+  }
+};
+
 if (pdfMergeFileInput) {
   pdfMergeFileInput.addEventListener("change", updatePdfMergeFileListDisplay);
 }
+
+// ═══════════════════════════════════════════════════════════════
+// SCAN SPLITTER — Split scanned PDFs by Translation Certification
+// ═══════════════════════════════════════════════════════════════
+
+(function initScanSplitter() {
+  const runBtn = document.getElementById("scanSplitRunBtn");
+  const fileInput = document.getElementById("scanSplitFileInput");
+  const progressArea = document.getElementById("scanSplitProgressArea");
+  const progressText = document.getElementById("scanSplitProgressText");
+  const progressBar = document.getElementById("scanSplitProgressBar");
+  const pageGrid = document.getElementById("scanSplitPageGrid");
+  const errorArea = document.getElementById("scanSplitErrorArea");
+  const resultArea = document.getElementById("scanSplitResultArea");
+  const resultTitle = document.getElementById("scanSplitResultTitle");
+  const resultList = document.getElementById("scanSplitResultList");
+  const downloadZipBtn = document.getElementById("scanSplitDownloadZipBtn");
+
+  if (!runBtn || !fileInput) return;
+
+  let pollTimer = null;
+
+  runBtn.addEventListener("click", async () => {
+    if (!fileInput.files || fileInput.files.length === 0) {
+      alert("Vui lòng chọn file PDF scan trước.");
+      return;
+    }
+    const file = fileInput.files[0];
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      alert("Chỉ hỗ trợ file PDF.");
+      return;
+    }
+
+    // Reset UI
+    progressArea.style.display = "block";
+    errorArea.style.display = "none";
+    resultArea.style.display = "none";
+    progressBar.style.width = "0%";
+    progressText.textContent = "Đang upload file...";
+    pageGrid.innerHTML = "";
+    runBtn.disabled = true;
+    runBtn.textContent = "⏳ Đang xử lý...";
+
+    // Upload
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const resp = await fetch("/api/scan-splitter/split", { method: "POST", body: formData });
+      const data = await resp.json();
+      if (data.error) {
+        showError(data.error);
+        resetBtn();
+        return;
+      }
+      // Start polling
+      startPolling();
+    } catch (e) {
+      showError("Lỗi kết nối: " + e.message);
+      resetBtn();
+    }
+  });
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const resp = await fetch("/api/scan-splitter/progress");
+        const p = await resp.json();
+        updateProgress(p);
+        if (!p.running) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+          resetBtn();
+          if (p.error) {
+            showError(p.error);
+          } else if (p.results && p.results.length > 0) {
+            showResults(p);
+          }
+        }
+      } catch (e) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        resetBtn();
+      }
+    }, 500);
+  }
+
+  function updateProgress(p) {
+    const total = p.total || 1;
+    const done = p.done || 0;
+    const pct = Math.round((done / total) * 100);
+    progressBar.style.width = pct + "%";
+    progressText.textContent = p.current_page || `Đang quét... ${done}/${total}`;
+
+    // Build page grid if not yet built
+    if (total > 0 && pageGrid.children.length === 0) {
+      for (let i = 0; i < total; i++) {
+        const cell = document.createElement("div");
+        cell.style.cssText = "width:22px; height:22px; border-radius:3px; background:#e5e7eb; display:flex; align-items:center; justify-content:center; font-size:9px; color:#6b7280; transition:background 0.2s;";
+        cell.textContent = i + 1;
+        cell.title = `Trang ${i + 1}`;
+        pageGrid.appendChild(cell);
+      }
+    }
+    // Highlight scanned pages
+    const cells = pageGrid.children;
+    for (let i = 0; i < Math.min(done, cells.length); i++) {
+      cells[i].style.background = "#d1d5db";
+      cells[i].style.color = "#374151";
+    }
+
+    // If results available during polling, highlight cert pages
+    if (p.results && p.results.length > 0) {
+      p.results.forEach(r => {
+        const endIdx = r.end_page - 1;
+        if (endIdx < cells.length && !r.no_cert) {
+          cells[endIdx].style.background = "#10b981";
+          cells[endIdx].style.color = "#fff";
+          cells[endIdx].textContent = "✓";
+          cells[endIdx].title = `Trang ${endIdx + 1} — Xác nhận dịch ✅`;
+        }
+      });
+    }
+  }
+
+  function showResults(p) {
+    const results = p.results;
+    const certCount = results.filter(r => !r.no_cert).length;
+    resultTitle.textContent = `✅ Kết quả: Tìm thấy ${certCount} xác nhận dịch → ${results.length} file`;
+    resultArea.style.display = "block";
+
+    let html = "";
+    results.forEach((r, i) => {
+      const noCertTag = r.no_cert ? ' <span style="color:#f59e0b; font-size:0.85em;">⚠️ Không có xác nhận dịch</span>' : '';
+      html += `<div style="display:flex; align-items:center; gap:8px; padding:8px 6px; border-bottom:1px solid #f3f4f6;">
+        <span style="min-width:24px; font-weight:600; color:#4f46e5;">${i + 1}.</span>
+        <span style="flex:1; font-size:0.93em;">📄 Hồ sơ ${i + 1} <span style="color:#6b7280;">(Trang ${r.pages}, ${r.page_count} trang)</span>${noCertTag}</span>
+        <div style="display:flex; gap:4px;">
+          <a href="/api/scan-splitter/view/${encodeURIComponent(r.filename)}" target="_blank"
+             style="padding:4px 10px; background:#f59e0b; color:#fff; text-decoration:none; border-radius:4px; font-size:0.85em;">👁 Xem</a>
+          <a href="/api/scan-splitter/download/${encodeURIComponent(r.filename)}" 
+             style="padding:4px 10px; background:#4f46e5; color:#fff; text-decoration:none; border-radius:4px; font-size:0.85em;"
+             download="${r.filename}">⬇ Tải</a>
+        </div>
+      </div>`;
+    });
+    resultList.innerHTML = html;
+
+    // Highlight cert pages in grid
+    const cells = pageGrid.children;
+    results.forEach(r => {
+      const endIdx = r.end_page - 1;
+      if (endIdx < cells.length && !r.no_cert) {
+        cells[endIdx].style.background = "#10b981";
+        cells[endIdx].style.color = "#fff";
+        cells[endIdx].textContent = "✓";
+      }
+    });
+  }
+
+  function showError(msg) {
+    errorArea.style.display = "block";
+    errorArea.textContent = "❌ " + msg;
+  }
+
+  function resetBtn() {
+    runBtn.disabled = false;
+    runBtn.textContent = "🔍 Quét & Tách";
+  }
+
+  if (downloadZipBtn) {
+    downloadZipBtn.addEventListener("click", () => {
+      window.location.href = "/api/scan-splitter/download-zip";
+    });
+  }
+})();
 
 async function runPdfMerge() {
   if (!pdfMergeFileInput) {
@@ -4029,12 +4215,25 @@ async function precheckScan() {
   statusText.textContent = "AI đang quét & phân loại tất cả file... (có thể mất vài phút)";
   resultsCard.style.display = "none";
 
+  // Poll progress every 1.5s for real-time updates
+  const progressInterval = setInterval(async () => {
+    try {
+      const pRes = await fetch("/api/precheck/progress");
+      const prog = await pRes.json();
+      if (prog.running && prog.total > 0) {
+        const pct = Math.round((prog.done / prog.total) * 100);
+        statusText.textContent = `📄 Đang xử lý: ${prog.current_file || '...'} (${prog.done}/${prog.total} — ${pct}%)`;
+      }
+    } catch (e) { /* ignore */ }
+  }, 1500);
+
   try {
     const res = await fetch("/api/precheck/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ input_dir: inputDir }),
     });
+    clearInterval(progressInterval);
     const data = await res.json();
     if (!res.ok) {
       statusText.textContent = `Lỗi: ${data.error}`;
@@ -4097,7 +4296,7 @@ async function precheckScan() {
           ? `<div style="font-size:0.7em; color:#6b7280; margin-top:1px;">📂 ${f.sub_path}</div>` : '';
 
         html += `
-          <tr style="${rowBg} border-bottom:1px solid #e2e8f0;" data-filepath="${f.path}" data-person="${folder.person_name}" data-ext="${f.ext}" data-filename="${f.filename}">
+          <tr style="${rowBg} border-bottom:1px solid #e2e8f0;" data-filepath="${f.path}" data-person="${folder.person_name}" data-ext="${f.ext}" data-filename="${f.filename}" data-needs-split="${f.needs_split ? 'true' : 'false'}">
             <td style="padding:6px 8px;">${status}</td>
             <td style="padding:6px 8px; overflow:hidden; text-overflow:ellipsis;" title="${f.path}">${f.filename}${subInfo}</td>
             <td style="padding:6px 8px; overflow:hidden;">
@@ -4129,6 +4328,7 @@ async function precheckScan() {
     if (sendMultiBtn) sendMultiBtn.style.display = data.multi_doc_count > 0 ? "inline-block" : "none";
 
   } catch (e) {
+    clearInterval(progressInterval);
     statusText.textContent = `Lỗi: ${e.message}`;
   } finally {
     scanBtn.disabled = false;
@@ -4184,19 +4384,32 @@ async function applyRename() {
   const renameProgress = document.getElementById("renameProgress");
   const renameStatus = document.getElementById("renameStatusText");
 
-  // Collect all rename pairs from the table
+  // Collect all rename pairs from the table (SKIP files that need splitting)
   const rows = document.querySelectorAll("#precheckResults tr[data-filepath]");
   const renames = [];
+  let skippedSplit = 0;
   rows.forEach(row => {
     const path = row.dataset.filepath;
     const suggestedInput = row.querySelector('td:last-child input');
     const newName = suggestedInput ? suggestedInput.value.trim() : "";
+    // Skip files flagged as needs_split — they must be split first
+    if (row.dataset.needsSplit === 'true') {
+      skippedSplit++;
+      return;
+    }
     if (path && newName) {
       renames.push({ path, new_name: newName });
     }
   });
 
+  if (renames.length === 0 && skippedSplit > 0) {
+    alert(`⚠️ Tất cả ${skippedSplit} file đều cần tách trước.\nHãy tách file ở Tab ① trước rồi quay lại.`);
+    return;
+  }
   if (renames.length === 0) { alert("Không có file nào để đổi tên."); return; }
+  if (skippedSplit > 0) {
+    alert(`ℹ️ Đã bỏ qua ${skippedSplit} file cần tách.\nChỉ đổi tên ${renames.length} file OK.`);
+  }
 
   applyBtn.disabled = true;
   applyBtn.textContent = "⏳ Đang đổi tên...";
@@ -4518,7 +4731,12 @@ async function sendMultiToSplitter() {
     });
     const data = await res.json();
     if (!res.ok) { alert(`Lỗi: ${data.error}`); return; }
-    alert(`✅ Đã chuyển ${data.count} file sang splitter_uploads.\nHãy upload từng file ở Tab ① để tách.`);
+    // Save mapping: stored_name → original_path for save-to-source
+    if (!window._splitterSourceMap) window._splitterSourceMap = {};
+    for (let i = 0; i < data.copied.length; i++) {
+      window._splitterSourceMap[data.copied[i]] = multiFiles[i];
+    }
+    alert(`✅ Đã chuyển ${data.count} file sang splitter.\nChọn file ở Tab ① → Upload & Tách → Lưu về thư mục gốc.`);
     setActiveTab("aisplitter");
   } catch (e) { alert(`Lỗi: ${e.message}`); }
   finally { btn.disabled = false; btn.textContent = "⚠️ Gửi file ghép → Tab ① Tách PDF (AI)"; }
@@ -4847,6 +5065,14 @@ window.addEventListener("load", async () => {
 async function loadSplitterFileList() {
   const listEl = document.getElementById("splitterFileList");
   if (!listEl) return;
+  // Load source mapping from server (persists across page refresh)
+  try {
+    const mapRes = await fetch("/api/splitter/source-mapping");
+    const mapData = await mapRes.json();
+    if (mapData && Object.keys(mapData).length > 0) {
+      window._splitterSourceMap = { ...(window._splitterSourceMap || {}), ...mapData };
+    }
+  } catch(e) {}
   try {
     const pid = getProjectId();
     const url = "/api/ai-splitter/list" + (pid ? "?project_id=" + pid : "");
@@ -5149,6 +5375,7 @@ document.addEventListener("click", async (e) => {
   if (!uploadBtn) return; // safety check
 
   let currentFileId = null;
+  let currentFilename = null;
   let pollTimer = null;
 
   const DOC_ICONS = {
@@ -5195,6 +5422,7 @@ document.addEventListener("click", async (e) => {
       }
 
       currentFileId = uploadData.file_id;
+      currentFilename = uploadData.filename || file.name;
       statusText.textContent = `Đã upload ${uploadData.filename} (${uploadData.page_count} trang). Đang xử lý...`;
 
       // 2. Start processing
@@ -5218,6 +5446,7 @@ document.addEventListener("click", async (e) => {
   window.addEventListener("splitter-start", (e) => {
     const { file_id, filename } = e.detail;
     currentFileId = file_id;
+    currentFilename = filename;
     progressDiv.style.display = "block";
     statusText.textContent = `Đang tách ${filename}...`;
     progressBar.value = 0;
@@ -5290,6 +5519,20 @@ document.addEventListener("click", async (e) => {
 
   function renderOutputFiles(files) {
     resultsCard.style.display = "block";
+    // Determine if we have original path info for save-to-source
+    const sourceMap = window._splitterSourceMap || {};
+    // Try to find original path from source mapping for current file
+    let originalPath = '';
+    for (const [stored, orig] of Object.entries(sourceMap)) {
+      // Match by original filename (strip p{id}__ prefix)
+      const cleanStored = stored.replace(/^p\d+__/, '');
+      if (currentFilename && (stored === currentFilename || cleanStored === currentFilename
+          || stored.includes(currentFilename) || cleanStored === currentFilename.replace(/^p\d+__/, ''))) {
+        originalPath = orig;
+        break;
+      }
+    }
+    
     resultsDiv.innerHTML = files.map((f) => {
       const icon = getIcon(f.document_type);
       const pages = f.pages.join(", ");
@@ -5310,6 +5553,45 @@ document.addEventListener("click", async (e) => {
         </div>
       </div>`;
     }).join("");
+    
+    // Add "Save to source folder" button if we have original path
+    if (originalPath) {
+      const saveDiv = document.createElement('div');
+      saveDiv.style.cssText = 'padding:12px; text-align:center; border-top:2px solid #e5e7eb;';
+      saveDiv.innerHTML = `
+        <button id="saveToSourceBtn" style="padding:8px 20px; background:#16a34a; color:white; border:none; border-radius:6px; cursor:pointer; font-size:0.95em; font-weight:600;">
+          💾 Lưu ${files.length} file về thư mục gốc (xóa file cũ)
+        </button>
+        <div style="font-size:0.8em; color:#6b7280; margin-top:4px;">📂 ${originalPath}</div>
+      `;
+      resultsDiv.appendChild(saveDiv);
+      document.getElementById('saveToSourceBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('saveToSourceBtn');
+        if (!confirm(`Lưu ${files.length} file đã tách về thư mục gốc?\n\n• Xóa file gốc: ${originalPath.split(/[\\/]/).pop()}\n• Lưu ${files.length} file mới vào cùng thư mục`)) return;
+        btn.disabled = true;
+        btn.textContent = '⏳ Đang lưu...';
+        try {
+          const res = await fetch('/api/splitter/save-to-source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_id: currentFileId, original_path: originalPath }),
+          });
+          const data = await res.json();
+          if (!res.ok) { alert(`Lỗi: ${data.error}`); btn.disabled = false; btn.textContent = '💾 Lưu về thư mục gốc'; return; }
+          btn.textContent = `✅ Đã lưu ${data.saved_count} file!`;
+          btn.style.background = '#6b7280';
+          let msg = `✅ Đã lưu ${data.saved_count} file về thư mục gốc!`;
+          if (data.deleted_original) msg += `\n🗑 Đã xóa file gốc: ${data.original_name}`;
+          msg += `\n📂 Thư mục: ${data.target_dir}`;
+          if (data.errors && data.errors.length > 0) msg += `\n⚠️ ${data.errors.length} lỗi`;
+          alert(msg);
+        } catch (e) {
+          alert(`Lỗi: ${e.message}`);
+          btn.disabled = false;
+          btn.textContent = '💾 Lưu về thư mục gốc';
+        }
+      });
+    }
   }
 
   downloadAllBtn.addEventListener("click", () => {
@@ -5515,6 +5797,37 @@ if (clearAllOutputsBtn) {
     finally {
       clearAllOutputsBtn.disabled = false;
       clearAllOutputsBtn.textContent = "🗑️ Xóa tất cả kết quả";
+    }
+  });
+}
+
+// Save all outputs to input folder
+const saveOutputToInputBtn = document.getElementById("saveOutputToInputBtn");
+if (saveOutputToInputBtn) {
+  saveOutputToInputBtn.addEventListener("click", async () => {
+    // Get target dir from precheck input field
+    const precheckInput = document.getElementById("precheckInputDir");
+    const targetDir = precheckInput ? precheckInput.value.trim() : "input";
+    if (!confirm(`Lưu tất cả file đã tách vào thư mục "${targetDir}"?\n\nFile gốc (đã tách) sẽ bị xóa khỏi thư mục đích để tránh trùng lặp.`)) return;
+    saveOutputToInputBtn.disabled = true;
+    saveOutputToInputBtn.textContent = "⏳ Đang lưu...";
+    try {
+      const res = await fetch("/api/ai-splitter/save-to-input", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_dir: targetDir, delete_originals: true }),
+      });
+      const data = await res.json();
+      if (data.error) { alert(`Lỗi: ${data.error}`); return; }
+      let msg = `✅ Đã lưu ${data.count} file vào "${data.target_dir}"!`;
+      if (data.originals_deleted && data.originals_deleted.length > 0) {
+        msg += `\n🗑 Đã xóa ${data.originals_deleted.length} file gốc: ${data.originals_deleted.join(", ")}`;
+      }
+      alert(msg);
+    } catch (e) { alert(`Lỗi: ${e.message}`); }
+    finally {
+      saveOutputToInputBtn.disabled = false;
+      saveOutputToInputBtn.textContent = "💾 Lưu vào thư mục gốc";
     }
   });
 }

@@ -659,6 +659,46 @@
         </section>
 
         <section class="card">
+          <h2>📋 Tách File Scan (Theo Xác Nhận Dịch)</h2>
+          <div class="hint">
+            Upload file scan lớn (nhiều hồ sơ). AI nhận diện trang <b>xác nhận dịch thuật</b> (Passport Lounge) → tự động tách thành các file riêng.
+          </div>
+
+          <!-- Upload area -->
+          <div class="row" style="margin-top: 10px; align-items: flex-end;">
+            <div style="flex:1;">
+              <label for="scanSplitFileInput">Chọn file PDF scan</label>
+              <input type="file" id="scanSplitFileInput" accept=".pdf" style="display:block; margin-top:4px;" />
+            </div>
+            <button id="scanSplitRunBtn" style="padding:10px 20px; background:#4f46e5; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; white-space:nowrap;">
+              🔍 Quét & Tách
+            </button>
+          </div>
+
+          <!-- Progress area -->
+          <div id="scanSplitProgressArea" style="margin-top:12px; display:none;">
+            <div id="scanSplitProgressText" style="font-size:0.9em; color:#6b7280; margin-bottom:4px;"></div>
+            <div style="background:#e5e7eb; border-radius:6px; height:10px; overflow:hidden;">
+              <div id="scanSplitProgressBar" style="background:#4f46e5; height:100%; width:0%; transition:width 0.3s; border-radius:6px;"></div>
+            </div>
+            <!-- Page grid -->
+            <div id="scanSplitPageGrid" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:3px;"></div>
+          </div>
+
+          <!-- Error area -->
+          <div id="scanSplitErrorArea" style="margin-top:10px; display:none; padding:10px; background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; color:#dc2626;"></div>
+
+          <!-- Results area -->
+          <div id="scanSplitResultArea" style="margin-top:12px; display:none;">
+            <h3 id="scanSplitResultTitle" style="margin-bottom:8px;"></h3>
+            <div id="scanSplitResultList" style="max-height:400px; overflow-y:auto;"></div>
+            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="scanSplitDownloadZipBtn" style="padding:8px 16px; background:#4f46e5; color:#fff; border:none; border-radius:6px; cursor:pointer;">📦 Download tất cả (ZIP)</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
           <h2>Nối PDF</h2>
           <div class="hint">
             Bước 1: Chọn các file PDF cần ghép. Bước 2: Kéo thả ☰ hoặc bấm ⏫⏬ để sắp đúng thứ tự. Bước 3: Đặt tên → Nối PDF.
@@ -742,6 +782,7 @@
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
             <h2 style="margin:0;">📂 Tất cả file đã tách (AI + Thủ công)</h2>
             <button id="refreshOutputHistoryBtn" style="padding:6px 12px; font-size:12px;">🔄 Refresh</button>
+            <button id="saveOutputToInputBtn" style="padding:6px 14px; font-size:13px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">💾 Lưu vào thư mục gốc</button>
             <button id="clearAllOutputsBtn" style="padding:6px 14px; font-size:13px; background:#dc2626; color:#fff; border:none; border-radius:6px; cursor:pointer;">🗑️ Xóa tất cả kết quả</button>
           </div>
           <div class="hint">Danh sách tất cả file output (AI + thủ công) trong <code>splitter_outputs/</code>. Dữ liệu này không mất khi F5.</div>

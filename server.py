@@ -11,7 +11,7 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from flask import Flask, Response, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -569,39 +569,68 @@ def list_files():
 # ==================== PRE-CHECK ENDPOINTS ====================
 
 def _vision_detect_pdf_documents(llm, pdf_path: str, filename: str, total_pages: int):
-    """Quick vision check: does this scanned PDF contain 1 document type or multiple?
-    Only samples 3 pages (first, middle, last) at low DPI for speed."""
+    """Vision check: does this scanned PDF contain multiple documents?
+    Detects both different document types AND same-type docs for different people.
+    Samples up to 8 pages at 100 DPI for reliable name/type recognition."""
     import fitz  # PyMuPDF
     import base64
     
     doc = fitz.open(pdf_path)
     actual_pages = len(doc)
     
-    # Only sample 3 pages: first, middle, last (fast & cheap)
-    if actual_pages <= 3:
+    # Smart sampling: ALL pages for short PDFs, evenly-spaced for longer ones
+    if actual_pages <= 6:
         sample_indices = list(range(actual_pages))
     else:
-        mid = actual_pages // 2
-        sample_indices = [0, mid, actual_pages - 1]
+        # Sample up to 8 pages evenly distributed (first, last, + 6 middle)
+        max_samples = min(8, actual_pages)
+        step = (actual_pages - 1) / (max_samples - 1)
+        sample_indices = sorted(set(int(round(i * step)) for i in range(max_samples)))
     
-    # Render sampled pages as tiny thumbnails
+    # Render sampled pages as images
     content_parts = [
-        {"type": "text", "text": f"""Look at these {len(sample_indices)} sampled pages from "{filename}" ({actual_pages} pages total).
+        {"type": "text", "text": f"""Analyze these {len(sample_indices)} sampled pages from "{filename}" ({actual_pages} pages total).
 
-Quick check: Do these pages contain MULTIPLE DIFFERENT types of documents (e.g., passport + bank statement + birth certificate mixed together)?
+TASK: Determine if this PDF contains MULTIPLE TRULY SEPARATE documents that were scanned together into one file. 
 
-Answer in this JSON format ONLY:
-{{"mixed": true, "doc_count": 5, "doc_types": ["PASSPORT", "BANK STATEMENT", "BIRTH CERTIFICATE", ...]}}
+A PDF needs splitting ONLY when it contains GENUINELY DIFFERENT, STANDALONE documents. Examples of documents that NEED splitting:
+- Marriage certificate + birth certificate (completely different docs)
+- Two birth certificates for DIFFERENT children (same type but different people)
+- Bank statement + identity card (unrelated docs)
+- Multiple standalone government certificates mixed together
 
-OR if all pages look like the SAME document type:
-{{"mixed": false, "doc_count": 1, "doc_types": ["BANK STATEMENT"]}}
+⚠️ DO NOT SPLIT these — they are ONE document/package:
+- PASSPORT booklet with visa stamps/stickers = 1 PASSPORT (visa pages are part of the passport)
+- Rental/Lease AGREEMENT + inventory list/appendix/attachment = 1 RENTAL AGREEMENT (appendices belong to the contract)
+- Any CONTRACT + its appendix/supplement/addendum = 1 CONTRACT
+- Land use RIGHT CERTIFICATE + supplementary pages = 1 LAND CERTIFICATE
+- Any document with its cover page + content pages = 1 document
+- Bank statement spanning multiple pages = 1 BANK STATEMENT
+- Front + back of same ID card = 1 IDENTITY CARD
 
-Return ONLY JSON, nothing else."""}
+⚠️ CRITICAL — PASSPORT EXPIRY CHECK:
+The current year is 2026. For ANY passport document, you MUST read the "Date of expiry" / "Ngày hết hạn" field on the passport image.
+- If the expiry year < 2026 → doc_type_en = "OLD PASSPORT [expiry year]" (e.g. "OLD PASSPORT 2011")
+- If the expiry year >= 2026 → doc_type_en = "PASSPORT"
+You MUST include the actual expiry year you read from the document.
+
+For EACH truly separate document found, provide:
+- doc_type_en: type in ENGLISH, UPPERCASE (see passport rule above)
+- person_name: owner name in UPPERCASE, no diacritics. If unclear → "UNKNOWN"
+- start_page and end_page: approximate page range
+
+Return JSON ONLY:
+{{"documents": [
+  {{"doc_type_en": "OLD PASSPORT 2011", "person_name": "NGUYEN VAN A", "start_page": 1, "end_page": 2}},
+  {{"doc_type_en": "BIRTH CERTIFICATE", "person_name": "NGUYEN VAN B", "start_page": 3, "end_page": 4}}
+]}}
+
+If this is ONE single document or package: {{"documents": [{{"doc_type_en": "RENTAL AGREEMENT", "person_name": "NGUYEN VAN A", "start_page": 1, "end_page": {actual_pages}}}]}}"""}
     ]
     
     for idx in sample_indices:
         page = doc[idx]
-        pix = page.get_pixmap(dpi=72)  # Very low DPI, just enough to identify doc type
+        pix = page.get_pixmap(dpi=100)  # 100 DPI: enough to read names on scanned docs
         img_bytes = pix.tobytes("png")
         b64 = base64.b64encode(img_bytes).decode()
         content_parts.append({"type": "text", "text": f"Page {idx + 1}/{actual_pages}:"})
@@ -612,7 +641,7 @@ Return ONLY JSON, nothing else."""}
     from langchain_core.messages import HumanMessage, SystemMessage
     try:
         result = llm.invoke([
-            SystemMessage(content="You are a document classifier. Answer only with JSON."),
+            SystemMessage(content="You are an expert document classifier for visa application files. You can read Vietnamese documents. Answer only with JSON."),
             HumanMessage(content=content_parts),
         ])
     except Exception as exc:
@@ -638,19 +667,42 @@ Return ONLY JSON, nothing else."""}
         else:
             return []
     
-    is_mixed = parsed.get("mixed", False)
-    doc_count = int(parsed.get("doc_count", 1))
-    doc_types = parsed.get("doc_types", ["UNKNOWN"])
-    
-    if not is_mixed or doc_count <= 1:
-        # Single document - return 1 item
+    # Extract documents list
+    docs = parsed.get("documents", [])
+    if not isinstance(docs, list) or len(docs) == 0:
+        # Fallback: try old format (mixed/doc_count)
+        is_mixed = parsed.get("mixed", False)
+        doc_count = int(parsed.get("doc_count", 1))
+        doc_types = parsed.get("doc_types", ["UNKNOWN"])
+        if is_mixed and doc_count > 1:
+            return [{"doc_type_en": dt, "person_name": "UNKNOWN", "start_page": 0, "end_page": 0}
+                    for dt in doc_types]
         return [{"doc_type_en": doc_types[0] if doc_types else "UNKNOWN",
                  "person_name": "UNKNOWN", "start_page": 1, "end_page": actual_pages}]
-    else:
-        # Multiple documents - return dummy items just to flag as needs_split
-        return [{"doc_type_en": dt, "person_name": "UNKNOWN", "start_page": 0, "end_page": 0}
-                for dt in doc_types]
+    
+    # Process documents list
+    output = []
+    for item in docs:
+        if not isinstance(item, dict):
+            continue
+        output.append({
+            "doc_type_en": (item.get("doc_type_en") or "UNKNOWN").upper().strip(),
+            "person_name": (item.get("person_name") or "UNKNOWN").upper().strip(),
+            "start_page": int(item.get("start_page", 0)),
+            "end_page": int(item.get("end_page", 0)),
+        })
+    
+    return output if output else [{"doc_type_en": "UNKNOWN", "person_name": "UNKNOWN",
+                                    "start_page": 1, "end_page": actual_pages}]
 
+
+# ── Progress tracking for precheck scan ──
+_precheck_progress = {"total": 0, "done": 0, "current_file": "", "running": False}
+
+@app.get("/api/precheck/progress")
+def precheck_progress():
+    """Poll endpoint for scan progress."""
+    return jsonify(_precheck_progress)
 
 @app.post("/api/precheck/scan")
 def precheck_scan():
@@ -825,6 +877,8 @@ def precheck_scan():
                 'THÔNG BÁO THUẾ': 'TAX NOTICE',
                 'MST': 'TAX REGISTRATION',
                 # Education
+                'THẺ HỌC SINH': 'STUDENT ID CARD',
+                'HỌC BẠ': 'ACADEMIC TRANSCRIPT',
                 'BẰNG': 'DIPLOMA',
                 'BẰNG TỐT NGHIỆP': 'GRADUATION DIPLOMA',
                 'CHỨNG CHỈ': 'CERTIFICATE',
@@ -858,41 +912,131 @@ def precheck_scan():
 
         return upper_type.strip()
 
+    def _is_same_person(name_a: str, name_b: str) -> bool:
+        """Check if two Vietnamese names refer to the same person.
+        Handles: LE THI NHAT PHUONG vs NGUYEN THI NHAT PHUONG (same person, different family name).
+        Also handles folder prefix like UC_NGUYEN_THI_NHAT_PHUONG_VINH."""
+        if not name_a or not name_b:
+            return False
+        a = name_a.replace("_", " ").strip().upper()
+        b = name_b.replace("_", " ").strip().upper()
+        # Exact match
+        if a == b:
+            return True
+        # Substring containment
+        if a in b or b in a:
+            return True
+        parts_a = a.split()
+        parts_b = b.split()
+        # Same given name (last 2+ words match at end)
+        if len(parts_a) >= 2 and len(parts_b) >= 2:
+            if parts_a[-2:] == parts_b[-2:]:
+                return True
+            if len(parts_a) >= 3 and len(parts_b) >= 3:
+                if parts_a[-3:] == parts_b[-3:]:
+                    return True
+        # Handle folder names with prefix (UC) or suffix (city like VINH):
+        # Check if shorter name's last 2 given-name parts appear as consecutive
+        # words anywhere in the longer name. e.g. "NHAT PHUONG" from
+        # "LE THI NHAT PHUONG" appears in "UC NGUYEN THI NHAT PHUONG VINH"
+        shorter, longer = (parts_a, parts_b) if len(parts_a) <= len(parts_b) else (parts_b, parts_a)
+        if len(shorter) >= 2:
+            tail2 = shorter[-2:]
+            for i in range(len(longer) - 1):
+                if longer[i:i+2] == tail2:
+                    return True
+        if len(shorter) >= 3:
+            tail3 = shorter[-3:]
+            for i in range(len(longer) - 2):
+                if longer[i:i+3] == tail3:
+                    return True
+        return False
+
     def _fix_doc_owner(doc_owner: str, person_name: str, filename: str, doc_type: str) -> str:
         """Post-process: fix doc_owner to avoid duplicates and detect missing owners."""
         from classifier.agent import normalize_vietnamese_name
         owner = (doc_owner or "").strip()
 
+        # Treat UNKNOWN PERSON / UNKNOWN as "no owner found"
+        if owner.upper() in ('UNKNOWN PERSON', 'UNKNOWN', 'UNKNOWN_PERSON'):
+            owner = ""
+
+        # Property/land docs → always use folder name, skip doc_owner
+        _SKIP_OWNER_DOCS = [
+            'LAND USE', 'LAND CERTIFICATE', 'PROPERTY', 'SỔ ĐỎ',
+            'RENTAL AGREEMENT', 'LEASE', 'CONTRACT',
+        ]
+        upper_dt = doc_type.upper()
+        if any(kw in upper_dt for kw in _SKIP_OWNER_DOCS):
+            return ""
+
         # If doc_owner is same as folder person → set empty (it's the main applicant)
         if owner:
             owner_norm = normalize_vietnamese_name(owner)
-            if owner_norm == person_name or owner_norm in person_name or person_name in owner_norm:
+            if _is_same_person(owner_norm, person_name):
                 return ""
 
+        # Vietnamese relational clues in filename that indicate different person
+        _VN_RELATION_CLUES = [
+            'con trai', 'con gái', 'con', 'mẹ', 'vợ', 'bố', 'cha',
+            'chồng', 'anh', 'chị', 'em', 'bà', 'ông',
+        ]
+        fn_lower = filename.lower()
+        has_relation_clue = any(clue in fn_lower for clue in _VN_RELATION_CLUES)
+
         # If no doc_owner but filename has initials/name different from person
-        # This handles cases like "Hộ chiếu mới NTTO.pdf"
         if not owner:
             upper_type = doc_type.upper()
-            # Only for identity docs where owner matters
-            identity_docs = ['PASSPORT', 'CITIZEN IDENTITY', 'CCCD', 'BIRTH CERTIFICATE']
-            if any(kw in upper_type for kw in identity_docs):
+            # Only for identity/personal docs where owner matters
+            identity_docs = ['PASSPORT', 'OLD PASSPORT', 'CITIZEN IDENTITY', 'CCCD',
+                             'BIRTH CERTIFICATE', 'STUDENT ID', 'STUDENT CARD',
+                             'HEALTH INSURANCE', 'SCHOOL']
+            is_identity = any(kw in upper_type for kw in identity_docs)
+
+            if is_identity or has_relation_clue:
                 stem = os.path.splitext(filename)[0]
                 # Look for initials (2-6 uppercase letters at end of filename)
-                # e.g. "Hộ chiếu mới NTTO" → NTTO
                 match = re.search(r'[A-Z]{2,6}(?:\s*\.?\s*$)', stem)
                 if match:
                     initials = match.group().strip('. ')
-                    # Make sure it's not part of the person name
                     if initials not in person_name:
                         return initials
-                # Also check for Vietnamese name clues
-                # "Hộ chiếu mẹ", "Hộ chiếu vợ", etc. → no specific name, just leave empty
-                # But "Hộ chiếu mới NTTO" → NTTO is clearly an abbreviated name
 
         return owner
 
     import threading
     _quota_stop = threading.Event()
+
+    # Quick filename-based doc type lookup (skips LLM call for obvious files)
+    _QUICK_CLASSIFY_MAP = {
+        'hộ chiếu': 'PASSPORT', 'ho chieu': 'PASSPORT', 'passport': 'PASSPORT',
+        'cccd': 'CITIZEN IDENTITY CARD', 'cmnd': 'CITIZEN IDENTITY CARD',
+        'khai sinh': 'BIRTH CERTIFICATE', 'birth': 'BIRTH CERTIFICATE',
+        'kết hôn': 'MARRIAGE CERTIFICATE', 'ket hon': 'MARRIAGE CERTIFICATE',
+        'sổ đất': 'LAND USE RIGHT CERTIFICATE', 'so dat': 'LAND USE RIGHT CERTIFICATE',
+        'sổ đỏ': 'LAND USE RIGHT CERTIFICATE', 'so do': 'LAND USE RIGHT CERTIFICATE',
+        'quyền sử dụng đất': 'LAND USE RIGHT CERTIFICATE',
+        'thẻ học sinh': 'STUDENT ID CARD', 'the hoc sinh': 'STUDENT ID CARD',
+        'bank': 'BANK STATEMENT', 'ngân hàng': 'BANK STATEMENT',
+        'hợp đồng thuê': 'RENTAL AGREEMENT', 'hd thue': 'RENTAL AGREEMENT',
+        'hd cho thue': 'RENTAL AGREEMENT', 'thuê nhà': 'RENTAL AGREEMENT',
+        'xác nhận công việc': 'WORK CERTIFICATE', 'xncv': 'WORK CERTIFICATE',
+        'xác nhận số dư': 'BALANCE CONFIRMATION', 'xnsd': 'BALANCE CONFIRMATION',
+        'nghỉ phép': 'LEAVE REQUEST', 'don xin nghi': 'LEAVE REQUEST',
+        'sổ tiết kiệm': 'SAVINGS BOOK', 'tiet kiem': 'SAVINGS BOOK',
+        'bảo hiểm': 'INSURANCE', 'bhxh': 'SOCIAL INSURANCE',
+        'thuế': 'TAX CERTIFICATE', 'thue': 'TAX CERTIFICATE',
+        'hộ khẩu': 'HOUSEHOLD REGISTRATION', 'ho khau': 'HOUSEHOLD REGISTRATION',
+    }
+
+    def _quick_classify_from_filename(fname: str) -> str:
+        """Try to classify doc type from filename alone. Returns '' if unclear."""
+        fn_lower = os.path.splitext(fname)[0].lower()
+        # Remove common prefixes like numbers, parentheses
+        for kw, doc_type in _QUICK_CLASSIFY_MAP.items():
+            if kw in fn_lower:
+                return doc_type
+        return ""
 
     def _classify_one(file_info, person_name):
         fname = file_info["filename"]
@@ -916,12 +1060,132 @@ def precheck_scan():
             }
 
         try:
+            # FAST PATH: if filename clearly tells us the doc type, skip LLM call
+            # This saves both time AND tokens for obvious files
+            quick_type = _quick_classify_from_filename(fname)
+            if quick_type:
+                # Still need to check page count for multi-doc detection
+                page_count = 1
+                if ext == '.pdf':
+                    try:
+                        from pypdf import PdfReader as _PdfR
+                        page_count = len(_PdfR(fpath).pages)
+                    except Exception:
+                        pass
+                # Single page or known single-doc type → skip LLM
+                if page_count <= 2:
+                    doc_type = quick_type
+                    doc_owner = ""
+                    ai_person = ""
+                    needs_split = False
+                    doc_count = 1
+                    doc_types = [doc_type]
+                    # Jump directly to post-processing (skip LLM + vision)
+                    doc_type = _enrich_doc_type(doc_type, fname, sub_path)
+                    doc_owner = _fix_doc_owner(doc_owner, person_name, fname, doc_type)
+                    doc_type_clean = doc_type.upper().strip()
+                    doc_type_clean = re.sub(r'[^A-Z0-9]+', '_', doc_type_clean).strip('_')
+                    out_ext = '.pdf' if ext in IMAGE_EXTS else ext
+                    suggested_name = f"{person_name}_{doc_type_clean}{out_ext}"
+                    return {
+                        **file_info,
+                        "person_name": person_name,
+                        "doc_type_en": doc_type,
+                        "doc_owner": doc_owner,
+                        "suggested_name": suggested_name,
+                        "needs_split": needs_split,
+                        "doc_count": doc_count,
+                        "doc_types": doc_types,
+                        "fast_classified": True,
+                    }
+
             result = classify_doc_type_only(llm, fname, fpath, folder_person=person_name)
             doc_type = result.get("doc_type_en", "DOCUMENT")
             doc_owner = result.get("doc_owner", "")
+            ai_person = result.get("person_name", "")  # Actual owner from document content
             needs_split = result.get("needs_split", False)
             doc_count = result.get("doc_count", 1)
             doc_types = result.get("doc_types", [doc_type])
+
+            # VISION MULTI-DOC DETECTION for PDFs (2+ pages, not already flagged)
+            # Only skip vision if ALL pages have extractable text (text-based is reliable)
+            # If ANY pages are scanned (empty), vision is needed as backup
+            if ext == '.pdf' and not needs_split:
+                try:
+                    from pypdf import PdfReader as _PdfR
+                    _reader = _PdfR(fpath)
+                    total_pages = len(_reader.pages)
+                    # Check if pages lack text (scanned/image pages)
+                    page_texts_len = [len((p.extract_text() or "").strip()) for p in _reader.pages]
+                    has_scanned_pages = any(tl < 30 for tl in page_texts_len)
+                    all_scanned = all(tl < 30 for tl in page_texts_len)
+                except Exception:
+                    total_pages = 1
+                    has_scanned_pages = True
+                    all_scanned = True
+                # Run vision for scanned PDFs to get person name + multi-doc detection
+                # Cost optimization: only run for 2+ pages (multi-doc) OR when filename
+                # has relational clues (con, vợ, mẹ...) suggesting different person
+                _VN_CLUES_FOR_VISION = [
+                    'con trai', 'con gái', 'con', 'mẹ', 'vợ', 'bố', 'cha',
+                    'chồng', 'anh', 'chị', 'em', 'bà', 'ông',
+                ]
+                fn_lower_check = fname.lower()
+                needs_vision_for_name = any(c in fn_lower_check for c in _VN_CLUES_FOR_VISION)
+                should_run_vision = has_scanned_pages and (total_pages >= 2 or needs_vision_for_name or all_scanned)
+                if should_run_vision:
+                    try:
+                        vision_results = _vision_detect_pdf_documents(llm, fpath, fname, total_pages)
+                        if vision_results:
+                            if len(vision_results) > 1:
+                                # Check if all results are passport-related (PASSPORT + VISA)
+                                # for the same person → treat as ONE passport, don't split
+                                _PASSPORT_FAMILY = {'PASSPORT', 'VISA', 'OLD PASSPORT'}
+                                vr_types = set()
+                                vr_persons = set()
+                                for vr in vision_results:
+                                    vt = vr.get("doc_type_en", "").upper()
+                                    # Normalize: "OLD PASSPORT 2011" → "OLD PASSPORT"
+                                    for pf in _PASSPORT_FAMILY:
+                                        if vt.startswith(pf):
+                                            vr_types.add(pf)
+                                            break
+                                    else:
+                                        vr_types.add(vt)
+                                    vr_persons.add(vr.get("person_name", "UNKNOWN").upper())
+                                # All passport-family docs for same person → single doc
+                                is_passport_bundle = vr_types.issubset(_PASSPORT_FAMILY) and len(vr_persons) <= 1
+                                if not is_passport_bundle:
+                                    needs_split = True
+                                    doc_count = len(vision_results)
+                                doc_types = []
+                                for r in vision_results:
+                                    dt = r.get("doc_type_en", "UNKNOWN")
+                                    pn = r.get("person_name", "")
+                                    if pn and pn != "UNKNOWN":
+                                        doc_types.append(f"{dt} ({pn})")
+                                    else:
+                                        doc_types.append(dt)
+                                doc_type = vision_results[0].get("doc_type_en", doc_type)
+                            # ALWAYS use vision person_name for ai_person (even single-doc)
+                            # This is how we find the child's name from a scanned passport
+                            vision_person = vision_results[0].get("person_name", "")
+                            if vision_person and vision_person not in ("UNKNOWN", "UNKNOWN PERSON"):
+                                ai_person = vision_person
+                            # Use vision doc_type if better than text-based
+                            # For scanned PDFs, text-based only guesses from filename → vision is MORE reliable
+                            vision_doc_type = vision_results[0].get("doc_type_en", "")
+                            if vision_doc_type:
+                                # Always prefer vision for fully-scanned PDFs (text-based just guesses)
+                                if all_scanned:
+                                    doc_type = vision_doc_type
+                                # For partial-scan PDFs, only override if text-based gave generic result
+                                elif doc_type in ("DOCUMENT", "UNKNOWN DOCUMENT", "UNKNOWN"):
+                                    doc_type = vision_doc_type
+                    except QuotaExhaustedError:
+                        raise
+                    except Exception:
+                        pass  # Vision detection failed, keep original result
 
             # POST-PROCESSING: enrich doc_type with bank name + period from filename
             doc_type = _enrich_doc_type(doc_type, fname, sub_path)
@@ -929,15 +1193,30 @@ def precheck_scan():
             # POST-PROCESSING: fix doc_owner (prevent duplicate, detect missing)
             doc_owner = _fix_doc_owner(doc_owner, person_name, fname, doc_type)
 
-            # Build suggested name: PERSON_[OWNER_]DOC_TYPE.ext (images → .pdf)
+            # FALLBACK: if AI returned a different person_name than folder person,
+            # use it as doc_owner — BUT ONLY for personal/identity docs
+            # (passport, student ID, birth cert). Other docs → folder name only.
+            _PERSONAL_DOCS = ['PASSPORT', 'OLD PASSPORT', 'STUDENT ID', 'STUDENT CARD',
+                              'BIRTH CERTIFICATE', 'IDENTITY CARD', 'CCCD', 'CITIZEN',
+                              'HEALTH INSURANCE', 'PHOTO']
+            upper_doc = doc_type.upper()
+            is_personal = any(kw in upper_doc for kw in _PERSONAL_DOCS)
+            if not doc_owner and ai_person and is_personal:
+                ai_person_norm = normalize_vietnamese_name(ai_person)
+                if (ai_person_norm and ai_person_norm != "UNKNOWN_PERSON"
+                        and not _is_same_person(ai_person_norm, person_name)):
+                    doc_owner = ai_person_norm
+
+            # Build suggested name
             doc_type_clean = doc_type.upper().strip()
             doc_type_clean = re.sub(r'[^A-Z0-9]+', '_', doc_type_clean).strip('_')
             out_ext = '.pdf' if ext in IMAGE_EXTS else ext
 
-            # If doc_owner exists (different person), include in filename
+            # If doc_owner exists (different person), use ONLY owner name
+            # e.g. "Hộ chiếu con trai" → NGUYEN_DUC_TRI_PASSPORT.pdf
             if doc_owner:
                 owner_clean = re.sub(r'[^A-Z0-9]+', '_', doc_owner.upper().strip()).strip('_')
-                suggested_name = f"{person_name}_{owner_clean}_{doc_type_clean}{out_ext}"
+                suggested_name = f"{owner_clean}_{doc_type_clean}{out_ext}"
             else:
                 suggested_name = f"{person_name}_{doc_type_clean}{out_ext}"
 
@@ -972,13 +1251,17 @@ def precheck_scan():
     all_results = []
     folders_output = []
 
+    # Setup progress tracking
+    total_files = sum(len(fd["files"]) for fd in folders_data.values())
+    _precheck_progress.update({"total": total_files, "done": 0, "current_file": "", "running": True})
+
     # Build flat list of (file_info, person_name, folder_key) for sequential submit
     all_tasks = []
     for folder_key, folder_data in folders_data.items():
         for file_info in folder_data["files"]:
             all_tasks.append((file_info, folder_data["person_name"], folder_key))
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         future_map = {}
         for file_info, person_name, folder_key in all_tasks:
             if _quota_stop.is_set():
@@ -1001,6 +1284,10 @@ def precheck_scan():
 
         for future in as_completed(future_map):
             result = future.result()
+            folder_key, file_info, person_name = future_map[future]
+            # Update progress for frontend polling
+            _precheck_progress["done"] = _precheck_progress.get("done", 0) + 1
+            _precheck_progress["current_file"] = file_info["filename"]
             all_results.append(result)
             # If quota just got exhausted, cancel remaining pending futures
             if _quota_stop.is_set():
@@ -1043,6 +1330,9 @@ def precheck_scan():
     total_files = sum(len(f["files"]) for f in folders_output)
     multi_count = sum(1 for r in all_results if r.get("needs_split"))
     quota_errors = sum(1 for r in all_results if r.get("quota_error"))
+
+    # Reset progress
+    _precheck_progress.update({"total": total_files, "done": total_files, "current_file": "", "running": False})
 
     return jsonify({
         "status": "done",
@@ -1260,7 +1550,95 @@ def pipeline_send_to_splitter():
         shutil.copy2(src, dst)
         copied.append(stored_name)
 
+    # Save mapping: stored_name → original_path (for save-to-source later)
+    mapping_file = os.path.join(target_dir, "_source_mapping.json")
+    existing_mapping = {}
+    if os.path.isfile(mapping_file):
+        try:
+            with open(mapping_file, "r", encoding="utf-8") as mf:
+                existing_mapping = json.load(mf)
+        except Exception:
+            pass
+    for src, stored in zip(file_paths, copied):
+        existing_mapping[stored] = src
+    with open(mapping_file, "w", encoding="utf-8") as mf:
+        json.dump(existing_mapping, mf, ensure_ascii=False, indent=2)
+
     return jsonify({"status": "done", "copied": copied, "count": len(copied)})
+
+
+@app.post("/api/splitter/save-to-source")
+def splitter_save_to_source():
+    """Save split output files back to the original file's folder and delete the original."""
+    payload = request.get_json(force=True) or {}
+    file_id = payload.get("file_id", "")
+    original_path = payload.get("original_path", "")
+
+    if not file_id:
+        return jsonify({"error": "no_file_id"}), 400
+    if not original_path or not os.path.isfile(original_path):
+        return jsonify({"error": "original_file_not_found", "path": original_path}), 404
+
+    # Find split output directory
+    output_dir = os.path.join(os.path.dirname(__file__), "splitter_outputs", file_id)
+    if not os.path.isdir(output_dir):
+        return jsonify({"error": "split_output_not_found"}), 404
+
+    target_dir = os.path.dirname(original_path)
+    saved = []
+    errors = []
+
+    # Copy each split PDF to the source folder
+    for fname in os.listdir(output_dir):
+        if not fname.lower().endswith(".pdf"):
+            continue
+        src = os.path.join(output_dir, fname)
+        dst = os.path.join(target_dir, fname)
+        # Handle duplicate names
+        if os.path.exists(dst):
+            base, ext = os.path.splitext(fname)
+            idx = 1
+            while os.path.exists(dst):
+                dst = os.path.join(target_dir, f"{base}_({idx}){ext}")
+                idx += 1
+        try:
+            shutil.copy2(src, dst)
+            saved.append(os.path.basename(dst))
+        except Exception as e:
+            errors.append({"file": fname, "error": str(e)})
+
+    # Delete the original file if at least 1 split file was saved
+    deleted_original = False
+    if saved:
+        try:
+            os.remove(original_path)
+            deleted_original = True
+        except Exception:
+            pass
+
+    return jsonify({
+        "status": "done",
+        "saved": saved,
+        "saved_count": len(saved),
+        "deleted_original": deleted_original,
+        "original_name": os.path.basename(original_path),
+        "target_dir": target_dir,
+        "errors": errors,
+    })
+
+
+
+@app.get("/api/splitter/source-mapping")
+def splitter_source_mapping():
+    """Return the stored_name → original_path mapping for save-to-source."""
+    mapping_file = os.path.join("splitter_uploads", "_source_mapping.json")
+    if os.path.isfile(mapping_file):
+        try:
+            with open(mapping_file, "r", encoding="utf-8") as mf:
+                return jsonify(json.load(mf))
+        except Exception:
+            pass
+    return jsonify({})
 
 
 @app.post("/api/pipeline/send-clean-to-classifier")
@@ -1551,6 +1929,429 @@ def pipeline_send_to_classifier():
 
     return jsonify({"status": "done", "copied": copied, "count": len(copied), "target_dir": target_dir})
 
+
+# ═══════════════════════════════════════════════════════════════════
+# SCAN SPLITTER — Split scanned PDFs by Translation Certification Page
+# Detects "PASSPORT LOUNGE" / "undertake to translate" certification pages
+# and splits PDF at these boundaries.
+# ═══════════════════════════════════════════════════════════════════
+
+_scan_splitter_llm = None
+
+def _get_or_create_llm():
+    """Get or create a cached ChatOpenAI instance for vision tasks."""
+    global _scan_splitter_llm
+    if _scan_splitter_llm is None:
+        _scan_splitter_llm = ChatOpenAI(model=get_vision_model(), temperature=0)
+    return _scan_splitter_llm
+
+
+_scan_split_progress = {"total": 0, "done": 0, "current_page": "", "running": False, "results": [], "error": ""}
+
+# Keywords that identify a Passport Lounge translation certification page
+_CERT_KEYWORDS = [
+    "passport lounge",
+    "undertake to translate",
+    "cam đoan đã dịch chính xác",
+    "cam doan da dich chinh xac",
+    "signature of translator",
+    "chữ ký của người dịch",
+]
+
+
+def _is_certification_page_by_text(page_text: str) -> bool:
+    """Check if page text contains translation certification keywords."""
+    if not page_text or len(page_text.strip()) < 20:
+        return False
+    text_lower = page_text.lower()
+    # Must match at least 2 keywords to avoid false positives
+    matches = sum(1 for kw in _CERT_KEYWORDS if kw in text_lower)
+    return matches >= 2
+
+
+def _batch_detect_cert_pages_vision(llm, page_images_b64: list, page_numbers: list) -> list:
+    """Batch vision: check multiple pages at once for translation certification.
+    Sends bottom 40% crop of each page to save tokens.
+    Returns list of page numbers that ARE certification pages."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    content_parts = [
+        {"type": "text", "text": f"""You are analyzing {len(page_images_b64)} scanned document pages.
+
+For EACH page, determine if it is a TRANSLATION CERTIFICATION page.
+A translation certification page has ALL of these features:
+- Header from "PASSPORT LOUNGE COMPANY LIMITED" (with the Passport Lounge logo)
+- A bilingual statement about translating documents accurately
+- Translator signature area with company stamp/seal at the bottom
+
+⚠️ IMPORTANT: Do NOT mark pages that have OTHER types of stamps (bank stamps, government stamps, notary stamps). 
+ONLY mark pages with the specific PASSPORT LOUNGE translation certification.
+
+Pages shown: {', '.join(str(p) for p in page_numbers)}
+
+Return JSON ONLY: {{"cert_pages": [list of page numbers that ARE certification pages]}}
+Example: {{"cert_pages": [2, 5, 8]}} or {{"cert_pages": []}} if none."""}
+    ]
+
+    for i, (b64, pnum) in enumerate(zip(page_images_b64, page_numbers)):
+        content_parts.append({"type": "text", "text": f"Page {pnum}:"})
+        content_parts.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}})
+
+    try:
+        result = llm.invoke([
+            SystemMessage(content="You are an expert document analyzer. Answer ONLY with JSON."),
+            HumanMessage(content=content_parts),
+        ])
+        import json as _json
+        text = result.content if hasattr(result, 'content') else str(result)
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        parsed = _json.loads(text)
+        return parsed.get("cert_pages", [])
+    except Exception as e:
+        print(f"[SCAN-SPLITTER] ❌ Vision batch error: {e}")
+        return []
+
+
+@app.post("/api/scan-splitter/split")
+def scan_splitter_split():
+    """Upload a scanned PDF, detect translation certification pages, and split."""
+    import fitz
+    import base64
+    global _scan_split_progress
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Only PDF files are supported"}), 400
+
+    # Save uploaded file to temp
+    scan_output_dir = "scan_splitter_outputs"
+    os.makedirs(scan_output_dir, exist_ok=True)
+
+    original_name = file.filename
+    stem = os.path.splitext(original_name)[0]
+    temp_pdf = os.path.join(scan_output_dir, f"_src_{original_name}")
+    file.save(temp_pdf)
+
+    # Reset progress
+    _scan_split_progress = {"total": 0, "done": 0, "current_page": "", "running": True, "results": [], "error": ""}
+
+    def _do_scan_split():
+        global _scan_split_progress
+        try:
+            doc = fitz.open(temp_pdf)
+            total_pages = len(doc)
+            _scan_split_progress["total"] = total_pages
+
+            # Phase 1: Detect certification pages
+            # Step 1a: Quick text-based pass (free, instant)
+            cert_pages = set()  # 0-indexed
+            needs_vision = []   # pages that need vision check
+            for i in range(total_pages):
+                page = doc[i]
+                page_text = page.get_text() or ""
+                if _is_certification_page_by_text(page_text):
+                    cert_pages.add(i)
+                else:
+                    needs_vision.append(i)
+
+            print(f"[SCAN-SPLITTER] Text scan done: {len(cert_pages)} cert pages found by text, {len(needs_vision)} pages need vision check")
+            _scan_split_progress["current_page"] = f"Text scan xong. {len(cert_pages)} trang xác nhận tìm thấy. Đang quét ảnh {len(needs_vision)} trang còn lại..."
+            _scan_split_progress["done"] = len(cert_pages)
+
+            # Step 1b: Batch vision for remaining pages (8 pages per API call, ALL PARALLEL)
+            if needs_vision:
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                llm = _get_or_create_llm()
+                BATCH_SIZE = 8
+
+                # Phase A: Pre-render ALL page images (CPU work, fast)
+                _scan_split_progress["current_page"] = "📸 Đang render ảnh tất cả trang..."
+                all_images = {}  # idx -> (b64, page_num_1indexed)
+                for idx in needs_vision:
+                    try:
+                        page = doc[idx]
+                        rect = page.rect
+                        clip = fitz.Rect(rect.x0, rect.y0, rect.x1, rect.y0 + rect.height / 2)
+                        pix = page.get_pixmap(dpi=100, clip=clip)
+                        img_bytes = pix.tobytes("png")
+                        b64 = base64.b64encode(img_bytes).decode()
+                        all_images[idx] = (b64, idx + 1)
+                    except Exception as e:
+                        print(f"[SCAN-SPLITTER] ❌ Error rendering page {idx}: {e}")
+
+                # Phase B: Build batches and send ALL to vision API concurrently
+                batches = []
+                for batch_start in range(0, len(needs_vision), BATCH_SIZE):
+                    batch_indices = needs_vision[batch_start:batch_start + BATCH_SIZE]
+                    batch_images = []
+                    batch_page_nums = []
+                    for idx in batch_indices:
+                        if idx in all_images:
+                            b64, pnum = all_images[idx]
+                            batch_images.append(b64)
+                            batch_page_nums.append(pnum)
+                    if batch_images:
+                        batches.append((batch_images, batch_page_nums))
+
+                total_batches = len(batches)
+                _scan_split_progress["current_page"] = f"🔍 Đang gửi {total_batches} batch song song đến AI..."
+                print(f"[SCAN-SPLITTER] 🚀 Sending {total_batches} batches in PARALLEL ({len(all_images)} pages total)")
+
+                def _process_batch(batch_idx, images, page_nums):
+                    """Worker: send one batch to vision API."""
+                    found = _batch_detect_cert_pages_vision(llm, images, page_nums)
+                    print(f"[SCAN-SPLITTER] ✅ Batch {batch_idx+1}/{total_batches} done: cert_pages={found}")
+                    return found
+
+                # Fire all batches concurrently (max 4 parallel to avoid rate limits)
+                with ThreadPoolExecutor(max_workers=min(4, total_batches)) as executor:
+                    futures = {
+                        executor.submit(_process_batch, i, imgs, pnums): i
+                        for i, (imgs, pnums) in enumerate(batches)
+                    }
+                    done_count = 0
+                    for future in as_completed(futures):
+                        done_count += 1
+                        _scan_split_progress["current_page"] = f"🔍 Hoàn tất {done_count}/{total_batches} batch..."
+                        _scan_split_progress["done"] = len(cert_pages) + done_count * BATCH_SIZE
+                        try:
+                            found_pages = future.result()
+                            for pnum in found_pages:
+                                cert_pages.add(pnum - 1)  # Convert back to 0-indexed
+                        except Exception as e:
+                            print(f"[SCAN-SPLITTER] ❌ Batch error: {e}")
+
+            cert_pages = sorted(cert_pages)
+
+            # Phase 2: Split PDF at certification boundaries
+            # Each certification page = last page of a document group
+            # Pages after last cert until next cert = one document
+            _scan_split_progress["current_page"] = "Đang tách file..."
+
+            if not cert_pages:
+                _scan_split_progress["error"] = "Không tìm thấy trang xác nhận dịch nào trong file này."
+                _scan_split_progress["running"] = False
+                doc.close()
+                return
+
+            # Clean old output files (except source)
+            for f in os.listdir(scan_output_dir):
+                fp = os.path.join(scan_output_dir, f)
+                if os.path.isfile(fp) and not f.startswith("_src_"):
+                    os.remove(fp)
+
+            results = []
+            doc_start = 0
+            for doc_idx, cert_page_idx in enumerate(cert_pages):
+                doc_end = cert_page_idx  # inclusive
+                page_range = f"{doc_start + 1}-{doc_end + 1}"
+                out_name = f"{stem}_part{doc_idx + 1}_p{doc_start + 1}-{doc_end + 1}.pdf"
+                out_path = os.path.join(scan_output_dir, out_name)
+
+                # Create new PDF with these pages
+                new_doc = fitz.open()
+                new_doc.insert_pdf(doc, from_page=doc_start, to_page=doc_end)
+                new_doc.save(out_path)
+                new_doc.close()
+
+                results.append({
+                    "filename": out_name,
+                    "pages": page_range,
+                    "page_count": doc_end - doc_start + 1,
+                    "start_page": doc_start + 1,
+                    "end_page": doc_end + 1,
+                })
+                doc_start = cert_page_idx + 1
+
+            # Handle remaining pages after last certification (if any)
+            if doc_start < total_pages:
+                page_range = f"{doc_start + 1}-{total_pages}"
+                out_name = f"{stem}_part{len(cert_pages) + 1}_p{doc_start + 1}-{total_pages}.pdf"
+                out_path = os.path.join(scan_output_dir, out_name)
+
+                new_doc = fitz.open()
+                new_doc.insert_pdf(doc, from_page=doc_start, to_page=total_pages - 1)
+                new_doc.save(out_path)
+                new_doc.close()
+
+                results.append({
+                    "filename": out_name,
+                    "pages": page_range,
+                    "page_count": total_pages - doc_start,
+                    "start_page": doc_start + 1,
+                    "end_page": total_pages,
+                    "no_cert": True,  # Flag: these pages had no certification
+                })
+
+            doc.close()
+            _scan_split_progress["results"] = results
+            _scan_split_progress["done"] = total_pages
+            _scan_split_progress["current_page"] = f"Hoàn tất! Tách thành {len(results)} file."
+            _scan_split_progress["running"] = False
+
+        except Exception as e:
+            _scan_split_progress["error"] = str(e)
+            _scan_split_progress["running"] = False
+
+    # Run in background thread
+    import threading
+    t = threading.Thread(target=_do_scan_split, daemon=True)
+    t.start()
+
+    return jsonify({"status": "started", "filename": original_name})
+
+
+@app.get("/api/scan-splitter/progress")
+def scan_splitter_progress():
+    """Polling endpoint for scan split progress."""
+    return jsonify(_scan_split_progress)
+
+
+@app.get("/api/scan-splitter/download/<path:filename>")
+def scan_splitter_download(filename):
+    """Download a single split file."""
+    scan_output_dir = "scan_splitter_outputs"
+    fpath = os.path.join(scan_output_dir, filename)
+    if not os.path.isfile(fpath):
+        return jsonify({"error": "File not found"}), 404
+    return send_file(fpath, as_attachment=True, download_name=filename)
+
+
+@app.get("/api/scan-splitter/view/<path:filename>")
+def scan_splitter_view(filename):
+    """View a single split file inline in browser."""
+    scan_output_dir = "scan_splitter_outputs"
+    fpath = os.path.join(scan_output_dir, filename)
+    if not os.path.isfile(fpath):
+        return jsonify({"error": "File not found"}), 404
+    return send_file(fpath, as_attachment=False, mimetype="application/pdf")
+
+
+@app.get("/api/scan-splitter/download-zip")
+def scan_splitter_download_zip():
+    """Download all split files as ZIP."""
+    import zipfile
+    import io
+    scan_output_dir = "scan_splitter_outputs"
+    if not os.path.isdir(scan_output_dir):
+        return jsonify({"error": "No output files"}), 404
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(os.listdir(scan_output_dir)):
+            if f.startswith("_src_"):
+                continue
+            fp = os.path.join(scan_output_dir, f)
+            if os.path.isfile(fp) and f.endswith(".pdf"):
+                zf.write(fp, f)
+    buf.seek(0)
+    return send_file(buf, mimetype="application/zip", as_attachment=True, download_name="scan_split_results.zip")
+
+
+@app.post("/api/ai-splitter/save-to-input")
+def splitter_save_to_input():
+    """Copy split output files back to the ORIGINAL source file's folder.
+    Uses source_path from _source.json to determine correct subfolder.
+    Deletes the original source file that was split.
+    """
+    payload = request.get_json(force=True) or {}
+    target_dir = payload.get("target_dir", "input")  # fallback base
+    delete_originals = payload.get("delete_originals", True)
+
+    output_base = "splitter_outputs"
+    if not os.path.isdir(output_base):
+        return jsonify({"error": "no_splitter_output"}), 404
+
+    # Also load the source mapping as fallback
+    source_mapping = {}
+    mapping_file = os.path.join("splitter_uploads", "_source_mapping.json")
+    if os.path.isfile(mapping_file):
+        try:
+            with open(mapping_file, "r", encoding="utf-8") as mf:
+                source_mapping = json.load(mf)
+        except Exception:
+            pass
+
+    copied = []
+    originals_deleted = []
+
+    for folder_name in sorted(os.listdir(output_base)):
+        folder_path = os.path.join(output_base, folder_name)
+        if not os.path.isdir(folder_path):
+            continue
+
+        # Read source metadata
+        source_path = ""
+        source_filename = ""
+        source_meta_path = os.path.join(folder_path, "_source.json")
+        if os.path.isfile(source_meta_path):
+            try:
+                with open(source_meta_path, "r", encoding="utf-8") as mf:
+                    meta = json.load(mf)
+                source_path = meta.get("source_path", "")
+                source_filename = meta.get("source_filename", "")
+            except Exception:
+                pass
+
+        # If no source_path in _source.json, try the mapping
+        if not source_path and source_filename and source_filename in source_mapping:
+            source_path = source_mapping[source_filename]
+
+        # Determine destination folder from the original file's location
+        if source_path and os.path.isfile(source_path):
+            dest_folder = os.path.dirname(source_path)
+        elif source_path:
+            # source_path set but file already deleted — use its directory
+            dest_folder = os.path.dirname(source_path)
+        else:
+            # Last resort: search for source file in target_dir tree
+            dest_folder = target_dir
+            # Strip pN__ prefix to get original filename for searching
+            search_name = source_filename
+            if "__" in search_name:
+                search_name = search_name.split("__", 1)[1]
+            if search_name:
+                for root, _, files in os.walk(target_dir):
+                    if search_name in files:
+                        dest_folder = root
+                        break
+
+        os.makedirs(dest_folder, exist_ok=True)
+
+        # Copy all PDFs to the correct folder
+        for fname in sorted(os.listdir(folder_path)):
+            fpath = os.path.join(folder_path, fname)
+            if not os.path.isfile(fpath) or not fname.lower().endswith(".pdf"):
+                continue
+            dst = os.path.join(dest_folder, fname)
+            base, ext = os.path.splitext(fname)
+            idx = 1
+            while os.path.exists(dst):
+                dst = os.path.join(dest_folder, f"{base} ({idx}){ext}")
+                idx += 1
+            shutil.copy2(fpath, dst)
+            copied.append(fname)
+
+        # Delete original source file
+        if delete_originals and source_path and os.path.isfile(source_path):
+            try:
+                os.remove(source_path)
+                originals_deleted.append(os.path.basename(source_path))
+            except Exception:
+                pass
+
+    return jsonify({
+        "status": "done",
+        "copied": copied,
+        "count": len(copied),
+        "originals_deleted": originals_deleted,
+        "target_dir": target_dir,
+    })
 
 @app.post("/api/pipeline/send-to-input")
 def pipeline_send_to_input():
@@ -3728,6 +4529,17 @@ async def _process_splitter_job(file_id: str):
         pid = job.get("project_id")
         if pid is not None:
             source_meta["project_id"] = pid
+        # Also store original source path from mapping (for save-to-input)
+        mapping_file = os.path.join("splitter_uploads", "_source_mapping.json")
+        if os.path.isfile(mapping_file):
+            try:
+                with open(mapping_file, "r", encoding="utf-8") as mmf:
+                    mapping = json.load(mmf)
+                orig_path = mapping.get(job["filename"], "")
+                if orig_path:
+                    source_meta["source_path"] = orig_path
+            except Exception:
+                pass
         with open(os.path.join(job_output_dir, "_source.json"), "w", encoding="utf-8") as mf:
             json.dump(source_meta, mf, ensure_ascii=False)
 

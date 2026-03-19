@@ -119,22 +119,49 @@ def create_output_files(
     # instead of the account holder on different pages.
     documents = []
     current_doc = None
-    
+
+    # Identity/personal docs where different person_name = different document
+    # For these: same doc_type + different person → MUST split into separate files
+    _PERSON_SENSITIVE_TYPES = {
+        'birth_certificate', 'birth certificate',
+        'passport', 'old passport',
+        'marriage_certificate', 'marriage certificate',
+        'identity_card', 'identity card', 'cccd',
+        'student_id_card', 'student id card',
+        'death_certificate', 'death certificate',
+    }
+
     for page_idx, cls in enumerate(classifications):
         doc_type = cls.get("document_type_en", "Unknown")
         person = cls.get("person_name_en", "Unknown")
         is_cont = cls.get("is_continuation", False)
         
-        if current_doc is not None and (
-            is_cont  # AI says it's a continuation
-            or doc_type == current_doc["document_type"]  # Same document type = merge
-        ):
-            # Merge into current document group
-            current_doc["pages"].append(page_idx)
-        else:
-            # Different document type = start a new group
-            if current_doc is not None:
+        # Check if this is a person-sensitive doc type
+        is_person_sensitive = doc_type.lower().replace("_", " ").strip() in _PERSON_SENSITIVE_TYPES
+
+        if current_doc is not None:
+            same_type = doc_type == current_doc["document_type"]
+            same_person = person.upper() == current_doc["person_name"].upper()
+
+            if is_cont and same_type and same_person:
+                # Explicit continuation of same doc for same person → merge
+                current_doc["pages"].append(page_idx)
+            elif same_type and not is_person_sensitive:
+                # Same type, NOT person-sensitive (bank statement, etc.) → merge
+                # (AI may pick up different names on different pages)
+                current_doc["pages"].append(page_idx)
+            elif same_type and same_person:
+                # Same type + same person for identity docs → merge
+                current_doc["pages"].append(page_idx)
+            else:
+                # Different doc type, or same type but different person on identity doc → new group
                 documents.append(current_doc)
+                current_doc = {
+                    "document_type": doc_type,
+                    "person_name": person,
+                    "pages": [page_idx],
+                }
+        else:
             current_doc = {
                 "document_type": doc_type,
                 "person_name": person,

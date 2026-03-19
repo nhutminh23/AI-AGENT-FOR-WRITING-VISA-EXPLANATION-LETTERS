@@ -256,6 +256,12 @@ Quy tắc doc_type_en - PHẢI CỤ THỂ, KHÔNG CHUNG CHUNG:
      VD: "TRAVEL INSURANCE BAOVIET", "HEALTH INSURANCE PRUDENTIAL"
   5. Giấy tờ cơ bản (PASSPORT, CCCD, BIRTH CERT...) → giữ ngắn gọn, KHÔNG cần thêm
   6. Nếu file là ảnh chân dung → "PHOTO"
+  7. HỘ CHIẾU CŨ / HẾT HẠN → "OLD PASSPORT [năm hết hạn]"
+     - Nếu thấy NỘI DUNG có "Date of expiry" đã qua, hoặc tên file gợi ý cũ (Passport 1, Passport 2, HC cũ...)
+       → doc_type_en = "OLD PASSPORT 2020" (thay 2020 bằng năm hết hạn thực tế)
+     - Chỉ hộ chiếu MỚI NHẤT (còn hạn) mới là "PASSPORT"
+  8. THẺ HỌC SINH / STUDENT ID → "STUDENT ID CARD"
+     - Nếu là thẻ học sinh con → doc_owner = tên đứa con, KHÔNG phải tên cha/mẹ
 
 Quy tắc doc_owner - AI CHỦ SỞ HỮU THỰC SỰ:
 - doc_owner: tên THẬT (IN HOA, không dấu) của người sở hữu giấy tờ này
@@ -266,6 +272,13 @@ Quy tắc doc_owner - AI CHỦ SỞ HỮU THỰC SỰ:
   nếu không thì dùng viết tắt từ filename: "NTTO"
 - VD: Folder "TRAN TRUNG ANH", file "Hộ chiếu chồng.pdf" → đây là passport
   của chính chồng (tức TRAN TRUNG ANH) → doc_owner = ""
+
+⚠️ ĐẶC BIỆT VỀ GiẤY TỜ CỦA CON / VỢ / NGƯỜI THÂN:
+- Tên file chứa "con trai", "con gái", "con", "mẹ", "vợ", "bố", "cha" → giấy tờ của người KHÁC
+  → doc_owner PHẢI là tên THẬT (tìm trong nội dung), KHÔNG PHẢI tên chủ hồ sơ
+- VD: "Hộ chiếu con trai.pdf" → tìm tên con trong nội dung → doc_owner = "NGUYEN DUC TAM"
+- VD: "Thẻ học sinh con.pdf" → tìm tên học sinh → doc_owner = tên đứa con
+- LUÔN LUÔN cố gắng tìm tên thật trong nội dung thay vì để trống
 
 Quy tắc person_name:
 - person_name: tên người sở hữu giấy tờ, viết IN HOA, không dấu.
@@ -317,12 +330,16 @@ Quy tắc:
 - Nếu TẤT CẢ trang cùng 1 loại + cùng 1 người → trả 1 mục duy nhất.
 - person_name: IN HOA, không dấu. Không rõ thì "UNKNOWN PERSON".
 - doc_type_en: tiếng Anh, IN HOA, ngắn gọn (PASSPORT, BANK STATEMENT, LABOR CONTRACT, POWER OF ATTORNEY, ...).
+- Hộ chiếu CŨ / hết hạn → "OLD PASSPORT [năm hết hạn]" (VD: "OLD PASSPORT 2020")
+  Chỉ hộ chiếu MỚI NHẤT (còn hạn) mới là "PASSPORT"
 - Không overlap trang. Thứ tự tăng dần.
 - Chỉ trả JSON, không giải thích.
 
 RẤT QUAN TRỌNG VỀ person_name:
 - TÊN FILE rất quan trọng! Nếu tên file có dạng "NGUYEN_LE_KIM_NGAN_Contract.pdf" thì person_name = "NGUYEN LE KIM NGAN".
 - Ưu tiên tìm tên TRONG NỘI DUNG trang. Nếu không rõ, dùng tên từ tên file.
+- Mỗi giấy tờ có thể thuộc NGƯỜI KHÁC NHAU → person_name phải là tên THẬT của người sở hữu giấy tờ đó.
+- VD: File "Kết hôn và khai sinh con.pdf" có thể chứa 1 giấy kết hôn (của bố mẹ) + 2 giấy khai sinh (của 2 đứa con khác nhau).
 - CHỈ dùng "UNKNOWN PERSON" khi THẬT SỰ không thể xác định từ cả tên file lẫn nội dung.
 
 Tên file: {filename}
