@@ -142,34 +142,7 @@
               <input id="tripNumNights" type="number" min="0" />
             </div>
           </div>
-          <div class="row" style="margin-top:10px;">
-            <div>
-              <label for="tripOriginCity">Điểm xuất phát (city/country)</label>
-              <input id="tripOriginCity" type="text" />
-            </div>
-            <div>
-              <label for="tripOriginAirport">Sân bay xuất phát (IATA)</label>
-              <input id="tripOriginAirport" type="text" />
-            </div>
-            <div>
-              <label for="tripReturnPoint">Điểm quay về (city/country)</label>
-              <input id="tripReturnPoint" type="text" />
-            </div>
-          </div>
-          <div class="row" style="margin-top:10px;">
-            <div>
-              <label for="tripDestinationAirportHint">Sân bay gợi ý điểm đến</label>
-              <input id="tripDestinationAirportHint" type="text" />
-            </div>
-            <div>
-              <label for="tripReturnAirportHint">Sân bay gợi ý điểm về</label>
-              <input id="tripReturnAirportHint" type="text" />
-            </div>
-            <div>
-              <label for="tripTravelerProfile">Traveler profile (optional)</label>
-              <input id="tripTravelerProfile" type="text" />
-            </div>
-          </div>
+
           <div class="row" style="margin-top:10px;">
             <div>
               <label for="tripAdditionalInfo">Thông tin bổ sung (tên khách sạn, địa chỉ, khu vực ưu tiên, yêu cầu phòng...)</label>
@@ -179,6 +152,42 @@
           <div id="tripInfoPanel" class="hint" style="white-space:pre-wrap; margin-top:8px;">Chưa trích xuất.</div>
         </section>
         <!-- Step 2: AI Generate Booking -->
+        <!-- Step 2a: Real Hotel Search (SerpAPI Google Hotels) — PRIMARY -->
+        <section class="card" id="serpHotelSearchSection">
+          <h2>🔍 Tìm khách sạn thật (Google Hotels) <span style="background:#16a34a; color:#fff; font-size:0.6em; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⭐ Khuyến nghị</span></h2>
+          <div class="hint">
+            Tự động lấy thông tin từ Bước 1 (thành phố, số đêm, ngày đi). Tìm khách sạn thật từ Google → chọn → tạo booking.
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label for="serpHotelAdults">Người lớn</label>
+              <input id="serpHotelAdults" type="number" value="2" min="1" max="9" />
+            </div>
+            <div>
+              <label for="serpHotelChildren">Trẻ em</label>
+              <input id="serpHotelChildren" type="number" value="0" min="0" max="9" />
+            </div>
+            <div>
+              <label for="serpHotelCurrency">Tiền tệ</label>
+              <input id="serpHotelCurrency" type="text" value="USD" />
+            </div>
+            <button id="serpHotelSearchBtn" style="background:#4f46e5;">🔍 Tìm khách sạn</button>
+          </div>
+
+          <div id="serpHotelSearchStatus" style="margin-top:8px;"></div>
+
+          <!-- Results for each city -->
+          <div id="serpHotelResults" style="margin-top:12px;"></div>
+
+          <!-- Generate button (shown after selecting hotels) -->
+          <div id="serpHotelGenerateArea" style="display:none; margin-top:16px; border-top:2px solid #e2e8f0; padding-top:16px;">
+            <button id="serpHotelGenerateBtn" style="background:#16a34a;">✅ Tạo booking từ kết quả</button>
+            <div id="serpHotelGenerateStatus" style="margin-top:8px;"></div>
+          </div>
+        </section>
+
+        <!-- Step 2b: AI Tạo Booking (fallback) -->
         <section class="card">
           <h2>✈️ Bước 2: AI Tạo Booking</h2>
           <div class="row">
