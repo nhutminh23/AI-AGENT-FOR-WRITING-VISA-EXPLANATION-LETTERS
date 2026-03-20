@@ -780,15 +780,37 @@ def ai_select_bookings(llm: Any, trip_info: Dict[str, Any]) -> Dict[str, Any]:
         for i, stay in enumerate(city_stays):
             if not isinstance(stay, dict):
                 continue
-            city = _clean_city_name(str(stay.get("city", "")))
+            raw_city = str(stay.get("city", ""))
             nights = int(stay.get("nights") or 0)
+
+            # Extract nights from RAW city string BEFORE _clean_city_name strips (N)
+            # e.g. "Paris Ibis Tour Eiffel (4)" → nights=4, city="Paris Ibis Tour Eiffel"
+            if nights <= 0 and raw_city:
+                m = re.search(r'\((\d+)\)\s*$', raw_city)
+                if m:
+                    nights = int(m.group(1))
+
+            city = _clean_city_name(raw_city)
+
             base_hotel = dict(hotels[i % len(hotels)])
+
+            # Fallback: use hotel's own num_nights from AI if city_stays had no nights
+            if nights <= 0:
+                nights = int(base_hotel.get("num_nights") or 0)
+
             if city:
                 base_hotel["city"] = city
             if trip_info.get("destination_country"):
                 base_hotel["country"] = trip_info.get("destination_country")
             if nights > 0:
                 base_hotel["num_nights"] = nights
+                # Recalculate total_price based on corrected nights
+                ppn = base_hotel.get("price_per_night")
+                if ppn:
+                    try:
+                        base_hotel["total_price"] = str(int(float(str(ppn)) * nights))
+                    except (ValueError, TypeError):
+                        pass
                 if cursor:
                     checkout = cursor + timedelta(days=nights)
                     base_hotel["check_in_date"] = cursor.strftime("%B %d, %Y")

@@ -354,10 +354,8 @@ def fill_hotel_template(template_path: str, booking_data: Dict) -> str:
     """
     Fill the hotel booking HTML template with actual data.
     
-    The template is a PDF-to-HTML conversion where text is stored in
-    individually positioned <span> elements. The address is split across
-    3 separate <div> elements, so we must replace each line individually
-    using the actual text fragments found in the template.
+    Uses {{PLACEHOLDER}} replacement matching the template format.
+    Works for both AI-generated and SerpAPI booking data.
     
     Args:
         template_path: Path to the HTML template
@@ -370,126 +368,84 @@ def fill_hotel_template(template_path: str, booking_data: Dict) -> str:
 
     with open(template_path, "r", encoding="utf-8") as f:
         template = f.read()
-    
-    # Clean price to prevent "AUD AUD" 
-    total_price = str(booking_data.get('total_price', '790.00')).strip()
+
+    # --- Extract data from booking_data ---
+    total_price = str(booking_data.get('total_price', '0.00')).strip()
     currency = str(booking_data.get('currency', 'AUD')).strip()
-    # Remove currency from start of price if AI included it
+    # Remove currency prefix if AI included it (e.g., "AUD 790" → "790")
     if total_price.upper().startswith(currency.upper()):
         total_price = total_price[len(currency):].strip()
-        
-    # Room type — use plain text (no wrapping span to avoid layout issues)
-    room_type = str(booking_data.get("room_type", "Superior King"))
-    
-    # ── Simple string replacements (fields that exist as single text runs) ──
-    replacements = {
-        # Booking IDs
-        "1696039455": booking_data.get("booking_id", "1696039455"),
-        "6422371149": booking_data.get("booking_reference", "6422371149"),
-        
-        # Guest name (appears multiple times in template)
-        "DO THI THANH HIEN": booking_data.get("guest_name", "DO THI THANH HIEN"),
-        
-        # Dates
-        "March 16, 2026": booking_data.get("check_in_date", "March 16, 2026"),
-        "March 18, 2026": booking_data.get("check_out_date", "March 18, 2026"),
-        
-        # Room details — plain text, no wrapper
-        "Superior King": room_type,
-        
-        # Price
-        "AUD 790.00": f"{currency} {total_price}",
-    }
-    
-    result = template
-    for old, new in replacements.items():
-        result = result.replace(old, str(new))
-    
-    # ── Regex-based replacements for fields split across elements ──
-    # These target specific text content inside positioned <span> tags.
-    # Pattern: match text content just before " &nbsp;" or "&nbsp;" inside a span.
-    
-    def _replace_span_text(html, old_text, new_text):
-        """Replace text content inside a span element, preserving &nbsp; suffix."""
-        # Escape the old text for regex
-        escaped = _re.escape(old_text)
-        # Match: >old_text &nbsp;< or >old_text&nbsp;<
-        pattern = r'(>)' + escaped + r'(\s*&nbsp;\s*<)'
-        replacement = r'\g<1>' + new_text.replace('\\', '\\\\') + r' \2'
-        return _re.sub(pattern, replacement, html, count=1)
-    
-    # Hotel name (line 220 in template: "The Langham Melbourne")
-    hotel_name = str(booking_data.get("hotel_name", "The Langham Melbourne"))
-    result = _replace_span_text(result, "The Langham Melbourne", hotel_name)
-    
-    # Hotel phone (line 228: "++61386968888")
-    phone = str(booking_data.get("hotel_phone", ""))
-    if phone:
-        formatted_phone = phone.replace("+", "++").replace(" ", "")
-        if not formatted_phone.startswith("++"):
-            formatted_phone = "++" + formatted_phone.lstrip("+")
-        result = _replace_span_text(result, "++61386968888", formatted_phone)
-    
-    # ── Address: split across 3 div elements ──
-    # Template lines:
-    #   Line 223: "1 Southgate Avenue, Southbank, "
-    #   Line 224: "Melbourne CBD, Melbourne, Australia, "
-    #   Line 225: "3006 "
-    new_address = str(booking_data.get("hotel_address", ""))
-    if new_address:
-        addr1, addr2, addr3 = _split_address_for_template(new_address)
-        result = _replace_span_text(result, "1 Southgate Avenue, Southbank,", addr1)
-        result = _replace_span_text(result, "Melbourne CBD, Melbourne, Australia,", addr2)
-        result = _replace_span_text(result, "3006", addr3)
-    
-    # ── Cancellation policy date (1 day before check-in) ──
-    # Template line 230 mentions "March 15, 2026" (1 day before check-in "March 16, 2026")
-    check_in = booking_data.get("check_in_date", "")
+    price_display = f"{currency} {total_price}"
+
+    guest_name = str(booking_data.get("guest_name", "GUEST NAME"))
+    check_in = str(booking_data.get("check_in_date", ""))
+    check_out = str(booking_data.get("check_out_date", ""))
+
+    # Split address into 3 lines
+    hotel_address = str(booking_data.get("hotel_address", ""))
+    if hotel_address:
+        parts = [p.strip() for p in hotel_address.split(",")]
+        if len(parts) <= 1:
+            addr1, addr2, addr3 = hotel_address, "", ""
+        elif len(parts) == 2:
+            addr1, addr2, addr3 = parts[0] + ",", parts[1], ""
+        else:
+            mid = len(parts) // 2
+            addr1 = ", ".join(parts[:mid]) + ","
+            addr2 = ", ".join(parts[mid:-1]) + ","
+            addr3 = parts[-1]
+    else:
+        addr1, addr2, addr3 = "", "", ""
+
+    # Calculate cancellation date (1 day before check-in)
+    cancel_date = ""
+    checkin_day = ""
     if check_in:
         try:
             from datetime import datetime, timedelta
             cin_dt = datetime.strptime(check_in, "%B %d, %Y")
             cancel_dt = cin_dt - timedelta(days=1)
-            cancel_str = cancel_dt.strftime("%B %d, %Y")
-            # Remove leading zero from day, e.g. "March 04" -> "March 4"
-            cancel_str = _re.sub(r' 0(\d)', r' \1', cancel_str)
-            result = result.replace("March 15, 2026", cancel_str)
+            cancel_date = cancel_dt.strftime("%B %d, %Y")
+            cancel_date = _re.sub(r' 0(\d)', r' \1', cancel_date)
+            # Day of week for check-in
+            checkin_day = cin_dt.strftime("%A")
         except Exception:
-            pass
-    
-    # ── Room count fields ──
-    # The template has single-digit values at positioned spans, identified
-    # by their unique CSS "top" value:
-    #   top:8.5475em  → Number of Rooms  (default 1)
-    #   top:9.9946em  → Number of Extra Beds (default 0)
-    #   top:11.4417em → Number of Adults  (default 1)
-    #   top:12.8887em → Number of Children (default 0)
-    def _replace_positioned_value(html, top_val, new_val):
-        """Replace the text content of a positioned span identified by CSS top value."""
-        pattern = _re.compile(
-            r'(<div class="pdf24_01" style="left:38\.6685em;top:' + _re.escape(top_val) + r';">)'
-            r'(<span[^>]*>)'
-            r'(.*?)'
-            r'(</span></div>)',
-            _re.DOTALL,
-        )
-        return pattern.sub(r'\g<1>\g<2>' + str(new_val) + r'\g<4>', html, count=1)
+            cancel_date = check_in
+            checkin_day = ""
 
-    num_rooms = booking_data.get("num_rooms", 1)
-    num_adults = booking_data.get("num_adults", 1)
-    num_children = booking_data.get("num_children", 0)
+    # Phone formatting
+    phone = str(booking_data.get("hotel_phone", ""))
+    if phone and not phone.startswith("+"):
+        phone = "+" + phone
 
-    result = _replace_positioned_value(result, "8.5475em", num_rooms)    # Number of Rooms
-    result = _replace_positioned_value(result, "9.9946em", 0)            # Extra Beds (always 0)
-    result = _replace_positioned_value(result, "11.4417em", num_adults)   # Number of Adults
-    result = _replace_positioned_value(result, "12.8887em", num_children) # Number of Children
-    
+    # Member ID — generate if not present
+    member_id = str(booking_data.get("member_id", str(random.randint(100000000, 999999999))))
+
+    # --- Replace all {{PLACEHOLDER}} tokens ---
+    result = template
+    result = result.replace("{{BOOKING_ID}}", str(booking_data.get("booking_id", "")))
+    result = result.replace("{{BOOKING_REF}}", str(booking_data.get("booking_reference", "")))
+    result = result.replace("{{NUM_ROOMS}}", str(booking_data.get("num_rooms", 1)))
+    result = result.replace("{{NUM_EXTRA_BEDS}}", "0")
+    result = result.replace("{{NUM_ADULTS}}", str(booking_data.get("num_adults", 1)))
+    result = result.replace("{{NUM_CHILDREN}}", str(booking_data.get("num_children", 0)))
+    result = result.replace("{{CLIENT_NAME}}", guest_name)
+    result = result.replace("{{MEMBER_ID}}", member_id)
+    result = result.replace("{{COUNTRY_OF_RESIDENCE}}", "Vietnam / Vietnam")
+    result = result.replace("{{HOTEL_NAME}}", str(booking_data.get("hotel_name", "Hotel")))
+    result = result.replace("{{ROOM_TYPE}}", str(booking_data.get("room_type", "Deluxe Room")))
+    result = result.replace("{{ADDRESS_LINE1}}", addr1)
+    result = result.replace("{{ADDRESS_LINE2}}", addr2)
+    result = result.replace("{{ADDRESS_LINE3}}", addr3)
+    result = result.replace("{{PHONE}}", phone)
+    result = result.replace("{{CANCEL_FREE_DATE}}", cancel_date)
+    result = result.replace("{{ARRIVAL_DATE}}", check_in)
+    result = result.replace("{{DEPARTURE_DATE}}", check_out)
+    result = result.replace("{{CHECKIN_DAY}}", checkin_day)
+    result = result.replace("{{TOTAL_PRICE}}", price_display)
+    result = result.replace("{{GUEST_LIST}}", guest_name)
+
     # ── Font fix: override embedded PDF subset fonts with system font ──
-    # The PDF-to-HTML template embeds fonts as base64 subsets containing only
-    # the original glyphs. When we replace text with new characters, those
-    # characters fall back to a different font, causing visual inconsistency.
-    # Solution: inject CSS that overrides all PDF font classes with Arial
-    # (which is visually equivalent to Liberation Sans).
     font_override_css = """<style>
 .pdf24_07, .pdf24_10, .pdf24_14, .pdf24_16, .pdf24_23 {
     font-family: Arial, Helvetica, sans-serif !important;
@@ -501,7 +457,7 @@ def fill_hotel_template(template_path: str, booking_data: Dict) -> str:
 }
 </style>"""
     result = result.replace("</head>", font_override_css + "\n</head>")
-    
+
     return result
 
 
@@ -1167,6 +1123,74 @@ def generate_bookings_from_ai(
 
     # --- Generate hotel booking HTMLs ---
     hotels = ai_booking_data.get("hotels", [])
+
+    # ── Date validation safety net ──
+    # Even if AI or cache has wrong dates, enforce check_out = check_in + num_nights
+    # and chain hotels sequentially (Hotel1.checkout = Hotel2.checkin).
+    _needs_rechain = False
+    for hotel in hotels:
+        num_nights = int(hotel.get("num_nights") or 0)
+        ci = hotel.get("check_in_date", "")
+        co = hotel.get("check_out_date", "")
+        if num_nights > 0 and ci and co:
+            try:
+                ci_dt = datetime.strptime(ci, "%B %d, %Y")
+                co_dt = datetime.strptime(co, "%B %d, %Y")
+                expected_co = ci_dt + timedelta(days=num_nights)
+                if co_dt != expected_co:
+                    _needs_rechain = True
+                    break
+            except (ValueError, TypeError):
+                _needs_rechain = True
+                break
+
+    if _needs_rechain and hotels:
+        # Find earliest check-in as start cursor
+        _cursor = None
+        first_ci = hotels[0].get("check_in_date", "")
+        if first_ci:
+            try:
+                _cursor = datetime.strptime(first_ci, "%B %d, %Y")
+            except (ValueError, TypeError):
+                pass
+        if not _cursor:
+            first_ci_short = hotels[0].get("check_in_date_short", "")
+            if first_ci_short:
+                try:
+                    _cursor = datetime.strptime(first_ci_short, "%d/%m/%Y")
+                except (ValueError, TypeError):
+                    pass
+
+        if _cursor:
+            import re as _re_local
+            for hotel in hotels:
+                nights = int(hotel.get("num_nights") or 0)
+                # Try to extract nights from city name if num_nights is 0
+                if nights <= 0:
+                    city_str = str(hotel.get("city", ""))
+                    m = _re_local.search(r'\((\d+)\)\s*$', city_str)
+                    if m:
+                        nights = int(m.group(1))
+                        hotel["city"] = city_str[:m.start()].strip()
+                if nights <= 0:
+                    nights = 1  # Absolute fallback: at least 1 night
+
+                hotel["num_nights"] = nights
+                checkout = _cursor + timedelta(days=nights)
+                hotel["check_in_date"] = _cursor.strftime("%B %d, %Y")
+                hotel["check_in_date_short"] = _cursor.strftime("%d/%m/%Y")
+                hotel["check_out_date"] = checkout.strftime("%B %d, %Y")
+                hotel["check_out_date_short"] = checkout.strftime("%d/%m/%Y")
+
+                # Recalculate total_price
+                ppn = hotel.get("price_per_night")
+                if ppn:
+                    try:
+                        hotel["total_price"] = str(int(float(str(ppn)) * nights))
+                    except (ValueError, TypeError):
+                        pass
+
+                _cursor = checkout
     for i, hotel in enumerate(hotels, 1):
         # Ensure booking IDs exist
         if "booking_id" not in hotel:
