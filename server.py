@@ -4440,7 +4440,7 @@ def ai_generate_booking_stream():
 # ==================== SERPAPI FLIGHT SEARCH ENDPOINTS ====================
 
 def _get_serpapi_key() -> str:
-    return os.getenv("SERPAPI_KEY", "5ce801b1ff2274fc0f430d0fb53c26570893c0edbfede9ffe68a342ca05bf557")
+    return os.getenv("SERPAPI_KEY", "")
 
 
 @app.post("/api/flights/search")
