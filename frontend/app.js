@@ -2824,11 +2824,196 @@ function createTranslateFlow() {
 
   const savePdfBtn = document.getElementById(`transSavePdfBtn-${flowId}`);
   if (savePdfBtn) {
-    savePdfBtn.addEventListener("click", () => {
+    savePdfBtn.addEventListener("click", async () => {
       const previewEl = document.getElementById(`transPreview-${flowId}`);
-      if (previewEl && previewEl.contentWindow) {
-        previewEl.contentWindow.focus();
-        previewEl.contentWindow.print();
+
+      if (!previewEl || !previewEl.srcdoc) {
+        alert("Chưa có bản dịch để xuất PDF.");
+        return;
+      }
+
+      // Show loading state
+      const origText = savePdfBtn.textContent;
+      savePdfBtn.disabled = true;
+      savePdfBtn.textContent = "⏳ Đang chuẩn bị PDF...";
+
+      try {
+        // Get stored original File object (try cache first, then fallback to input)
+        let originalFile = (window._transOriginalFiles || {})[flowId];
+        if (!originalFile) {
+          const inputEl = document.getElementById(`transUpload-${flowId}`);
+          if (inputEl && inputEl.files && inputEl.files[0]) {
+            originalFile = inputEl.files[0];
+            console.log("[CombinedPDF] File from input fallback:", originalFile.name);
+          }
+        }
+        console.log("[CombinedPDF] originalFile:", originalFile ? originalFile.name : "NONE");
+
+        // Fetch original pages (POST file directly) + certification template concurrently
+        let origFetch = Promise.resolve(null);
+        if (originalFile) {
+          const fd = new FormData();
+          fd.append("file", originalFile);
+          origFetch = fetch("/api/translate/original_pages", { method: "POST", body: fd });
+        }
+        const [origRes, certRes] = await Promise.all([
+          origFetch,
+          fetch("/api/translate/certification_template")
+        ]);
+
+        // --- Part 1: Original document pages as images ---
+        let originalPagesHtml = "";
+        if (origRes && origRes.ok) {
+          const origData = await origRes.json();
+          console.log("[CombinedPDF] Original pages received:", origData.pages ? origData.pages.length : 0);
+          if (origData.pages && origData.pages.length > 0) {
+            originalPagesHtml = origData.pages.map((p, i) => {
+              return `<div class="original-page">
+                <img src="${p.data_url}" style="width:100%; height:auto; display:block;" />
+              </div>`;
+            }).join("\n");
+          }
+        } else {
+          console.warn("[CombinedPDF] Original pages fetch failed:", origRes ? origRes.status : "null response");
+        }
+
+        // --- Part 2: Translated HTML from preview iframe ---
+        const translatedHtml = previewEl.srcdoc || "";
+
+        // --- Part 3: Certification template with current date ---
+        let certHtml = "";
+        if (certRes && certRes.ok) {
+          const certData = await certRes.json();
+          certHtml = certData.html || "";
+          // Replace hardcoded date with current date (DD/MM/YYYY)
+          const now = new Date();
+          const dd = String(now.getDate()).padStart(2, "0");
+          const mm = String(now.getMonth() + 1).padStart(2, "0");
+          const yyyy = now.getFullYear();
+          const currentDate = `${dd}/${mm}/${yyyy}`;
+          // Replace the date in the template (pattern: Date: DD/MM/YYYY)
+          certHtml = certHtml.replace(/Date:\s*\d{2}\/\d{2}\/\d{4}/, `Date: ${currentDate}`);
+        }
+
+        // --- Extract styles and body from translated HTML ---
+        const extractStyles = (html) => {
+          const styles = [];
+          const regex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+          let m;
+          while ((m = regex.exec(html)) !== null) styles.push(m[1]);
+          return styles.join("\n");
+        };
+        const extractBody = (html) => {
+          const m = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          return m ? m[1] : html;
+        };
+
+        // Scope CSS to avoid conflicts
+        const scopeStyles = (css, scopeClass) => {
+          // Properties that must be stripped from body/html scoped rules
+          // (they break the parent .doc-section layout)
+          const bodyStripProps = /\b(display|padding|margin|background[^:]*|justify-content|align-items|min-height|height|overflow)\s*:[^;]+;?/gi;
+          return css.replace(/([^{}@]+)\{([^{}]+)\}/g, (match, sel, body) => {
+            let isBodyRule = false;
+            const scopedSel = sel.split(",").map(s => {
+              s = s.trim();
+              if (!s || s.startsWith("@") || s.startsWith("/*")) return s;
+              if (s === "body" || s === "html") { isBodyRule = true; return "." + scopeClass; }
+              return "." + scopeClass + " " + s;
+            }).join(", ");
+            // Strip layout-breaking properties from body/html rules
+            const cleanBody = isBodyRule ? body.replace(bodyStripProps, "") : body;
+            return scopedSel + "{" + cleanBody + "}";
+          });
+        };
+
+        // Build combined sections
+        let allStyles = "";
+        let allSections = "";
+
+        // Section 1: Original pages (just images, no special CSS needed)
+        if (originalPagesHtml) {
+          allSections += `<div class="doc-section doc-original">${originalPagesHtml}</div>\n`;
+        }
+
+        // Section 2: Translated document (scoped CSS)
+        if (translatedHtml) {
+          const transStyles = extractStyles(translatedHtml);
+          const transBody = extractBody(translatedHtml);
+          allStyles += `/* Translated doc styles */\n${scopeStyles(transStyles, "doc-translated")}\n`;
+          allStyles += `.doc-translated .a4, .doc-translated .a4-page { min-height: auto !important; height: auto !important; }\n`;
+          allSections += `<div class="doc-section doc-translated">${transBody}</div>\n`;
+        }
+
+        // Section 3: Certification page (scoped CSS)
+        if (certHtml) {
+          const certStyles = extractStyles(certHtml);
+          const certBody = extractBody(certHtml);
+          allStyles += `/* Certification styles */\n${scopeStyles(certStyles, "doc-cert")}\n`;
+          allStyles += `.doc-cert .a4-page { min-height: auto !important; height: auto !important; }\n`;
+          allSections += `<div class="doc-section doc-cert">${certBody}</div>\n`;
+        }
+
+        // Build final combined HTML
+        const combinedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Combined Translation PDF</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; margin: 0; padding: 0; display: block !important; }
+    .doc-section { display: block !important; width: 100% !important; overflow: hidden; }
+    .doc-section + .doc-section { page-break-before: always; }
+    .original-page { display: block; width: 100%; }
+    .original-page + .original-page { page-break-before: always; }
+    .original-page img { width: 100%; height: auto; display: block; }
+    @media print {
+      @page { size: A4; margin: 0; }
+      .doc-section + .doc-section { page-break-before: always !important; }
+      .original-page + .original-page { page-break-before: always !important; }
+    }
+    ${allStyles}
+  </style>
+</head>
+<body>
+  ${allSections}
+</body>
+</html>`;
+
+        console.log("[CombinedPDF] Sections - original:", !!originalPagesHtml, "translated:", !!translatedHtml, "cert:", !!certHtml);
+
+        const printWin = window.open("", "_blank");
+        if (!printWin) {
+          alert("Trình duyệt chặn popup. Vui lòng cho phép popup rồi thử lại.");
+          return;
+        }
+        printWin.document.open();
+        printWin.document.write(combinedHtml);
+        printWin.document.close();
+
+        // Wait for ALL images to load before printing
+        const allImgs = printWin.document.querySelectorAll("img");
+        console.log("[CombinedPDF] Total images to load:", allImgs.length);
+        if (allImgs.length > 0) {
+          let loaded = 0;
+          const checkPrint = () => { if (++loaded >= allImgs.length) setTimeout(() => printWin.print(), 300); };
+          allImgs.forEach(img => {
+            if (img.complete) { checkPrint(); }
+            else { img.onload = checkPrint; img.onerror = checkPrint; }
+          });
+          // Fallback: print after 5s even if images haven't finished
+          setTimeout(() => { if (loaded < allImgs.length) printWin.print(); }, 5000);
+        } else {
+          setTimeout(() => printWin.print(), 500);
+        }
+
+      } catch (err) {
+        console.error("Combined PDF error:", err);
+        alert("Lỗi xuất PDF: " + (err.message || err));
+      } finally {
+        savePdfBtn.disabled = false;
+        savePdfBtn.textContent = origText;
       }
     });
   }
@@ -2852,6 +3037,9 @@ function createTranslateFlow() {
     });
   }
 }
+
+// Cache uploaded File objects for combined PDF export (survives server restart)
+const _transOriginalFiles = window._transOriginalFiles || (window._transOriginalFiles = {});
 
 async function uploadTranslateFile(flowId) {
   const inputEl = document.getElementById(`transUpload-${flowId}`);
@@ -2889,6 +3077,8 @@ async function uploadTranslateFile(flowId) {
     const uploadedDisplayName = data.filename || file.name;
     uploadedRefEl.value = fileRef;
     uploadedNameEl.value = uploadedDisplayName;
+    // Store File object for combined PDF export
+    _transOriginalFiles[flowId] = file;
     // File preview info
     const sizeKB = (file.size / 1024).toFixed(1);
     const ext = uploadedDisplayName.split(".").pop().toUpperCase();

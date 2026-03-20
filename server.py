@@ -5915,6 +5915,75 @@ def translate_upload_file():
     )
 
 
+@app.post("/api/translate/original_pages")
+def translate_original_pages():
+    """Render uploaded file pages as base64 PNG images (accepts file upload directly)."""
+    if "file" not in request.files:
+        return jsonify({"error": "missing_file"}), 400
+    f = request.files["file"]
+    if not f or not f.filename:
+        return jsonify({"error": "missing_filename"}), 400
+
+    ext = os.path.splitext(f.filename)[1].lower()
+
+    # Save to temp for processing
+    tmp_path = os.path.join(tempfile.gettempdir(), f"origpages_{uuid.uuid4().hex}{ext}")
+    try:
+        f.save(tmp_path)
+    except Exception as e:
+        return jsonify({"error": "save_failed", "detail": str(e)}), 500
+
+    pages = []
+    try:
+        if ext == ".pdf":
+            import fitz  # PyMuPDF
+            doc = fitz.open(tmp_path)
+            for i, page in enumerate(doc):
+                pix = page.get_pixmap(dpi=200)
+                img_bytes = pix.tobytes("png")
+                b64 = base64.b64encode(img_bytes).decode("ascii")
+                pages.append({"index": i, "data_url": f"data:image/png;base64,{b64}"})
+            doc.close()
+        elif ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
+            with open(tmp_path, "rb") as fp:
+                img_bytes = fp.read()
+            mime = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext.lstrip('.')}"
+            b64 = base64.b64encode(img_bytes).decode("ascii")
+            pages.append({"index": 0, "data_url": f"data:{mime};base64,{b64}"})
+        else:
+            return jsonify({"error": "unsupported_format", "detail": f"Cannot render {ext} as images"}), 400
+    except Exception as e:
+        return jsonify({"error": "render_failed", "detail": str(e)}), 500
+    finally:
+        # Cleanup temp file
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    return jsonify({"pages": pages})
+
+
+@app.get("/api/translate/certification_template")
+def translate_certification_template():
+    """Return certification HTML template with embedded logo as base64."""
+    template_path = os.path.join("dich", "HTML template", "Xác nhận dịch.html")
+    logo_path = os.path.join("dich", "HTML template", "passport_lounge.jpg")
+
+    if not os.path.isfile(template_path):
+        return jsonify({"error": "template_not_found"}), 404
+
+    with open(template_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # Embed logo as base64 data URL
+    if os.path.isfile(logo_path):
+        with open(logo_path, "rb") as f:
+            logo_b64 = base64.b64encode(f.read()).decode("ascii")
+        html = html.replace('src="./passport_lounge.jpg"', f'src="data:image/jpeg;base64,{logo_b64}"')
+
+    return jsonify({"html": html})
+
 @app.post("/api/translate/run_stream")
 def run_translate_stream():
     payload = request.get_json(force=True) or {}
