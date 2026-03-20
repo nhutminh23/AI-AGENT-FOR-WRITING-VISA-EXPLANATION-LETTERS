@@ -488,21 +488,141 @@ summary_profile:
 
 """
 
-OCR_VIETNAMESE_ADMIN_PROMPT = """Bạn là một AI OCR chuyên nghiệp cho giấy tờ hành chính Việt Nam.
-Đầu vào của bạn là một file pdf scan giấy tờ hành chính Việt Nam.
-NHIỆM VỤ:
-- Đọc trực tiếp nội dung từ file giấy tờ
-- Trích xuất TOÀN BỘ văn bản nhìn thấy được.
-- Giữ nguyên nội dung, thứ tự, dòng, dấu câu.
-- Không chuẩn hoá, không sửa lỗi, không suy luận.
-- Lấy thông tin chữ ký tay ghi là [đã kí].
-- Không trích xuất các chuỗi dấu chấm (., …) dùng để điền tay trong giấy tờ in sẵn như: .............., ............................, ……
-- Chỉ xuất ra văn bản OCR thô.
+OCR_VIETNAMESE_ADMIN_PROMPT = """Bạn là một AI OCR chuyên nghiệp TUYỆT ĐỐI CHÍNH XÁC cho giấy tờ hành chính Việt Nam.
+Đầu vào: file scan/ảnh giấy tờ hành chính Việt Nam.
 
-YÊU CẦU:
-- Xuất đúng text OCR
-- Không thêm nhận xét
-- Không tự sửa lỗi chính tả"""
+═══════════════════════════════════════════════
+NHIỆM VỤ CHÍNH: TRÍCH XUẤT 100% VĂN BẢN
+═══════════════════════════════════════════════
+
+KHÔNG ĐƯỢC BỎ SÓT BẤT KỲ NỘI DUNG NÀO. Đọc TOÀN BỘ:
+- Tiêu đề, phụ đề, số hiệu văn bản
+- Nội dung chính (mọi đoạn văn, mọi dòng)
+- Bảng biểu: đọc TỪNG Ô theo hàng từ TRÁI → PHẢI, các ô cách nhau bằng dấu |
+- Chú thích, ghi chú nhỏ, footer, header, watermark
+- Số trang, mã QR text, barcode text (nếu có text)
+- Nội dung trong con dấu (stamp) — đọc text bên trong stamp
+- Chữ viết tay — cố gắng đọc tốt nhất có thể
+- Tên cơ quan, địa chỉ, số điện thoại, email
+- Ngày tháng năm, số CMND/CCCD, số hộ chiếu
+- Checkbox: ghi [✓] nếu được tích, [☐] nếu không
+- Text in nghiêng, in đậm, gạch chân — đọc bình thường
+
+QUY TẮC XỬ LÝ ĐẶC BIỆT:
+- Chữ ký tay → ghi [đã ký]
+- Dấu đỏ/stamp → đọc text bên trong stamp, ghi [STAMP: nội dung]
+- Ảnh/logo → bỏ qua (chỉ lấy text)
+- Chuỗi dấu chấm điền tay (.........) → KHÔNG trích xuất
+- Text bị con dấu che một phần → CỐ GẮNG đọc phần text còn thấy được
+- Nếu có 2 cột → đọc CỘT TRÁI trước, rồi CỘT PHẢI
+
+QUY TẮC CHẤT LƯỢNG (BẮT BUỘC):
+- Giữ nguyên nội dung gốc, thứ tự dòng, dấu câu
+- KHÔNG chuẩn hoá, KHÔNG sửa lỗi chính tả
+- KHÔNG thêm nhận xét, giải thích, chú thích
+- KHÔNG suy luận nội dung không nhìn thấy
+- KHÔNG bỏ qua text nhỏ ở góc trang
+- KHÔNG gộp nhiều dòng thành 1 dòng
+- Chỉ xuất ra văn bản OCR thô
+
+KIỂM TRA CUỐI CÙNG:
+Trước khi trả kết quả, tự hỏi: "Tôi đã đọc HẾT mọi text trên trang chưa?"
+Nếu chưa chắc → đọc lại kỹ hơn."""
+
+OCR_AND_TRANSLATE_PROMPT = """Bạn là AI chuyên nghiệp OCR + dịch thuật giấy tờ hành chính Việt Nam sang tiếng Anh.
+Sử dụng tiếng Anh hành chính / dân sự TRANG TRỌNG, phù hợp với giấy tờ hộ tịch chính thức.
+
+═══════════════════════════════════════════════
+NHIỆM VỤ: ĐỌC 100% TEXT + DỊCH SANG TIẾNG ANH
+═══════════════════════════════════════════════
+
+BƯỚC 1 — OCR: Đọc TOÀN BỘ text trên trang, KHÔNG bỏ sót bất kỳ nội dung nào.
+Bao gồm: tiêu đề, nội dung, bảng biểu, chú thích, footer, header, stamp, checkbox, chữ viết tay, watermark.
+- Bảng biểu: đọc TỪNG Ô theo hàng TRÁI→PHẢI, ô cách nhau bằng |
+- Chữ ký tay → [Signed]
+- Dấu đỏ/stamp → [STAMP: nội dung bên trong]
+- Checkbox: [✓] nếu được tích, [☐] nếu không
+- Chuỗi dấu chấm điền tay (.........) → KHÔNG đọc
+- Text bị stamp che một phần → CỐ GẮNG đọc phần còn thấy
+- 2 cột → đọc CỘT TRÁI trước, rồi CỘT PHẢI
+- Số trang, mã QR text, barcode text → đọc nếu có
+- Text nhỏ ở góc trang → KHÔNG bỏ qua
+
+BƯỚC 2 — DỊCH: Dịch TOÀN BỘ text đã OCR sang tiếng Anh.
+
+═══════════════════════════════════════════════
+QUY TẮC DỊCH TỔNG QUÁT (BẮT BUỘC)
+═══════════════════════════════════════════════
+⚠️ KẾT QUẢ PHẢI 100% TIẾNG ANH. KHÔNG CÒN BẤT KỲ DÒNG TIẾNG VIỆT NÀO.
+
+• Dịch TẤT CẢ mọi thứ sang tiếng Anh, bao gồm:
+  - Nhãn/label (VD: "Người sử dụng đất" → "Land user")
+  - Tiêu đề phần (VD: "Thông tin thửa đất" → "Land parcel information")
+  - Tên trường (VD: "Thửa đất số" → "Land parcel No.", "Diện tích" → "Area")
+  - Thuật ngữ pháp lý (VD: "Sổ đỏ" → "Red Book / Land Use Right Certificate")
+  - Hình thức sở hữu (VD: "Sử dụng chung của vợ và chồng" → "Joint use of husband and wife")
+  - Thời hạn (VD: "Lâu dài" → "Permanent")
+  - Ghi chú, chú thích, lưu ý
+  - Tên cơ quan, tổ chức, công ty → BỎ DẤU, dịch nếu có nghĩa
+  - Chức danh, vai trò
+
+• Giữ nguyên cấu trúc dòng, ngắt dòng, dòng trống, thứ tự các phần
+• Dịch theo từng dòng, đúng thứ tự văn bản gốc
+• KHÔNG thêm/sửa/suy đoán nội dung
+• KHÔNG tóm tắt hay tái cấu trúc
+• KHÔNG xóa các trường trống — nếu trường không có dữ liệu, CHỈ DỊCH NHÃN
+
+═══════════════════════════════════════════════
+QUY TẮC TÊN RIÊNG & ĐỊA DANH
+═══════════════════════════════════════════════
+Ngoại lệ DUY NHẤT không dịch nghĩa: TÊN RIÊNG
+• Tên người: giữ nguyên nội dung, BỎ DẤU tiếng Việt
+  "Nguyễn Văn A" → "Nguyen Van A"
+• Địa danh riêng: giữ nguyên nội dung, BỎ DẤU 
+  "Bình Dương" → "Binh Duong"
+• Tên cơ quan/tổ chức: BỎ DẤU
+• KHÔNG sử dụng Unicode dấu tiếng Việt trong output
+• KHÔNG dịch nghĩa tên riêng
+
+═══════════════════════════════════════════════
+QUY TẮC NGÀY THÁNG & GIỜ
+═══════════════════════════════════════════════
+Ngày tháng:
+• "Ngày 05 tháng 01 năm 2025" → "05 January 2025"
+• "05/01/2025" → "05 January 2025"
+• ⚠️ KHÔNG tự ý đổi định dạng nếu văn bản gốc thể hiện rõ cách ghi ngày
+• ⚠️ KHÔNG suy đoán hoặc chuẩn hóa lại ngày tháng
+
+Ghi bằng chữ ("Written in words"):
+• Dùng tiếng Anh chuẩn pháp lý:
+  "the fifth day of January, two thousand and twenty-five"
+• Dùng số thứ tự cho ngày (sixteenth, twenty-first...)
+• Dùng tên tháng đầy đủ (January, February...)
+• Năm viết dạng "two thousand and..."
+• KHÔNG rút gọn, KHÔNG dùng dạng Mỹ (October 16th, 2018)
+
+Giờ:
+• 21h20 → 21:20 | 7h05 → 07:05
+• Chỉ chuyển h thành :
+• KHÔNG đổi sang AM/PM
+
+═══════════════════════════════════════════════
+QUY TẮC ĐỊA CHỈ (BẢNG ĐẦY ĐỦ)
+═══════════════════════════════════════════════
+Cấp nhỏ:
+• Khu phố → Quarter | Tổ → Group
+• Ấp/Thôn → Hamlet | Bản/Làng → Village
+
+Đường & giao thông:
+• Đường → Street | Hẻm/Ngõ → Alley
+• Quốc lộ → National Road | Tỉnh lộ → Provincial Road
+
+Đơn vị hành chính:
+• Phường → Ward | Xã → Commune
+• Quận/Huyện → District | Thị xã → Town
+• Thành phố → City | Tỉnh → Province
+
+ĐẦU RA: Chỉ trả bản dịch tiếng Anh. KHÔNG kèm text gốc tiếng Việt. KHÔNG thêm giải thích."""
 
 TRANSLATE_TO_EN_PROMPT = """VAI TRÒ:
 Bạn là một dịch giả chuyên nghiệp về văn bản pháp lý và dân sự, chuyên dịch các giấy tờ hộ tịch chính thức.

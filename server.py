@@ -25,6 +25,7 @@ from core.agents import (
 )
 from core.prompts import (
     OCR_VIETNAMESE_ADMIN_PROMPT,
+    OCR_AND_TRANSLATE_PROMPT,
     TRANSLATE_TO_EN_PROMPT,
     TRANSLATION_HTML_RENDER_PROMPT,
 )
@@ -144,7 +145,11 @@ def _check_and_raise_quota(exc: Exception) -> None:
 def _ocr_image_bytes(llm: Any, image_bytes: bytes, page_idx: int, total_pages: int) -> str:
     prompt = (
         f"{OCR_VIETNAMESE_ADMIN_PROMPT}\n\n"
-        f"Bạn đang OCR trang {page_idx}/{total_pages}. Chỉ trả ra text của trang này."
+        f"=== TRANG {page_idx}/{total_pages} ===\n"
+        f"ĐỌC TOÀN BỘ text trên trang này. KHÔNG ĐƯỢC BỎ SÓT BẤT KỲ NỘI DUNG NÀO.\n"
+        f"Bao gồm: tiêu đề, nội dung chính, bảng biểu, chú thích, footer, số trang, watermark, con dấu.\n"
+        f"Nếu có bảng (table): đọc theo hàng từ TRÁI sang PHẢI, mỗi ô cách nhau bằng | .\n"
+        f"Chỉ trả ra text OCR của trang này."
     )
     msg = HumanMessage(
         content=[
@@ -153,13 +158,112 @@ def _ocr_image_bytes(llm: Any, image_bytes: bytes, page_idx: int, total_pages: i
         ]
     )
     try:
-        result = llm.invoke([SystemMessage(content="Bạn là OCR engine chính xác."), msg])
+        result = llm.invoke([SystemMessage(content="Bạn là OCR engine chuyên nghiệp, chính xác tuyệt đối. Đọc TOÀN BỘ nội dung, KHÔNG bỏ sót."), msg])
     except QuotaExhaustedError:
         raise
     except Exception as exc:
         _check_and_raise_quota(exc)
         raise
     return (result.content or "").strip()
+
+
+def _ocr_and_translate_image_bytes(llm: Any, image_bytes: bytes, page_idx: int, total_pages: int, source_lang: str = "tiếng Việt") -> str:
+    """OCR + Translate in a single vision call. Returns translated English text."""
+    prompt = (
+        f"{OCR_AND_TRANSLATE_PROMPT}\n\n"
+        f"=== TRANG {page_idx}/{total_pages} ===\n"
+        f"Ngôn ngữ gốc: {source_lang}\n"
+        f"ĐỌc TOÀN BỘ text trên trang này và DỊCH SANG TIẾNG ANH. Trả về BẢN DỊCH TIẾNG ANH."
+    )
+    msg = HumanMessage(
+        content=[
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": _img_bytes_to_data_url(image_bytes)}},
+        ]
+    )
+    try:
+        result = llm.invoke([SystemMessage(content="You are a professional OCR + legal translator. Read ALL text and translate to English. Output ONLY the English translation."), msg])
+    except QuotaExhaustedError:
+        raise
+    except Exception as exc:
+        _check_and_raise_quota(exc)
+        raise
+    return (result.content or "").strip()
+
+
+def _ocr_and_translate_document(llm: Any, file_path: str, source_lang: str = "tiếng Việt", page_callback: Any = None) -> str:
+    """OCR + Translate a document in one step. Returns translated English text."""
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".pdf":
+        try:
+            import pdfplumber
+            from PIL import Image
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            page_images: List[tuple] = []
+            with pdfplumber.open(file_path) as pdf:
+                total = len(pdf.pages)
+                for idx, page in enumerate(pdf.pages, start=1):
+                    try:
+                        page_img = page.to_image(resolution=250).original
+                        if isinstance(page_img, Image.Image):
+                            buff = BytesIO()
+                            page_img.save(buff, format="PNG")
+                            page_images.append((idx, buff.getvalue()))
+                    except Exception:
+                        continue
+
+            if not page_images:
+                return ""
+
+            total = len(page_images)
+
+            def _ocr_translate_one(args):
+                idx, img_bytes = args
+                return idx, _ocr_and_translate_image_bytes(llm, img_bytes, idx, total, source_lang)
+
+            results: dict = {}
+            max_workers = min(4, total)
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {pool.submit(_ocr_translate_one, item): item[0] for item in page_images}
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        page_idx, text = future.result()
+                        results[page_idx] = text
+                        if page_callback:
+                            page_callback(page_idx, total)
+                    except QuotaExhaustedError:
+                        for f in futures:
+                            f.cancel()
+                        raise
+                    except Exception:
+                        continue
+
+            page_texts = [results[i] for i in sorted(results.keys()) if results.get(i)]
+            return "\n\n".join(t for t in page_texts if t).strip()
+        except QuotaExhaustedError:
+            raise
+        except Exception as exc:
+            _check_and_raise_quota(exc)
+            return ""
+
+    if ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"]:
+        if page_callback:
+            page_callback(1, 1)
+        try:
+            from PIL import Image
+            img = Image.open(file_path)
+            buff = BytesIO()
+            img.save(buff, format="PNG")
+            return _ocr_and_translate_image_bytes(llm, buff.getvalue(), 1, 1, source_lang)
+        except QuotaExhaustedError:
+            raise
+        except Exception as exc:
+            _check_and_raise_quota(exc)
+            return ""
+
+    return ""
 
 
 def _ocr_document_for_translation(llm: Any, file_path: str, page_callback: Any = None) -> str:
@@ -177,7 +281,7 @@ def _ocr_document_for_translation(llm: Any, file_path: str, page_callback: Any =
                 total = len(pdf.pages)
                 for idx, page in enumerate(pdf.pages, start=1):
                     try:
-                        page_img = page.to_image(resolution=150).original  # 150 DPI — good balance of speed vs quality
+                        page_img = page.to_image(resolution=250).original  # 250 DPI — higher quality for OCR accuracy
                         if isinstance(page_img, Image.Image):
                             buff = BytesIO()
                             page_img.save(buff, format="PNG")
@@ -5819,7 +5923,7 @@ def run_translate_stream():
     template_name = (payload.get("template_name") or TRANSLATE_DEFAULT_TEMPLATE).strip()
     flow_id = payload.get("flow_id") or 1
     source_lang = (payload.get("source_lang") or "tiếng Việt").strip()
-    ocr_model = payload.get("ocr_model") or "gpt-4o-mini"
+    ocr_model = payload.get("ocr_model") or "gpt-5-mini"
     translate_model = payload.get("translate_model") or "gpt-5-mini"
 
     if not file_ref:
@@ -5850,26 +5954,46 @@ def run_translate_stream():
             yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
 
         try:
-            # Step 1: OCR with per-page progress
-            yield from send_event(1, "⏳ Đang OCR tài liệu...")
+            # Step 1: OCR + Translate combined (per-page parallel)
+            yield from send_event(1, "⏳ Đang OCR + Dịch tài liệu...")
             llm_ocr = ChatOpenAI(model=ocr_model, temperature=0)
             page_events: List[str] = []
 
             def on_page(page_idx: int, total: int) -> None:
-                page_events.append(f"data: {json.dumps({'step': 1, 'msg': f'⏳ OCR trang {page_idx}/{total}...'}, ensure_ascii=False)}\n\n")
+                page_events.append(f"data: {json.dumps({'step': 1, 'msg': f'⏳ OCR+Dịch trang {page_idx}/{total}...'}, ensure_ascii=False)}\n\n")
 
-            ocr_text = _ocr_document_for_translation(llm_ocr, source_path, page_callback=on_page)
+            translated_text = _ocr_and_translate_document(llm_ocr, source_path, source_lang=source_lang, page_callback=on_page)
             # Yield page progress events
             for pe in page_events:
                 yield pe
-            if not ocr_text.strip():
-                yield from send_event(-1, "❌ Không trích xuất được OCR từ file")
+            if not translated_text.strip():
+                yield from send_event(-1, "❌ Không trích xuất/dịch được từ file")
                 return
-            yield from send_event(1, "✅ OCR hoàn tất")
 
-            # Auto-detect template from OCR text if needed
+            # Vietnamese text validation — check for leftover Vietnamese chars
+            import re as _re
+            viet_chars = _re.findall(r'[àáạảãăắằặẳẵâấầậẩẫèéẹẻẽêếềệểễìíịỉĩòóọỏõôốồộổỗơớờợởỡùúụủũưứừựửữỳýỵỷỹđÀÁẠẢÃĂẮẰẶẲẴÂẤẦẬẨẪÈÉẸẺẼÊẾỀỆỂỄÌÍỊỈĨÒÓỌỎÕÔỐỒỘỔỖƠỚỜỢỞỠÙÚỤỦŨƯỨỪỰỬỮỲÝỴỶỸĐ]', translated_text)
+            if len(viet_chars) > 5:  # More than 5 Vietnamese chars = needs cleanup
+                yield from send_event(1, "🔄 Phát hiện tiếng Việt còn sót, đang sửa...")
+                llm_fix = ChatOpenAI(model=translate_model, temperature=0)
+                fix_prompt = (
+                    "The following text should be 100% English but contains some Vietnamese words/phrases. "
+                    "Translate ALL remaining Vietnamese text to English. Keep the structure and formatting intact. "
+                    "Output ONLY the corrected English text:\n\n" + translated_text
+                )
+                try:
+                    fix_result = llm_fix.invoke([SystemMessage(content="Fix Vietnamese text remnants. Output pure English."), HumanMessage(content=fix_prompt)])
+                    fixed = (fix_result.content or "").strip()
+                    if fixed:
+                        translated_text = fixed
+                except Exception:
+                    pass  # Keep original if fix fails
+
+            yield from send_event(1, "✅ OCR + Dịch hoàn tất")
+
+            # Auto-detect template from translated text if needed
             if is_auto_template:
-                template_name = _auto_detect_template(ocr_text)
+                template_name = _auto_detect_template(translated_text)
                 yield from send_event(1, f"🔍 Tự động chọn template: {template_name}")
 
             # Load template HTML
@@ -5880,53 +6004,39 @@ def run_translate_stream():
             with open(tpl_path, "r", encoding="utf-8") as f:
                 template_html = f.read()
 
-            # Step 2: Translate
-            yield from send_event(2, f"⏳ Đang dịch {source_lang} sang tiếng Anh...")
+            # Step 2: Build HTML
+            yield from send_event(2, "⏳ Đang tạo HTML theo template...")
             llm_translate = ChatOpenAI(model=translate_model, temperature=0)
-            translated_text = _translate_ocr_text(llm_translate, ocr_text, source_lang=source_lang)
-            if not translated_text.strip():
-                yield from send_event(-1, "❌ Không tạo được bản dịch")
-                return
-            yield from send_event(2, "✅ Dịch hoàn tất")
-
-            # Step 3: Build HTML — use truncated OCR for layout hints only (saves tokens)
-            yield from send_event(3, "⏳ Đang tạo HTML theo template...")
-            layout_hint = ocr_text[:1500] + ("\n..." if len(ocr_text) > 1500 else "")
             html_result = _build_translation_html(
                 llm_translate,
                 translated_text,
                 template_html,
-                layout_hint,
+                translated_text,
             )
             if not html_result.strip():
                 yield from send_event(-1, "❌ Không tạo được HTML")
                 return
-            yield from send_event(3, "✅ Tạo HTML hoàn tất")
+            yield from send_event(2, "✅ Tạo HTML hoàn tất")
 
             file_stem = os.path.splitext(os.path.basename(source_path))[0]
             safe_stem = _safe_name(file_stem) or "translated_document"
             out_dir = os.path.join(TRANSLATE_OUTPUT_DIR, f"flow_{flow_id}")
             os.makedirs(out_dir, exist_ok=True)
 
-            ocr_path = os.path.join(out_dir, f"{safe_stem}.ocr.txt")
             translated_path = os.path.join(out_dir, f"{safe_stem}.translated.txt")
             html_path = os.path.join(out_dir, f"{safe_stem}.translated.html")
-            with open(ocr_path, "w", encoding="utf-8") as f:
-                f.write(ocr_text)
             with open(translated_path, "w", encoding="utf-8") as f:
                 f.write(translated_text)
             with open(html_path, "w", encoding="utf-8") as f:
                 f.write(html_result)
 
             yield from send_event(
-                4,
+                3,
                 "✅ Hoàn tất",
                 {
-                    "ocr_text": ocr_text,
                     "translated_text": translated_text,
                     "html": html_result,
                     "paths": {
-                        "ocr_path": ocr_path,
                         "translated_path": translated_path,
                         "html_path": html_path,
                     },

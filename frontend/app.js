@@ -2726,18 +2726,13 @@ function createTranslateFlow() {
       <div style="margin-top:8px;">
         <div id="transStepRow-${flowId}-1" style="display:flex; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; margin-bottom:4px;">
           <span id="transStepIcon-${flowId}-1">⬜</span>
-          <span style="font-size:0.9em; color:#475569;">OCR văn bản</span>
+          <span style="font-size:0.9em; color:#475569;">OCR + Dịch sang tiếng Anh</span>
           <span id="transStepMsg-${flowId}-1" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
         </div>
-        <div id="transStepRow-${flowId}-2" style="display:flex; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; margin-bottom:4px;">
+        <div id="transStepRow-${flowId}-2" style="display:flex; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px;">
           <span id="transStepIcon-${flowId}-2">⬜</span>
-          <span style="font-size:0.9em; color:#475569;">Dịch sang tiếng Anh</span>
-          <span id="transStepMsg-${flowId}-2" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
-        </div>
-        <div id="transStepRow-${flowId}-3" style="display:flex; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px;">
-          <span id="transStepIcon-${flowId}-3">⬜</span>
           <span style="font-size:0.9em; color:#475569;">Tạo HTML theo template</span>
-          <span id="transStepMsg-${flowId}-3" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
+          <span id="transStepMsg-${flowId}-2" style="margin-left:auto; font-size:0.8em; color:#94a3b8;"></span>
         </div>
       </div>
 
@@ -3092,24 +3087,23 @@ async function runTranslateFlow(flowId) {
           statusEl.innerHTML = `<span style="color:#dc2626;${isQuota ? 'font-weight:bold;font-size:1.1em;' : ''}">${isQuota ? '⚠️' : '❌'} ${escapeHtml(msg || "Có lỗi xảy ra.")}</span>`;
           updateTranslateFlowStep(flowId, 1, "error", msg);
           updateTranslateFlowStep(flowId, 2, "error", msg);
-          updateTranslateFlowStep(flowId, 3, "error", msg);
           return;
         }
-        if (step >= 1 && step <= 3) {
+        if (step >= 1 && step <= 2) {
           if (msg.startsWith("✅")) {
             updateTranslateFlowStep(flowId, step, "done", msg.replace(/^✅\s*/, ""));
-          } else if (msg.startsWith("⏳")) {
-            updateTranslateFlowStep(flowId, step, "running", msg.replace(/^⏳\s*/, ""));
+          } else if (msg.startsWith("⏳") || msg.startsWith("🔄")) {
+            updateTranslateFlowStep(flowId, step, "running", msg.replace(/^[⏳🔄]\s*/, ""));
           }
         }
-        if (step === 4 && evt.data) {
+        if (step === 3 && evt.data) {
           finalData = evt.data;
         }
       }
     }
 
     if (finalData) {
-      ocrEl.value = finalData.ocr_text || "Không có OCR.";
+      ocrEl.value = finalData.translated_text || "(OCR+Dịch gộp — xem bên phải)";
       translatedEl.value = finalData.translated_text || "Không có bản dịch.";
       const htmlContent = finalData.html || "<p>Không có HTML.</p>";
       previewEl.srcdoc = htmlContent;
@@ -3120,7 +3114,7 @@ async function runTranslateFlow(flowId) {
       statusEl.innerHTML = `<span style="color:#16a34a;">✅ Hoàn tất. Sửa bản dịch/HTML rồi lưu PDF.</span>`;
     } else {
       statusEl.innerHTML = '<span style="color:#dc2626;">❌ Không nhận được kết quả từ server.</span>';
-      updateTranslateFlowStep(flowId, 3, "error", "Không có dữ liệu trả về");
+      updateTranslateFlowStep(flowId, 2, "error", "Không có dữ liệu trả về");
     }
   } catch (error) {
     statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${escapeHtml(error.message)}</span>`;
@@ -5296,31 +5290,60 @@ exportCombinedHotelPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(combinedHotelBookingResultEl, "Hotel Booking");
 });
 
-function buildCombinedHotelsHtml(htmls) {
-  const pages = (htmls || []).map((html, i) => {
-    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    const bodyContent = bodyMatch ? bodyMatch[1] : html;
-    const pageBreak = i < htmls.length - 1 ? 'style="page-break-after: always;"' : "";
-    return `<section ${pageBreak}>${bodyContent}</section>`;
+function buildCombinedHotelsHtml(htmls, autoPrint = false) {
+  const escapeSrcdoc = (html) => html.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const frames = (htmls || []).map((html, i) => {
+    return `<div class="doc-section">
+      <iframe id="hotel-frame-${i}" srcdoc="${escapeSrcdoc(html)}" scrolling="no" style="width:100%;border:none;display:block;"></iframe>
+    </div>`;
   });
 
-  const headMatch = htmls[0]?.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-  const headContent = headMatch ? headMatch[1] : "";
+  const printScript = autoPrint ? `
+    let loaded = 0;
+    const total = document.querySelectorAll('iframe').length;
+    document.querySelectorAll('iframe').forEach(frame => {
+      frame.addEventListener('load', () => {
+        loaded++;
+        if (loaded >= total) setTimeout(() => window.print(), 600);
+      });
+    });` : '';
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  ${headContent}
+  <title>Hotel Bookings</title>
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; }
+    .doc-section {
+      page-break-after: always;
+      width: 100%;
+    }
+    .doc-section:last-child { page-break-after: auto; }
     @media print {
       body { margin: 0; }
-      @page { size: A4; margin: 10mm; }
+      @page { size: A4; margin: 0; }
+      .doc-section iframe { page-break-inside: avoid; }
     }
   </style>
 </head>
 <body>
-  ${pages.join("\n")}
+  ${frames.join("\n")}
+  <script>
+    function resizeFrame(frame) {
+      try {
+        const doc = frame.contentDocument || frame.contentWindow.document;
+        const h = Math.max(doc.body.scrollHeight, doc.body.offsetHeight, doc.documentElement.scrollHeight, doc.documentElement.offsetHeight);
+        frame.style.height = h + 'px';
+      } catch(e) {}
+    }
+    document.querySelectorAll('iframe').forEach(frame => {
+      frame.onload = () => resizeFrame(frame);
+      setTimeout(() => resizeFrame(frame), 500);
+    });
+    ${printScript}
+  </script>
 </body>
 </html>`;
 }
@@ -5338,32 +5361,25 @@ function printAllHotelsAsPdf() {
     return;
   }
 
-  const combinedHtml = buildCombinedHotelsHtml(hotelHtmls);
+  const combinedHtml = buildCombinedHotelsHtml(hotelHtmls, true);
 
   printWin.document.open();
   printWin.document.write(combinedHtml);
   printWin.document.close();
-
-  printWin.onload = () => {
-    setTimeout(() => { printWin.print(); }, 300);
-  };
-  setTimeout(() => { printWin.print(); }, 800);
 }
 
 function printCombinedPackagePdf() {
+  // Read from ORIGINAL individual result iframes (not combined preview)
   const itineraryDoc =
-    combinedItineraryResultEl.contentDocument ||
-    combinedItineraryResultEl.contentWindow?.document;
+    itineraryResultEl?.contentDocument ||
+    itineraryResultEl?.contentWindow?.document;
   const flightDoc =
-    combinedFlightBookingResultEl.contentDocument ||
-    combinedFlightBookingResultEl.contentWindow?.document;
-  const hotelDoc =
-    combinedHotelBookingResultEl.contentDocument ||
-    combinedHotelBookingResultEl.contentWindow?.document;
+    flightBookingResultEl?.contentDocument ||
+    flightBookingResultEl?.contentWindow?.document;
 
   const hasItinerary = itineraryDoc?.body?.innerHTML?.trim();
   const hasFlight = flightDoc?.body?.innerHTML?.trim();
-  const hasHotel = hotelDoc?.body?.innerHTML?.trim();
+  const hasHotel = hotelHtmls && hotelHtmls.length > 0;
 
   if (!hasItinerary || !hasFlight || !hasHotel) {
     alert("Cần đủ 3 nội dung: lịch trình, booking máy bay, booking khách sạn.");
@@ -5376,41 +5392,116 @@ function printCombinedPackagePdf() {
     return;
   }
 
-  const extractBody = (doc) => {
-    const html = doc.documentElement?.outerHTML || "";
-    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    return bodyMatch ? bodyMatch[1] : doc.body.innerHTML;
+  // Extract <style> blocks from HTML string
+  const extractStyles = (html) => {
+    const styles = [];
+    const regex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      styles.push(match[1]);
+    }
+    return styles.join("\n");
   };
 
-  const extractHead = (doc) => {
-    const html = doc.documentElement?.outerHTML || "";
-    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-    return headMatch ? headMatch[1] : "";
+  // Extract <body> content from HTML string
+  const extractBody = (html) => {
+    const match = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    return match ? match[1] : html;
   };
 
-  const itineraryBody = extractBody(itineraryDoc);
-  const flightBody = extractBody(flightDoc);
-  const hotelBody = extractBody(hotelDoc);
-  const mergedHead = [extractHead(itineraryDoc), extractHead(flightDoc), extractHead(hotelDoc)]
-    .filter(Boolean)
-    .join("\n");
+  // Get full HTML from iframe document
+  const getFullHtml = (doc) => {
+    return doc.documentElement?.outerHTML || doc.body?.innerHTML || "";
+  };
+
+  // Scope CSS: prefix every selector with .doc-N to avoid conflicts
+  const scopeStyles = (css, scopeClass) => {
+    // Remove @media blocks first, process them separately
+    let result = '';
+    let remaining = css;
+
+    // Process @media blocks
+    const mediaRegex = /@media\s+[^{]+\{([\s\S]*?\})\s*\}/g;
+    let mediaMatch;
+    const mediaBlocks = [];
+    while ((mediaMatch = mediaRegex.exec(css)) !== null) {
+      const inner = mediaMatch[1];
+      // Scope the inner rules
+      const scoped = inner.replace(/([^{}@]+)\{([^{}]+)\}/g, (m, sel, body) => {
+        const scopedSel = sel.split(',').map(s => {
+          s = s.trim();
+          if (!s || s.startsWith('@')) return s;
+          if (s === 'body' || s === 'html') return '.' + scopeClass;
+          return '.' + scopeClass + ' ' + s;
+        }).join(', ');
+        return scopedSel + '{' + body + '}';
+      });
+      mediaBlocks.push(mediaMatch[0].replace(mediaMatch[1], scoped));
+    }
+
+    // Remove @media from remaining
+    remaining = remaining.replace(mediaRegex, '');
+
+    // Scope remaining rules
+    const scoped = remaining.replace(/([^{}@]+)\{([^{}]+)\}/g, (m, sel, body) => {
+      const scopedSel = sel.split(',').map(s => {
+        s = s.trim();
+        if (!s || s.startsWith('@') || s.startsWith('/*')) return s;
+        if (s === 'body' || s === 'html') return '.' + scopeClass;
+        return '.' + scopeClass + ' ' + s;
+      }).join(', ');
+      return scopedSel + '{' + body + '}';
+    });
+
+    return scoped + '\n' + mediaBlocks.join('\n');
+  };
+
+  // Build sections from all documents
+  const docHtmls = [
+    getFullHtml(itineraryDoc),
+    getFullHtml(flightDoc),
+    ...hotelHtmls
+  ];
+
+  let allStyles = '';
+  let allSections = '';
+
+  docHtmls.forEach((html, i) => {
+    const scopeClass = 'doc-' + i;
+    const styles = extractStyles(html);
+    const body = extractBody(html);
+
+    // Scope the CSS and add print overrides
+    allStyles += `
+      /* Document ${i} styles */
+      ${scopeStyles(styles, scopeClass)}
+      .${scopeClass} .a4, .${scopeClass} .a4-page {
+        min-height: auto !important;
+        height: auto !important;
+        page-break-after: auto !important;
+      }
+    `;
+
+    const pageBreak = i > 0 ? 'page-break-before: always;' : '';
+    allSections += `<div class="${scopeClass}" style="${pageBreak}">${body}</div>\n`;
+  });
 
   const combinedHtml = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  ${mergedHead}
+  <title>Combined Package PDF</title>
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; margin: 0; padding: 0; }
     @media print {
-      body { margin: 0; }
       @page { size: A4; margin: 10mm; }
     }
+    ${allStyles}
   </style>
 </head>
 <body>
-  <section style="page-break-after: always;">${itineraryBody}</section>
-  <section style="page-break-after: always;">${flightBody}</section>
-  <section>${hotelBody}</section>
+  ${allSections}
 </body>
 </html>`;
 
@@ -5419,13 +5510,9 @@ function printCombinedPackagePdf() {
   printWin.document.close();
 
   printWin.onload = () => {
-    setTimeout(() => {
-      printWin.print();
-    }, 300);
+    setTimeout(() => { printWin.print(); }, 500);
   };
-  setTimeout(() => {
-    printWin.print();
-  }, 900);
+  setTimeout(() => { printWin.print(); }, 1000);
 }
 
 exportAllHotelPdfBtn.addEventListener("click", printAllHotelsAsPdf);

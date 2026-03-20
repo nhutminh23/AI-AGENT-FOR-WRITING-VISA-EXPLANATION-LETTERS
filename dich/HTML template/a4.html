@@ -14,7 +14,7 @@
     }
     .a4-page {
       width: 210mm;
-      min-height: 297mm;
+      min-/* height: 297mm; — overridden by print fix */
       margin: 0 auto;
       background: #fff;
       padding: 18mm;
@@ -42,7 +42,23 @@
         min-height: unset;
       }
     }
-  </style>
+  
+/* PDF Print Fix */
+.a4, .a4-page {
+  min-height: 297mm;
+  page-break-after: always;
+  page-break-inside: avoid;
+  overflow: hidden;
+}
+.a4:last-child, .a4-page:last-child {
+  page-break-after: auto;
+}
+@media print {
+  body { margin: 0; padding: 0; background: #fff !important; }
+  .a4, .a4-page { box-shadow: none !important; margin: 0; }
+}
+
+</style>
 </head>
 <body>
   <div class="a4-page">
