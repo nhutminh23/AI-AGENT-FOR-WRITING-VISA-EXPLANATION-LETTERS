@@ -400,14 +400,18 @@
             </div>
             <div id="dbBookingStatus" style="margin-top:6px; font-size:0.85em; color:#64748b;"></div>
           </div>
-          <div class="row" id="fileSelectRow" style="display:none;">
-            <div>
-              <label for="flightFile">File vé máy bay</label>
-              <select id="flightFile"></select>
-            </div>
-            <div>
-              <label for="hotelFile">File booking khách sạn</label>
-              <select id="hotelFile"></select>
+          <div id="fileSelectRow" style="display:none; margin-top:10px;">
+            <div class="row">
+              <div>
+                <label>✈️ File vé máy bay (HTML)</label>
+                <input type="file" id="flightFileInput" accept=".html,.htm" style="margin-top:4px;" />
+                <div id="flightFilePreview" style="font-size:0.8em; color:#64748b; margin-top:2px;"></div>
+              </div>
+              <div>
+                <label>🏨 File booking khách sạn (HTML) — chọn nhiều file nếu có</label>
+                <input type="file" id="hotelFileInput" accept=".html,.htm" multiple style="margin-top:4px;" />
+                <div id="hotelFilePreview" style="font-size:0.8em; color:#64748b; margin-top:2px;"></div>
+              </div>
             </div>
           </div>
           <div class="row" style="margin-top: 10px;">

@@ -17,19 +17,57 @@ const loadStepsBtn = document.getElementById("loadStepsBtn");
 const runAllBtn = document.getElementById("runAllBtn");
 const runItineraryBtn = document.getElementById("runItineraryBtn");
 const exportItineraryPdfBtn = document.getElementById("exportItineraryPdfBtn");
-const flightFileEl = document.getElementById("flightFile");
-const hotelFileEl = document.getElementById("hotelFile");
+const flightFileInputEl = document.getElementById("flightFileInput");
+const hotelFileInputEl = document.getElementById("hotelFileInput");
+const flightFilePreviewEl = document.getElementById("flightFilePreview");
+const hotelFilePreviewEl = document.getElementById("hotelFilePreview");
 const itineraryResultEl = document.getElementById("itineraryResult");
 const bookingSourceDbEl = document.getElementById("bookingSourceDb");
 const bookingSourceFileEl = document.getElementById("bookingSourceFile");
 const fileSelectRowEl = document.getElementById("fileSelectRow");
 const dbBookingStatusEl = document.getElementById("dbBookingStatus");
 
+// File preview updates
+if (flightFileInputEl) flightFileInputEl.addEventListener("change", () => {
+  const f = flightFileInputEl.files[0];
+  flightFilePreviewEl.textContent = f ? `✈️ ${f.name}` : "";
+});
+if (hotelFileInputEl) hotelFileInputEl.addEventListener("change", () => {
+  const files = hotelFileInputEl.files;
+  if (files.length > 0) {
+    hotelFilePreviewEl.textContent = `🏨 ${Array.from(files).map(f => f.name).join(", ")}`;
+  } else {
+    hotelFilePreviewEl.textContent = "";
+  }
+});
+
+// Helper: read file as text via FileReader (returns Promise)
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error(`Không đọc được file: ${file.name}`));
+    reader.readAsText(file);
+  });
+}
+
 // Toggle file selection visibility based on booking source
 function updateBookingSourceUI() {
   const isDb = bookingSourceDbEl.checked;
-  fileSelectRowEl.style.display = isDb ? "none" : "flex";
-  if (isDb) checkDbBookingStatus();
+  fileSelectRowEl.style.display = isDb ? "none" : "block";
+  if (isDb) {
+    // Switching to DB mode: show DB status
+    dbBookingStatusEl.style.display = "";
+    checkDbBookingStatus();
+  } else {
+    // Switching to File Upload mode: hide DB status + clear form (no DB data)
+    dbBookingStatusEl.style.display = "none";
+    if (itParticipantsEl) itParticipantsEl.value = "";
+    if (itTravelStartDateEl) itTravelStartDateEl.value = "";
+    if (itTravelEndDateEl) itTravelEndDateEl.value = "";
+    if (itTravelPurposeEl) itTravelPurposeEl.value = "";
+    if (extractStatusEl) extractStatusEl.textContent = "";
+  }
 }
 bookingSourceDbEl.addEventListener("change", updateBookingSourceUI);
 bookingSourceFileEl.addEventListener("change", updateBookingSourceUI);
@@ -64,11 +102,37 @@ extractItineraryBtn.addEventListener("click", async () => {
   extractStatusEl.textContent = "";
 
   try {
-    const pid = getProjectId();
-    const url = "/api/booking/trip/latest" + (pid ? `?project_id=${pid}` : "");
-    const res = await fetch(url);
-    const data = await res.json();
-    const ti = data.trip_info || {};
+    const useDb = bookingSourceDbEl.checked;
+    let ti = {};
+
+    if (useDb) {
+      // Mode DB: fetch from database
+      const pid = getProjectId();
+      const url = "/api/booking/trip/latest" + (pid ? `?project_id=${pid}` : "");
+      const res = await fetch(url);
+      const data = await res.json();
+      ti = data.trip_info || {};
+    } else {
+      // Mode File Upload: read uploaded files and send HTML content to server
+      const flightFiles = flightFileInputEl?.files || [];
+      const hotelFiles = hotelFileInputEl?.files || [];
+      if (flightFiles.length === 0 || hotelFiles.length === 0) {
+        extractStatusEl.innerHTML = '<span style="color:#d97706;">⚠️ Vui lòng chọn đủ file vé máy bay và file booking khách sạn trước.</span>';
+        return;
+      }
+      const flightHtml = await readFileAsText(flightFiles[0]);
+      const hotelHtmls = [];
+      for (const f of hotelFiles) {
+        hotelHtmls.push(await readFileAsText(f));
+      }
+      const res = await fetch("/api/itinerary/extract_from_html", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flight_html: flightHtml, hotel_htmls: hotelHtmls }),
+      });
+      const data = await res.json();
+      ti = data.trip_info || {};
+    }
 
     // Auto-fill form fields from trip info
     const guests = ti.guest_names || [];
@@ -2218,16 +2282,7 @@ async function runStep(step, force = false) {
 }
 
 function renderFileOptions() {
-  const fileValue = (f) => f.rel_path || f.name;
-  const fileLabel = (f) => f.rel_path || f.name;
-  const makeOptions = (files) =>
-    [
-      '<option value="">-- Chọn file --</option>',
-      ...files.map((f) => `<option value="${fileValue(f)}">${fileLabel(f)}</option>`),
-    ].join("");
-
-  flightFileEl.innerHTML = makeOptions(cachedFiles);
-  hotelFileEl.innerHTML = makeOptions(cachedFiles);
+  // No-op: file upload pickers don't need server-side file list
 }
 
 function collectItineraryFormData() {
@@ -2279,12 +2334,26 @@ async function runItinerary() {
   const runBtn = document.getElementById("runItineraryBtn");
   const originalBtnText = runBtn.textContent;
 
+  // For file upload mode: read HTML content from uploaded files
+  let uploadedFlightHtml = null;
+  let uploadedHotelHtmls = null;
   if (!useDb) {
-    const flightFile = flightFileEl.value;
-    const hotelFile = hotelFileEl.value;
-    if (!flightFile || !hotelFile) {
+    const flightFiles = flightFileInputEl?.files || [];
+    const hotelFiles = hotelFileInputEl?.files || [];
+    if (flightFiles.length === 0 || hotelFiles.length === 0) {
       itineraryResultEl.srcdoc =
-        "<p>Vui lòng chọn đủ file vé máy bay và khách sạn.</p>";
+        "<p>Vui lòng chọn đủ file vé máy bay và file booking khách sạn.</p>";
+      syncCombinedPreviews();
+      return;
+    }
+    try {
+      uploadedFlightHtml = await readFileAsText(flightFiles[0]);
+      uploadedHotelHtmls = [];
+      for (const f of hotelFiles) {
+        uploadedHotelHtmls.push(await readFileAsText(f));
+      }
+    } catch (e) {
+      itineraryResultEl.srcdoc = `<p>Lỗi đọc file: ${e.message}</p>`;
       syncCombinedPreviews();
       return;
     }
@@ -2362,8 +2431,9 @@ async function runItinerary() {
     if (useDb) {
       payload.from_db = true;
     } else {
-      payload.flight_file = flightFileEl.value;
-      payload.hotel_file = hotelFileEl.value;
+      // Send uploaded HTML content directly
+      payload.flight_html = uploadedFlightHtml;
+      payload.hotel_htmls = uploadedHotelHtmls;
     }
 
     const res = await fetch("/api/itinerary/run_stream", {
@@ -3584,6 +3654,10 @@ async function runAIBooking(target = "both") {
   if (runAIBookingHotelBtn) runAIBookingHotelBtn.disabled = true;
   if (runAIBookingFlightBtn) runAIBookingFlightBtn.disabled = true;
   if (activeBtn) activeBtn.textContent = "⏳ AI đang xử lý...";
+  // Mutual lock: disable SerpAPI buttons while AI is running
+  if (serpHotelSearchBtn) { serpHotelSearchBtn.disabled = true; serpHotelSearchBtn.style.opacity = '0.5'; }
+  if (serpHotelGenerateBtn) { serpHotelGenerateBtn.disabled = true; serpHotelGenerateBtn.style.opacity = '0.5'; }
+  if (serpHotelGenerateStatusEl) serpHotelGenerateStatusEl.innerHTML = `<span style='color:#d97706; font-size:0.85em;'>⏳ Đang chờ AI Booking hoàn thành...</span>`;
 
   // Build step-by-step progress UI
   const stepLabels = {
@@ -3747,6 +3821,10 @@ async function runAIBooking(target = "both") {
     if (activeBtn) activeBtn.textContent = originalBtnText;
     if (runAIBookingHotelBtn) runAIBookingHotelBtn.disabled = false;
     if (runAIBookingFlightBtn) runAIBookingFlightBtn.disabled = false;
+    // Mutual unlock: re-enable SerpAPI buttons
+    if (serpHotelSearchBtn) { serpHotelSearchBtn.disabled = false; serpHotelSearchBtn.style.opacity = ''; }
+    if (serpHotelGenerateBtn) { serpHotelGenerateBtn.disabled = false; serpHotelGenerateBtn.style.opacity = ''; }
+    if (serpHotelGenerateStatusEl && serpHotelGenerateStatusEl.textContent.includes('Đang chờ')) serpHotelGenerateStatusEl.innerHTML = '';
   }
 }
 
@@ -4436,6 +4514,10 @@ async function serpGenerateHotelBooking() {
   serpHotelGenerateBtn.disabled = true;
   serpHotelGenerateBtn.textContent = "⏳ Đang tạo booking...";
   serpHotelGenerateStatusEl.innerHTML = "";
+  // Mutual lock: disable AI button while SerpAPI is generating
+  if (runAIBookingHotelBtn) { runAIBookingHotelBtn.disabled = true; runAIBookingHotelBtn.style.opacity = '0.5'; }
+  const aiBookingStatusEl = document.getElementById('aiBookingStatus');
+  if (aiBookingStatusEl) aiBookingStatusEl.innerHTML = `<span style='color:#d97706; font-size:0.85em;'>⏳ Đang chờ SerpAPI Booking hoàn thành...</span>`;
 
   try {
     // Build hotel data for each selected stop
@@ -4501,6 +4583,10 @@ async function serpGenerateHotelBooking() {
   } finally {
     serpHotelGenerateBtn.disabled = false;
     serpHotelGenerateBtn.textContent = "✅ Tạo booking từ kết quả";
+    // Mutual unlock: re-enable AI button
+    if (runAIBookingHotelBtn) { runAIBookingHotelBtn.disabled = false; runAIBookingHotelBtn.style.opacity = ''; }
+    const aiBookingStatusEl2 = document.getElementById('aiBookingStatus');
+    if (aiBookingStatusEl2 && aiBookingStatusEl2.textContent.includes('Đang chờ')) aiBookingStatusEl2.textContent = 'Chưa chạy.';
   }
 }
 

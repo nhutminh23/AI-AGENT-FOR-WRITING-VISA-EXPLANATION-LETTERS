@@ -3435,8 +3435,8 @@ def run_itinerary():
         if os.path.exists(summary_path):
             with open(summary_path, "r", encoding="utf-8") as f:
                 summary_profile = f.read().strip()
-    # If still empty, try to build from trip info (make it optional)
-    if not summary_profile and project_id:
+    # Only fall back to DB trip info when explicitly using DB mode
+    if not summary_profile and from_db and project_id:
         ti = db.get_latest_trip_info(int(project_id))
         if ti and ti.get("data"):
             d = ti["data"]
@@ -3476,14 +3476,21 @@ def run_itinerary():
         hotel_htmls = booking.get("hotel_htmls", [])
         hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in hotel_htmls)
     else:
-        if not flight_file or not hotel_file:
+        # New: accept HTML content directly from browser file upload
+        uploaded_flight_html = payload.get("flight_html")
+        uploaded_hotel_htmls = payload.get("hotel_htmls")  # list of HTML strings
+        if uploaded_flight_html and uploaded_hotel_htmls:
+            flight_text = _html_to_text(uploaded_flight_html)
+            hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in uploaded_hotel_htmls)
+        elif flight_file and hotel_file:
+            flight_path = _resolve_input_file_path(input_dir, str(flight_file))
+            hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
+            if not flight_path or not hotel_path:
+                return jsonify({"error": "missing_files"}), 400
+            flight_text = extract_text_with_openai(llm, flight_path)
+            hotel_text = extract_text_with_openai(llm, hotel_path)
+        else:
             return jsonify({"error": "missing_files"}), 400
-        flight_path = _resolve_input_file_path(input_dir, str(flight_file))
-        hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
-        if not flight_path or not hotel_path:
-            return jsonify({"error": "missing_files"}), 400
-        flight_text = extract_text_with_openai(llm, flight_path)
-        hotel_text = extract_text_with_openai(llm, hotel_path)
 
     itinerary = itinerary_writer(llm, flight_text, hotel_text, summary_profile)
 
@@ -3511,6 +3518,9 @@ def run_itinerary_stream():
     output_path = payload.get("output", os.path.join("output", "itinerary.html"))
     flight_file = payload.get("flight_file")
     hotel_file = payload.get("hotel_file")
+    # New: accept HTML content directly from browser file upload
+    uploaded_flight_html = payload.get("flight_html")
+    uploaded_hotel_htmls = payload.get("hotel_htmls")  # list of HTML strings
     from_db = payload.get("from_db", False)
     model = payload.get("model") or get_text_model()
     project_id = payload.get("project_id")
@@ -3530,7 +3540,8 @@ def run_itinerary_stream():
             if os.path.exists(summary_path):
                 with open(summary_path, "r", encoding="utf-8") as f:
                     summary_profile = f.read().strip()
-        if not summary_profile and project_id:
+        # Only fall back to DB trip info when explicitly using DB mode
+        if not summary_profile and from_db and project_id:
             ti = db.get_latest_trip_info(int(project_id))
             if ti and ti.get("data"):
                 d = ti["data"]
@@ -3577,20 +3588,28 @@ def run_itinerary_stream():
                 hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in hotel_htmls)
                 yield from send_event(2, "✅ Trích xuất nội dung hoàn tất")
             else:
-                if not flight_file or not hotel_file:
+                # Option A: HTML content uploaded directly from browser
+                if uploaded_flight_html and uploaded_hotel_htmls:
+                    yield from send_event(1, "✅ Đã nhận file từ trình duyệt")
+                    yield from send_event(2, "⏳ Đang trích xuất nội dung booking...")
+                    flight_text = _html_to_text(uploaded_flight_html)
+                    hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in uploaded_hotel_htmls)
+                    yield from send_event(2, "✅ Trích xuất nội dung hoàn tất")
+                # Option B: Legacy file path approach (backward compatible)
+                elif flight_file and hotel_file:
+                    flight_path = _resolve_input_file_path(input_dir, str(flight_file))
+                    hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
+                    if not flight_path or not hotel_path:
+                        yield from send_event(-1, "❌ Không tìm thấy file đã chọn")
+                        return
+                    yield from send_event(1, "✅ Đã tìm thấy file")
+                    yield from send_event(2, "⏳ AI đang đọc vé máy bay & khách sạn...")
+                    flight_text = extract_text_with_openai(llm, flight_path)
+                    hotel_text = extract_text_with_openai(llm, hotel_path)
+                    yield from send_event(2, "✅ Đọc nội dung file hoàn tất")
+                else:
                     yield from send_event(-1, "❌ Vui lòng chọn đủ file vé máy bay và khách sạn")
                     return
-                flight_path = _resolve_input_file_path(input_dir, str(flight_file))
-                hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
-                if not flight_path or not hotel_path:
-                    yield from send_event(-1, "❌ Không tìm thấy file đã chọn")
-                    return
-                yield from send_event(1, "✅ Đã tìm thấy file")
-
-                yield from send_event(2, "⏳ AI đang đọc vé máy bay & khách sạn...")
-                flight_text = extract_text_with_openai(llm, flight_path)
-                hotel_text = extract_text_with_openai(llm, hotel_path)
-                yield from send_event(2, "✅ Đọc nội dung file hoàn tất")
 
             # Step 3: Generate itinerary
             yield from send_event(3, "⏳ AI đang viết lịch trình chi tiết...")
@@ -3910,6 +3929,72 @@ def get_booking_trip_latest():
         merged.update(data)
     return jsonify({"trip_info": merged})
 
+
+@app.post("/api/itinerary/extract_from_html")
+def extract_trip_from_html():
+    """Extract trip info (guests, dates, purpose) from uploaded HTML content."""
+    payload = request.get_json(force=True) or {}
+    flight_html = payload.get("flight_html", "")
+    hotel_htmls = payload.get("hotel_htmls", [])
+
+    import re as _re
+
+    def _strip_tags(html_str):
+        text = _re.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=_re.DOTALL)
+        text = _re.sub(r'<script[^>]*>.*?</script>', '', text, flags=_re.DOTALL)
+        text = _re.sub(r'<[^>]+>', ' ', text)
+        text = _re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    all_text = _strip_tags(flight_html)
+    for h in hotel_htmls:
+        all_text += "\n" + _strip_tags(h)
+
+    # Extract dates (YYYY-MM-DD or DD/MM/YYYY patterns)
+    dates = []
+    for m in _re.finditer(r'(\d{4}-\d{2}-\d{2})', all_text):
+        dates.append(m.group(1))
+    for m in _re.finditer(r'(\d{2}/\d{2}/\d{4})', all_text):
+        parts = m.group(1).split("/")
+        dates.append(f"{parts[2]}-{parts[1]}-{parts[0]}")
+
+    travel_start = min(dates) if dates else ""
+    travel_end = max(dates) if dates else ""
+
+    # Extract passenger/guest names from common patterns
+    names = set()
+    # Pattern: "Passenger: NAME" or "Guest: NAME" or "Name: NAME"
+    for m in _re.finditer(r'(?:Passenger|Guest|Họ tên|Name|Tên)\s*[:\-]\s*([A-ZÀ-Ỹ][A-ZÀ-Ỹa-zà-ỹ\s]{2,40})', all_text):
+        name = m.group(1).strip()
+        if len(name) > 2 and not any(w in name.lower() for w in ['hotel', 'airline', 'booking', 'check', 'room']):
+            names.add(name)
+    # Pattern: "Mr/Mrs/Ms NAME" 
+    for m in _re.finditer(r'(?:Mr|Mrs|Ms|MR|MRS|MS)\.?\s+([A-ZÀ-Ỹ][A-ZÀ-Ỹa-zà-ỹ\s]{2,40})', all_text):
+        name = m.group(1).strip()
+        if len(name) > 2:
+            names.add(name)
+    # Pattern: ALL CAPS names (common in booking) — look for 2+ word uppercase sequences
+    for m in _re.finditer(r'\b([A-ZÀ-Ỹ]{2,}\s+[A-ZÀ-Ỹ]{2,}(?:\s+[A-ZÀ-Ỹ]{2,})*)\b', all_text):
+        candidate = m.group(1).strip()
+        skip_words = {'CHECK IN', 'CHECK OUT', 'HOTEL NAME', 'ROOM TYPE', 'BOOKING ID',
+                       'MEMBER ID', 'CONFIRMATION', 'TOTAL PRICE', 'FLIGHT NUMBER',
+                       'DEPARTURE TIME', 'ARRIVAL TIME', 'BOOKING CONFIRMATION',
+                       'ECONOMY CLASS', 'BUSINESS CLASS', 'FIRST CLASS', 'ONE WAY',
+                       'ROUND TRIP', 'GUEST NAME', 'HOTEL BOOKING', 'FLIGHT BOOKING',
+                       'IATA CODE', 'MEMBER NUMBER', 'BOOKING REFERENCE'}
+        if candidate not in skip_words and 4 < len(candidate) < 40:
+            names.add(candidate)
+
+    guest_names = sorted(list(names))
+
+    return jsonify({
+        "trip_info": {
+            "guest_names": guest_names,
+            "travel_start_date": travel_start,
+            "travel_end_date": travel_end,
+            "travel_purpose": "Tourism",
+        }
+    })
 
 @app.post("/api/booking/trip/save")
 def save_booking_trip():
