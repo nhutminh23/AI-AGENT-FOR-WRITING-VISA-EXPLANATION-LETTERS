@@ -1,179 +1,91 @@
-# 🏥 ĐÁNH GIÁ SỨC KHỎE CODE — 21/03/2026
+# 🏥 ĐÁNH GIÁ LẠI SỨC KHỎE CODE — 21/03/2026 (Post-Fix)
 
-## 📊 Tổng quan Project
+## 📈 Điểm số tổng: **8.5 / 10** ⭐ (trước: 7.5)
 
-| Chỉ số | Giá trị |
-|---|---|
-| **Tổng code** | **32,282 dòng** |
-| Python (backend) | 24 files — 11,863 dòng |
-| JavaScript (frontend) | 12 files — 6,983 dòng |
-| HTML | 13,064 dòng |
-| CSS | 372 dòng |
-| Git commits | 45 |
-| API endpoints | 92 routes |
-| Blueprints | 5 |
+| Hạng mục | Trước | Sau | Thay đổi |
+|---|---|---|---|
+| 🔒 Bảo mật | 9/10 | 9/10 | — |
+| 🏗️ Kiến trúc | 8.5/10 | 8.5/10 | — |
+| 📦 Modular hóa | 8/10 | 8/10 | — |
+| 🧹 Code sạch | 7/10 | **8.5/10** | **+1.5** ↑ |
+| ⚡ Error handling | 7/10 | **9/10** | **+2** ↑ |
+| 🧪 Test coverage | 1/10 | 1/10 | — |
+| 📖 Documentation | 7/10 | 7.5/10 | **+0.5** ↑ |
 
 ---
 
-## 📈 Điểm số tổng: **7.5 / 10** ⭐
+## ⚡ Error Handling — Chi tiết scan
 
-| Hạng mục | Điểm | Đánh giá |
+| Metric | Trước (9h sáng) | Sau (10h sáng) |
 |---|---|---|
-| 🔒 Bảo mật | 9/10 | ✅ Tuyệt vời |
-| 🏗️ Kiến trúc | 8.5/10 | ✅ Rất tốt (sau refactoring) |
-| 📦 Modular hóa | 8/10 | ✅ Tốt |
-| 🧹 Code sạch | 7/10 | 🟡 Khá |
-| ⚡ Error handling | 7/10 | 🟡 Khá |
-| 🧪 Test coverage | 1/10 | 🔴 Không có |
-| 📖 Documentation | 7/10 | 🟡 Khá |
+| `except:` (bare — nguy hiểm) | **1** | **0** ✅ |
+| `except Exception:` (nuốt lỗi) | **44** | **0** ✅ |
+| `except Exception as e:` (đúng chuẩn) | ~57 | **102** ✅ |
+| Files có `import logging` | 0 | **10** ✅ |
+| Total try blocks | 151 | 151 |
+| Error capture rate | ~56% | **100%** ✅ |
 
 ---
 
-## ✅ Điểm tốt
+## 🧹 Code Sạch — Chi tiết scan
 
-### 1. Kiến trúc Blueprint — Sau refactoring
-- `server.py` chỉ **25 dòng** (entry point thuần)
-- 5 blueprints tách biệt theo domain
-- Config tập trung **13 constants** trong `config.py`
-
-### 2. Bảo mật
-- `.env` trong `.gitignore` ✅
-- API keys từ `os.getenv()` ✅
-- Không `eval()/exec()/os.system()` ✅
-- Path traversal protection (dịch thuật) ✅
-
-### 3. Frontend modular
-- `app.js` **314 dòng** (từ 6,942)
-- **12 ES6 modules** tách theo feature
-
-### 4. Error handling pattern
-- `QuotaExhaustedError` custom exception
-- 147 try/except blocks (trung bình ~10/file)
-- Quota detection + propagation
+| Metric | Trước | Sau |
+|---|---|---|
+| Hardcoded paths | 31+ | **0** (13 constants trong config.py) ✅ |
+| Duplicate functions | 1 | **0** ✅ |
+| Dead code | 558 lines | **0** ✅ |
+| Wildcard imports | 0 | 0 ✅ |
+| Commented-out code | ? | **1 line** ✅ |
+| `server.py` | 6,262 lines | **25 lines** ✅ |
+| `app.js` | 6,942 lines | **314 lines** ✅ |
 
 ---
 
-## ⚠️ Cần cải thiện
+## ✅ Điểm tốt (cải thiện so với bản trước)
+
+1. **Error handling 100%** — Tất cả 102 except block đều capture lỗi + logging
+2. **Zero bare except** — Không còn nuốt exceptions
+3. **Kiến trúc blueprint** — 5 blueprints, 92 routes, entry point 25 dòng
+4. **Config tập trung** — 13 directory constants, 0 hardcoded paths
+5. **Frontend modular** — 12 ES6 modules thay vì 1 file 6,942 dòng
+6. **Bảo mật tốt** — Env vars, no eval(), no hardcoded keys, path traversal protection
+
+---
+
+## ⚠️ Vấn đề còn lại
 
 ### 🔴 Ưu tiên CAO
 
-| # | Vấn đề | File | Chi tiết |
-|---|---|---|---|
-| 1 | **Không có unit tests** | toàn project | 0 test files. Nếu sửa code → không biết có hỏng gì |
-| 2 | **2 hàm quá dài** | `ai_agent.py`, `splitter.py` | `extract_trip_info()` 108 dòng, `run_translate_stream()` 156 dòng |
+| # | Vấn đề | Gợi ý |
+|---|---|---|
+| 1 | **Không có unit tests** | Thêm pytest, ưu tiên test config.py, helpers.py, database.py |
 
 ### 🟡 Ưu tiên TRUNG BÌNH
 
-| # | Vấn đề | File | Chi tiết |
-|---|---|---|---|
-| 3 | **Bare `except:`** | `precheck.py` | Bắt mọi exception → nuốt lỗi |
-| 4 | **Frontend files lớn** | `splitter.js` (1,671), `pipeline.js` (1,378) | Có thể tách nhỏ hơn |
-| 5 | **`debug=True` trong production** | `server.py` | Cần tắt khi deploy |
+| # | Vấn đề | Gợi ý |
+|---|---|---|
+| 2 | 2 hàm quá dài (108, 156 dòng) | Tách thành sub-functions |
+| 3 | `splitter.js` 1,671 dòng | Tách translate logic ra file riêng |
+| 4 | `debug=True` trong server | Config đã hỗ trợ, cần dùng `Config.DEBUG` |
 
 ### 🟢 Ưu tiên THẤP
 
-| # | Vấn đề | Chi tiết |
+| # | Vấn đề | Gợi ý |
 |---|---|---|
-| 6 | `index.html` 891 dòng | Có thể tách thành partials |
-| 7 | Thiếu type hints | Nhiều hàm không có type annotation |
-| 8 | `core/prompts.py` 792 dòng | Prompt templates dài, khó maintain |
+| 5 | Thiếu type hints | Thêm type annotations dần |
+| 6 | `core/prompts.py` 792 dòng | Prompt templates dài, có thể tách theo domain |
 
 ---
 
-## 📊 Chi tiết Backend (Python)
+## 📊 Tổng kết refactoring session 21/03/2026
 
-### Top files theo kích thước
-
-| File | Dòng | Hàm | Try/Except |
-|---|---|---|---|
-| `routes/pipeline.py` | 2,204 | 50 | 33 |
-| `routes/booking.py` | 1,434 | 21 | 22 |
-| `booking/generator.py` | 1,328 | 19 | 10 |
-| `routes/splitter.py` | 1,140 | 27 | 23 |
-| `booking/ai_agent.py` | 1,030 | 17 | 11 |
-| `routes/precheck.py` | 978 | 6 | 11 |
-| `core/prompts.py` | 792 | 0 | 0 |
-| `classifier/agent.py` | 754 | 16 | 11 |
-| `core/agents.py` | 639 | 19 | 5 |
-| `pdf_tools/ai_service.py` | 501 | 9 | 3 |
-
-### Hàm quá dài (>80 dòng)
-
-| Hàm | File | Dòng |
-|---|---|---|
-| `extract_trip_info()` | `booking/ai_agent.py:561` | 108 |
-| `run_translate_stream()` | `routes/splitter.py:873` | 156 |
-
----
-
-## 📊 Chi tiết Frontend (JavaScript)
-
-| File | Dòng | Vai trò |
-|---|---|---|
-| `splitter.js` | 1,671 | PDF splitter + dịch thuật UI |
-| `pipeline.js` | 1,378 | Pipeline xử lý UI |
-| `booking.js` | 628 | Booking UI |
-| `projects.js` | 582 | Projects CRUD UI |
-| `events.js` | 512 | Event handlers |
-| `flights.js` | 461 | Flights search UI |
-| `ui-helpers.js` | 410 | Shared UI utilities |
-| `hotels.js` | 348 | Hotels search UI |
-| `app.js` | 314 | Main entry (imports) |
-| `pdf-editor.js` | 300 | PDF editor UI |
-| `output.js` | 236 | Output display UI |
-| `precheck.js` | 143 | Pre-check scan UI |
-
----
-
-## 🔧 Gợi ý cải thiện (theo thứ tự ưu tiên)
-
-### 1. 🧪 Thêm Unit Tests (Ưu tiên cao nhất)
-```
-Tạo tests/ folder với pytest
-Ưu tiên test:
-- config.py (đơn giản nhất)
-- core/helpers.py
-- database.py (CRUD operations)
-- classifier/agent.py (classification logic)
-```
-
-### 2. 🔪 Tách 2 hàm dài
-```
-extract_trip_info() → tách thành:
-  - _parse_trip_dates()
-  - _extract_city_stays()
-  - _build_trip_summary()
-
-run_translate_stream() → tách thành:
-  - _prepare_translation_source()
-  - _run_ocr_translate_pipeline()
-  - _build_and_save_html()
-```
-
-### 3. 🛡️ Fix bare except
-```
-precheck.py: except: → except Exception as e:
-```
-
-### 4. 📝 Thêm docstrings
-```
-Các hàm public trong routes/ nên có docstring mô tả:
-- Input parameters
-- Return format
-- Side effects
-```
-
----
-
-## 📋 So sánh trước/sau Refactoring
-
-| Metric | Trước (20/03) | Sau (21/03) | Thay đổi |
-|---|---|---|---|
-| `server.py` | 6,262 dòng | 25 dòng | **-99.6%** |
-| `app.js` | 6,942 dòng | 314 dòng | **-95.5%** |
-| Hardcoded paths | 31+ chỗ | 0 | **-100%** |
-| Config constants | 6 | 13 | **+117%** |
-| Dead code | 558 dòng | 0 | **-100%** |
-| Blueprints | 0 | 5 | ✅ |
-| JS modules | 1 file | 12 files | ✅ |
-| Duplicate functions | 1 | 0 | ✅ |
+| Thay đổi | Số lượng |
+|---|---|
+| Files modified | 10 |
+| `except` blocks fixed | 45 |
+| `import logging` added | 10 files |
+| Hardcoded paths eliminated | 31+ |
+| Config constants added | 13 |
+| Duplicate functions removed | 1 |
+| Dead code removed | 558 lines |
+| Commits | 2 |
