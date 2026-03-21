@@ -253,7 +253,7 @@ Create a PROFESSIONAL TRAVEL ITINERARY (IN ENGLISH ONLY) for visa application su
 – The itinerary must match:
 • flight dates
 • hotel bookings
-• applicant’s job, income, and profile
+• applicant's job, income, and profile
 – If information is missing, make reasonable and conservative assumptions
 – The itinerary must look realistic, short-term, and compliant with visa purpose
 – Tone: formal, factual, neutral (no marketing language)
@@ -268,86 +268,65 @@ Create a PROFESSIONAL TRAVEL ITINERARY (IN ENGLISH ONLY) for visa application su
   • Example: "Nguyễn Thị Bảo Châu" → "NGUYEN THI BAO CHAU"
 
 ────────────────────
-OUTPUT FORMAT (STRICTLY FOLLOW) - FULL HTML
+OUTPUT FORMAT (STRICTLY FOLLOW) - JSON
 
-Return a COMPLETE HTML document (include <!DOCTYPE html>, <html>, <head>, <body>).
-The document MUST include:
-- An A4 layout container with borders and print styles
-- A table with visible borders
+Return ONLY a valid JSON object (no markdown, no backticks, no extra text).
+The JSON must have this exact structure:
 
-Use this exact layout structure and CSS (only change the content inside):
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Travel Itinerary</title>
-  <style>
-    body {{ font-family: "Times New Roman", Times, serif; line-height: 1.5; background-color: #f0f0f0; margin: 0; padding: 20px; }}
-    .a4-page {{ width: 210mm; min-height: 297mm; padding: 20mm; margin: 0 auto; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); box-sizing: border-box; }}
-    table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }}
-    th, td {{ border: 1px solid black; padding: 8px 10px; vertical-align: top; text-align: left; }}
-    th {{ background-color: #e0e0e0; font-weight: bold; text-align: center; }}
-    h1 {{ text-align: center; font-size: 24px; text-transform: uppercase; margin-bottom: 20px; }}
-    h2 {{ font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px; margin-top: 20px; }}
-    ul {{ list-style-type: none; padding-left: 0; }}
-    ul li {{ margin-bottom: 5px; }}
-    @media print {{
-      body {{ background: none; padding: 0; margin: 0; }}
-      .a4-page {{ width: 100%; margin: 0; padding: 20mm; box-shadow: none; border: none; }}
-      @page {{ size: A4; margin: 0; }}
+{{{{
+  "subtitle": "Visa type and destination, e.g. Schengen Visa Application - France",
+  "applicants": [
+    {{"name": "Mr./Mrs. FULL NAME", "passport": "passport number if available"}}
+  ],
+  "purpose": "e.g. Tourism - 10 Days / 9 Nights",
+  "destination": "e.g. France (Schengen Area)",
+  "travel_dates": "e.g. 14 May 2026 - 23 May 2026",
+  "days": [
+    {{
+      "date": "14 May 2026",
+      "day_name": "Thursday",
+      "city": "Paris",
+      "hotel_name": "Hotel Name or Check-out or In-flight",
+      "hotel_address": "Full address if available, empty string if not",
+      "transportation": ["Flight info or train or taxi etc"],
+      "program": "Description of daily activities"
     }}
-  </style>
-</head>
-<body>
-  <div class="a4-page">
-    <div class="itinerary">
-      <h1>...</h1>
-      <section>
-        <h2>Participants & Duration</h2>
-        <ul>
-          <li><strong>Participant(s):</strong> ...</li>
-          <li><strong>Travel period:</strong> From ... to ...</li>
-          <li><strong>Purpose of travel:</strong> ...</li>
-        </ul>
-      </section>
-      <section>
-        <h2>Travel Itinerary</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Daily Itinerary</th>
-              <th>Accommodation Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Rows -->
-          </tbody>
-        </table>
-      </section>
-    </div>
-  </div>
-</body>
-</html>
+  ],
+  "commitments": [
+    "This itinerary is fully consistent with the visa application form, flight tickets and hotel reservations.",
+    "Total stay in [Area]: exactly X days (date range). We undertake to leave on [end date].",
+    "All costs (flights, hotels, trains, meals, insurance) will be covered by ourselves (cash + credit cards).",
+    "Travel medical insurance has been fully paid and is attached."
+  ],
+  "signers": ["Mr. FULL NAME", "Mrs. FULL NAME"]
+}}}}
 
 RULES:
-- Output HTML ONLY. No markdown, no backticks.
-- The title must be in ALL CAPS inside <h1>.
-- The itinerary table MUST be an HTML <table>.
-- If a daily itinerary includes Morning/Afternoon/Evening segments, each segment MUST be on a new line using <br>.
-- Accommodation Details should include only the fields that exist in the booking:
-  • Hotel name (if available)
-  • Full address (if available)
-  • Hotel phone number (only if available)
-  Do NOT show fields that are missing.
-- Accommodation Details MUST NOT be blank:
-  • If staying overnight in-flight, write: "In-flight (overnight)."
-  • If the day is a transit/move day without booked accommodation, write a short neutral line such as:
-    - "Transit between cities (overnight travel)."
-    - "Check-out day (no overnight accommodation)."
-  • Do NOT use meta statements like "No hotel booking provided" or "not included in submitted documents".
+- Output JSON ONLY. No markdown, no backticks, no explanation.
+- Each day in "days" array represents ONE calendar day.
+- "hotel_name" MUST NOT be blank:
+  • If staying overnight in-flight, write: "In-flight (overnight)"
+  • If transit/move day without booked accommodation: "Transit (overnight travel)"
+  • If check-out day: "Check-out"
+- "hotel_address" can be empty string if not available.
+- "transportation" is an array of strings, each transport segment on that day.
+- "program" should include Morning/Afternoon/Evening segments separated by period.
+- "commitments" should be 3-5 bullet points specific to the trip.
+- "signers" should list all applicant names.
+- If a daily itinerary includes arrival/departure flights, include flight details.
+
+⚠️ TRANSPORTATION VARIETY (CRITICAL):
+- NEVER repeat the same generic phrase for multiple days (e.g., "Local taxi or public transport for short transfers").
+- Each day's transportation MUST be SPECIFIC to that day's activities and locations.
+- Use SPECIFIC transport modes appropriate to the destination city:
+  • Metro/subway lines with names (e.g., "Metro Line 1 to Circular Quay")
+  • Bus routes (e.g., "Bus 333 to Bondi Beach")
+  • Ferry/boat (e.g., "Manly Ferry from Circular Quay")
+  • Walking (e.g., "Walking along Bondi to Coogee coastal trail")
+  • Tram/light rail (e.g., "L1 Light Rail to The Star")
+  • Taxi/Uber only when no public transport is practical
+- For sightseeing days at the same location: describe the SPECIFIC walking route or transport needed for that day's program.
+- If no transport is needed (staying at hotel), write: "On foot within hotel vicinity"
 
 ────────────────────
 CONTENT GUIDELINES
@@ -382,8 +361,9 @@ FINAL CHECK BEFORE OUTPUT
 – Itinerary length matches leave duration
 – No contradictions with applicant profile
 – English is clear, professional, and grammatically correct
+– Output is valid JSON
 
-Now generate the Travel Itinerary according to the above requirements.
+Now generate the Travel Itinerary JSON according to the above requirements.
 """
 
 LETTER_WRITER_PROMPT = """Bạn là chuyên viên xử lý visa cấp cao của Passport Lounge.

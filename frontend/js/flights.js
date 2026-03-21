@@ -6,8 +6,12 @@
 let serpSelectedOutbound = null;
 let serpSelectedReturn = null;
 let serpMultiCityLegCount = 2;
+let _serpFlightUIInitialized = false;
 
 function initSerpFlightUI() {
+  if (_serpFlightUIInitialized) return;
+  _serpFlightUIInitialized = true;
+  console.log("[FLIGHTS] initSerpFlightUI called");
   if (!serpFlightTypeEl) return;
 
   if (tripOriginAirportEl?.value && serpDepartureIdEl && !serpDepartureIdEl.value) {
@@ -459,3 +463,12 @@ async function serpGenerateTicket() {
   }
 }
 
+// Self-initialization fallback: ensure initSerpFlightUI runs
+// even if events.js fails to call it
+if (document.readyState === "complete" || document.readyState === "interactive") {
+  // DOM already loaded, init immediately
+  setTimeout(initSerpFlightUI, 0);
+} else {
+  document.addEventListener("DOMContentLoaded", initSerpFlightUI);
+}
+window.addEventListener("load", initSerpFlightUI);

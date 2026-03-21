@@ -141,6 +141,10 @@
               <label for="tripNumNights">Tổng số đêm</label>
               <input id="tripNumNights" type="number" min="0" />
             </div>
+            <div>
+              <label for="tripNumRooms">Số phòng (0 = tự tính)</label>
+              <input id="tripNumRooms" type="number" min="0" value="0" />
+            </div>
           </div>
 
           <div class="row" style="margin-top:10px;">
@@ -287,7 +291,7 @@
                 <label for="serpOutboundDate">Ngày đi</label>
                 <input id="serpOutboundDate" type="date" />
               </div>
-              <div id="serpReturnDateDiv">
+              <div id="serpReturnDateDiv" style="display:none;">
                 <label for="serpReturnDate">Ngày về</label>
                 <input id="serpReturnDate" type="date" />
               </div>

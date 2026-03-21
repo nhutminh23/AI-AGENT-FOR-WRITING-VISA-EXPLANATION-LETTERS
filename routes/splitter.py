@@ -45,6 +45,9 @@ TRANSLATE_OUTPUT_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_OUTPUT_DI
 TRANSLATE_HTML_SAVE_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_HTML_SAVE_DIR)
 
 
+def _ensure_translate_template_dir():
+    """Create the translation template directory if it doesn't exist."""
+    os.makedirs(TRANSLATE_TEMPLATE_DIR, exist_ok=True)
 
 
 

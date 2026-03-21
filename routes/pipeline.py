@@ -25,7 +25,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pypdf import PdfReader, PdfWriter
 
 import database as db
-from core.agents import detect_domain
+from core.agents import detect_domain, itinerary_writer
 from core.errors import QuotaExhaustedError, is_quota_error
 from core.helpers import get_text_model, get_vision_model, list_input_files, cache_dir
 from config import Config
@@ -41,6 +41,26 @@ _OUTPUT_DIR = os.path.join(_BASE_DIR, "output")
 
 STEP_ORDER = ["ingest", "summary", "writer"]
 
+# Alias for backward compatibility (many routes reference _cache_dir)
+_cache_dir = cache_dir
+
+
+def _is_step_done(cache_directory: str, step: str) -> bool:
+    """Check if a pipeline step has been completed."""
+    marker = os.path.join(cache_directory, f"step_{step}.json")
+    return os.path.exists(marker)
+
+
+def _load_state(cache_directory: str) -> dict:
+    """Load cached pipeline state from JSON file."""
+    state_file = os.path.join(cache_directory, "state.json")
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
 
 def _state_path(cache_dir: str) -> str:
     return os.path.join(cache_dir, "state.json")

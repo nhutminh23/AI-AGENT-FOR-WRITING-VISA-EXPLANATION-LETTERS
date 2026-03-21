@@ -269,6 +269,7 @@ async function serpGenerateHotelBooking() {
       hotel_stops: hotelStops,
       guests: adults,
       children: children,
+      num_rooms: parseInt(tripNumRoomsEl?.value || "0") || 0,
       output_dir: bookingOutputAIEl?.value?.trim() || "output",
       project_id: getProjectId(),
     };

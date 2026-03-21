@@ -635,10 +635,113 @@ def letter_writer(state: GraphState) -> GraphState:
 
 
 def itinerary_writer(llm: Any, flight_text: str, hotel_text: str, summary_profile: str) -> str:
+    """Generate itinerary by asking LLM for JSON data, then filling the HTML template."""
+    import re
+
     prompt = ITINERARY_PROMPT.format(
         flight_text=flight_text,
         hotel_text=hotel_text,
         summary_profile=summary_profile,
     )
     result = llm.invoke([SystemMessage(content=SYSTEM_BASE), HumanMessage(content=prompt)])
-    return result.content or ""
+    raw = (result.content or "").strip()
+
+    # ── Parse JSON from LLM response ──
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
+        raw = re.sub(r"\n?```\s*$", "", raw)
+        raw = raw.strip()
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Try to extract JSON object from the response
+        match = re.search(r"\{[\s\S]+\}", raw)
+        if match:
+            try:
+                data = json.loads(match.group(0))
+            except json.JSONDecodeError:
+                logging.warning("[ITINERARY] Could not parse JSON from LLM, returning raw HTML")
+                return raw
+        else:
+            logging.warning("[ITINERARY] No JSON found in LLM response, returning raw")
+            return raw
+
+    # ── Read template ──
+    template_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "itinerary_template.html")
+    try:
+        with open(template_path, "r", encoding="utf-8") as f:
+            html = f.read()
+    except FileNotFoundError:
+        logging.error(f"[ITINERARY] Template not found: {template_path}")
+        return raw  # fallback
+
+    # ── Build HTML fragments ──
+
+    # Applicants
+    applicants = data.get("applicants", [])
+    if applicants:
+        applicants_html = "<br>".join(
+            f'{a.get("name", "")}' + (f' ({a["passport"]})' if a.get("passport") else "")
+            for a in applicants
+        )
+    else:
+        applicants_html = "N/A"
+
+    # Itinerary rows
+    rows_html = ""
+    for day in data.get("days", []):
+        date_str = day.get("date", "")
+        day_name = day.get("day_name", "")
+        city = day.get("city", "")
+        hotel_name = day.get("hotel_name", "")
+        hotel_address = day.get("hotel_address", "")
+        transportation = day.get("transportation", [])
+        program = day.get("program", "")
+
+        # Hotel cell
+        hotel_cell = f'<span class="hotel-name">{hotel_name}</span>'
+        if hotel_address:
+            hotel_cell += f'\n                        <span class="hotel-addr">{hotel_address}</span>'
+
+        # Transport cell
+        trans_cell = "\n                        ".join(
+            f'<span class="trans-info">{t}</span>' for t in transportation
+        ) if transportation else '<span class="trans-info">—</span>'
+
+        rows_html += f"""                <tr>
+                    <td class="col-date">{date_str}<br><small>{day_name}</small></td>
+                    <td class="col-city">{city}</td>
+                    <td class="col-hotel">
+                        {hotel_cell}
+                    </td>
+                    <td class="col-trans">
+                        {trans_cell}
+                    </td>
+                    <td class="col-program">{program}</td>
+                </tr>
+"""
+
+    # Commitments
+    commitments = data.get("commitments", [])
+    commitments_html = "\n                ".join(f"<li>{c}</li>" for c in commitments) if commitments else ""
+
+    # Signatures
+    signers = data.get("signers", [])
+    signatures_html = "\n            ".join(
+        f'<div class="sig-box">\n                <div class="sig-line">{name}</div>\n            </div>'
+        for name in signers
+    ) if signers else ""
+
+    # ── Fill template ──
+    html = html.replace("{{SUBTITLE}}", data.get("subtitle", "Visa Application"))
+    html = html.replace("{{APPLICANTS_HTML}}", applicants_html)
+    html = html.replace("{{PURPOSE}}", data.get("purpose", "Tourism"))
+    html = html.replace("{{DESTINATION}}", data.get("destination", ""))
+    html = html.replace("{{TRAVEL_DATES}}", data.get("travel_dates", ""))
+    html = html.replace("{{ITINERARY_ROWS}}", rows_html)
+    html = html.replace("{{COMMITMENTS_HTML}}", commitments_html)
+    html = html.replace("{{SIGNATURES_HTML}}", signatures_html)
+
+    return html

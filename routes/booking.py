@@ -925,8 +925,9 @@ def generate_hotel_booking_from_serp():
     num_adults = len(adult_names)
     num_children = len(child_names)
     total_guests = num_adults + num_children
-    # Room logic: default 1, if total > 3 then +1
-    num_rooms = 1 if total_guests <= 3 else 2
+    # Room logic: use user-provided value if > 0, else auto-calculate
+    user_num_rooms = payload.get("num_rooms", 0) or 0
+    num_rooms = int(user_num_rooms) if int(user_num_rooms) > 0 else (1 if total_guests <= 3 else 2)
 
     client_name = ", ".join([n.upper() for n in adult_names])
     guest_list = ", ".join([n.upper() for n in adult_names + child_names])
@@ -985,6 +986,47 @@ def generate_hotel_booking_from_serp():
             line2 = ", ".join(parts[mid:-1]) + ","
             line3 = parts[-1]
             return (line1, line2, line3)
+
+    def _format_price_with_currency_code(price_str):
+        """Convert price with currency symbol to Agoda-style format.
+        
+        Examples:
+            '$2,056'   → '2,056 USD'
+            'A$1,500'  → '1,500 AUD'
+            'C$800'    → '800 CAD'
+            '€1,200'   → '1,200 EUR'
+            '£900'     → '900 GBP'
+            '2056 USD' → '2,056 USD' (already has code — keep as-is)
+        """
+        import re
+        if not price_str or price_str == "N/A":
+            return price_str
+        
+        price_str = price_str.strip()
+        
+        # Map of currency symbols/prefixes → ISO codes
+        symbol_to_code = {
+            "A$": "AUD", "C$": "CAD", "NZ$": "NZD", "S$": "SGD",
+            "HK$": "HKD", "NT$": "TWD", "R$": "BRL", "MX$": "MXN",
+            "$": "USD",
+            "€": "EUR", "£": "GBP", "¥": "JPY", "₩": "KRW",
+            "₫": "VND", "₹": "INR", "₱": "PHP", "฿": "THB",
+            "kr": "SEK", "zł": "PLN", "Kč": "CZK",
+        }
+        
+        # Check if price already ends with a currency code (e.g. "2,056 USD")
+        if re.search(r'\s+[A-Z]{3}$', price_str):
+            return price_str
+        
+        # Try matching symbol prefixes (longer prefixes first)
+        for symbol in sorted(symbol_to_code.keys(), key=len, reverse=True):
+            if price_str.startswith(symbol):
+                amount = price_str[len(symbol):].strip()
+                code = symbol_to_code[symbol]
+                return f"{code} {amount}"
+        
+        # No known symbol found — return as-is
+        return price_str
 
     # --- Generate one file per hotel ---
     saved_files = []
@@ -1206,7 +1248,8 @@ def generate_hotel_booking_from_serp():
         check_out = hs.get("check_out", "")
         hotel_name = hs.get("hotel_name", "Hotel")
         hotel_address = hs.get("hotel_address", "") or hs.get("city", "")
-        total_price = hs.get("total_price", "") or hs.get("price_per_night", "N/A")
+        total_price_raw = hs.get("total_price", "") or hs.get("price_per_night", "N/A")
+        total_price = _format_price_with_currency_code(str(total_price_raw))
         room_type = hs.get("room_type", "") or "Deluxe Room"
         phone = hs.get("phone", "") or f"+{random.randint(1, 99)}{random.randint(100000000, 999999999)}"
 
@@ -1232,7 +1275,7 @@ def generate_hotel_booking_from_serp():
         html = html.replace("{{ARRIVAL_DATE}}", _fmt_date(check_in))
         html = html.replace("{{DEPARTURE_DATE}}", _fmt_date(check_out))
         html = html.replace("{{CHECKIN_DAY}}", _day_of_week(check_in))
-        html = html.replace("{{TOTAL_PRICE}}", str(total_price))
+        html = html.replace("{{TOTAL_PRICE}}", total_price)
         html = html.replace("{{GUEST_LIST}}", guest_list)
 
         # ── Font fix: override embedded PDF subset fonts with system font ──
@@ -1277,6 +1320,21 @@ def generate_hotel_booking_from_serp():
                     all_htmls.append(f.read())
             except Exception as e:
                 all_htmls.append(first_html if i == 0 else "")
+
+    # Save to DB so itinerary "from_db" mode can find the SerpAPI hotel bookings
+    if project_id:
+        try:
+            existing = db.get_latest_booking(int(project_id)) or {}
+            db.save_booking(
+                int(project_id),
+                booking_data=existing.get("booking_data", {}),
+                hotel_htmls=all_htmls,
+                flight_html=existing.get("flight_html", ""),
+                reasoning=existing.get("reasoning", ""),
+            )
+            print(f"[HOTEL-BOOKING] 💾 Saved {len(all_htmls)} hotel booking(s) to DB for project {project_id}")
+        except Exception as e:
+            print(f"[HOTEL-BOOKING] ⚠️ Could not save to DB: {e}")
 
     return jsonify({
         "hotel_html": first_html,

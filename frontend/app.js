@@ -183,6 +183,7 @@ const tripCitiesPlanEl = document.getElementById("tripCitiesPlan");
 const tripTravelStartDateEl = document.getElementById("tripTravelStartDate");
 const tripTravelEndDateEl = document.getElementById("tripTravelEndDate");
 const tripNumNightsEl = document.getElementById("tripNumNights");
+const tripNumRoomsEl = document.getElementById("tripNumRooms");
 const tripOriginCityEl = document.getElementById("tripOriginCity");
 const tripOriginAirportEl = document.getElementById("tripOriginAirport");
 const tripReturnPointEl = document.getElementById("tripReturnPoint");
