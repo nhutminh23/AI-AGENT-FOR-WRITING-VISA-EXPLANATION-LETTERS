@@ -37,6 +37,12 @@ splitter_jobs: Dict[str, Dict] = {}
 # Output dir constant
 _OUTPUT_DIR = os.path.join(str(_BASE_DIR), "output")
 
+# Translation directories (aliases from Config for splitter routes)
+TRANSLATE_TEMPLATE_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_TEMPLATE_DIR)
+TRANSLATE_DEFAULT_TEMPLATE = Config.TRANSLATION_DEFAULT_TEMPLATE
+TRANSLATE_OUTPUT_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_OUTPUT_DIR)
+TRANSLATE_HTML_SAVE_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_HTML_SAVE_DIR)
+
 
 
 

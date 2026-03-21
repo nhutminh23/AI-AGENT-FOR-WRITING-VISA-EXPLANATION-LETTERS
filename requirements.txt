@@ -1,8 +1,10 @@
 langgraph
 langchain-openai
+langchain-core
 python-dotenv
 flask
 pdfplumber
+pdfminer.six
 python-docx
 pillow
 pypdf
@@ -11,3 +13,6 @@ google-generativeai
 openai
 sqlalchemy
 google-search-results
+xhtml2pdf
+reportlab
+tiktoken

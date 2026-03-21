@@ -38,6 +38,7 @@ class Config:
     CLASSIFIER_OUTPUT_DIR = os.path.join("phanloai", "output")
     CLASSIFIER_TEMP_OUTPUT_DIR = os.path.join("phanloai", "_temp_output")
     TRANSLATION_TEMPLATE_DIR = os.path.join("dich", "HTML template")
+    TRANSLATION_DEFAULT_TEMPLATE = "mau_dich.html"
     TRANSLATION_OUTPUT_DIR = os.path.join("dich", "output")
     TRANSLATION_HTML_SAVE_DIR = os.path.join("dich", "html")
 

@@ -732,10 +732,6 @@ def ai_generate_booking_stream():
 
 
 
-def _get_serpapi_key() -> str:
-    return os.getenv("SERPAPI_KEY", "")
-
-
 @booking_bp.post("/api/flights/search")
 def search_flights():
     """Search flights using SerpAPI Google Flights engine."""
