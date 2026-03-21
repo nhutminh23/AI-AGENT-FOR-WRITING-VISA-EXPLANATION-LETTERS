@@ -5,6 +5,7 @@ CRUD operations for projects + clear project data.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 
@@ -105,8 +106,8 @@ def clear_project(project_id: int):
                                 os.remove(zip_path)
                             except OSError:
                                 pass
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.debug("Error reading meta %s: %s", meta_path, e)
     return jsonify({
         "status": "cleared",
         "deleted_uploads": deleted_uploads,

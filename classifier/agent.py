@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import re
 import shutil
@@ -85,7 +86,7 @@ def classify_doc_type_only(llm: Any, filename: str, file_path: str, folder_perso
     # PDF: extract text → classify + detect multi-doc
     try:
         page_texts = _extract_pdf_pages_text(file_path)
-    except Exception:
+    except Exception as e:
         return {"doc_type_en": "DOCUMENT", "needs_split": False, "doc_count": 1}
 
     total_pages = len(page_texts)
@@ -203,7 +204,7 @@ def _extract_pdf_pages_text(path: str) -> List[str]:
     for page in reader.pages:
         try:
             pages.append((page.extract_text() or "").strip())
-        except Exception:
+        except Exception as e:
             pages.append("")
     return pages
 
@@ -214,7 +215,7 @@ def _read_docx_text(path: str) -> str:
         from docx import Document
         doc = Document(path)
         return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-    except Exception:
+    except Exception as e:
         return ""
 
 
@@ -460,7 +461,8 @@ def _classify_multi_page_pdf(llm: Any, filename: str, page_texts: List[str]) -> 
         try:
             s = int(item.get("start_page"))
             e = int(item.get("end_page"))
-        except Exception:
+        except Exception as e:
+            logging.debug("Skipped: %s", e)
             continue
         s = max(1, min(max_page, s))
         e = max(1, min(max_page, e))
@@ -630,7 +632,7 @@ def classify_files_in_folder(
             try:
                 with open(src_path, "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()
-            except Exception:
+            except Exception as e:
                 text = ""
             if not text.strip():
                 return {"type": "skipped", "filename": filename}
@@ -652,7 +654,7 @@ def classify_files_in_folder(
         # -------- PDF: extract text locally with pypdf → 1 API call --------
         try:
             page_texts = _extract_pdf_pages_text(src_path)
-        except Exception:
+        except Exception as e:
             return {"type": "skipped", "filename": filename}
 
         total_pages = len(page_texts)
@@ -738,7 +740,7 @@ def classify_files_in_folder(
                         "doc_type_en": dtype,
                         "to": os.path.relpath(out_path, output_dir).replace("\\", "/"),
                     })
-                except Exception:
+                except Exception as e:
                     skipped.append(result["filename"])
 
     return {

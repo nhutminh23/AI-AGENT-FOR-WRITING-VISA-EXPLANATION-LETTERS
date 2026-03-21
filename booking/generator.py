@@ -4,6 +4,7 @@ Generates realistic hotel and flight booking confirmations for visa applications
 """
 
 import json
+import logging
 import os
 import random
 import re
@@ -409,7 +410,7 @@ def fill_hotel_template(template_path: str, booking_data: Dict) -> str:
             cancel_date = _re.sub(r' 0(\d)', r' \1', cancel_date)
             # Day of week for check-in
             checkin_day = cin_dt.strftime("%A")
-        except Exception:
+        except Exception as e:
             cancel_date = check_in
             checkin_day = ""
 

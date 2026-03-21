@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 from io import BytesIO
 from typing import Any, Dict, List
@@ -81,7 +82,8 @@ def _extract_pdf_with_openai(llm: Any, path: str) -> str:
     try:
         import pdfplumber
         from PIL import Image
-    except Exception:
+    except Exception as e:
+        logging.debug("Cannot import pdfplumber/PIL: %s", e)
         return text
 
     texts: List[str] = []
@@ -93,7 +95,8 @@ def _extract_pdf_with_openai(llm: Any, path: str) -> str:
                     buffer = BytesIO()
                     page_image.save(buffer, format="PNG")
                     texts.append(_llm_extract_from_image_bytes(llm, buffer.getvalue()))
-            except Exception:
+            except Exception as e:
+                logging.debug("OCR page failed: %s", e)
                 continue
     return "\n".join(t for t in texts if t)
 
@@ -106,7 +109,8 @@ def _extract_image_with_openai(llm: Any, path: str) -> str:
         buffer = BytesIO()
         img.save(buffer, format="PNG")
         return _llm_extract_from_image_bytes(llm, buffer.getvalue())
-    except Exception:
+    except Exception as e:
+        logging.debug("Image extraction failed for %s: %s", path, e)
         return ""
 
 
@@ -117,7 +121,8 @@ def extract_text_with_openai(llm: Any, path: str) -> str:
     if ext in [".docx", ".doc"]:
         try:
             return read_docx(path)
-        except Exception:
+        except Exception as e:
+            logging.debug("Docx read failed for %s: %s", path, e)
             return ""
     if ext == ".pdf":
         return _extract_pdf_with_openai(llm, path)
@@ -219,7 +224,8 @@ def build_summary_profile(state: GraphState) -> GraphState:
 def _safe_json_loads(text: str) -> Any:
     try:
         return json.loads(text)
-    except Exception:
+    except Exception as e:
+        logging.debug("JSON parse failed: %s", e)
         return {"raw_output": text}
 
 

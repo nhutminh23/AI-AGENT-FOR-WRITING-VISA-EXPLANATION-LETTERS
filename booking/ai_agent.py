@@ -5,6 +5,7 @@ hotels + flights for any country in the world.
 """
 
 import json
+import logging
 import os
 import re
 import unicodedata
@@ -492,8 +493,8 @@ def _extract_pdf_with_openai(llm: Any, path: str) -> str:
         text = read_pdf(path)
         if text and len(text.strip()) > 50:
             return text
-    except Exception:
-        pass
+    except Exception as e:
+        logging.debug("Ignored: %s", e)
 
     # Fallback: render pages as images and batch into one LLM call
     try:

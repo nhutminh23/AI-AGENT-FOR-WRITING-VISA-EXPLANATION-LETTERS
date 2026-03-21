@@ -7,6 +7,7 @@ import asyncio
 import base64
 import io
 import json
+import logging
 import os
 import re
 import shutil
@@ -119,8 +120,8 @@ def pipeline_send_to_splitter():
         try:
             with open(mapping_file, "r", encoding="utf-8") as mf:
                 existing_mapping = json.load(mf)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Ignored: %s", e)
     for src, stored in zip(file_paths, copied):
         existing_mapping[stored] = src
     with open(mapping_file, "w", encoding="utf-8") as mf:
@@ -175,8 +176,8 @@ def splitter_save_to_source():
         try:
             os.remove(original_path)
             deleted_original = True
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Ignored: %s", e)
 
     return jsonify({
         "status": "done",
@@ -198,8 +199,8 @@ def splitter_source_mapping():
         try:
             with open(mapping_file, "r", encoding="utf-8") as mf:
                 return jsonify(json.load(mf))
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Ignored: %s", e)
     return jsonify({})
 
 
@@ -372,8 +373,8 @@ def classifier_save_output():
     # Auto-cleanup: delete temp output to save disk space
     try:
         shutil.rmtree(temp_output)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.debug("Ignored: %s", e)
 
     # Optional: clean input files too
     clean_input = payload.get("clean_input", False)
@@ -382,8 +383,8 @@ def classifier_save_output():
         try:
             shutil.rmtree(input_dir)
             os.makedirs(input_dir, exist_ok=True)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Ignored: %s", e)
 
     return jsonify({"status": "saved", "output_dir": final_output, "file_count": count})
 
@@ -836,8 +837,8 @@ def splitter_save_to_input():
         try:
             with open(mapping_file, "r", encoding="utf-8") as mf:
                 source_mapping = json.load(mf)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Ignored: %s", e)
 
     copied = []
     originals_deleted = []
@@ -857,8 +858,8 @@ def splitter_save_to_input():
                     meta = json.load(mf)
                 source_path = meta.get("source_path", "")
                 source_filename = meta.get("source_filename", "")
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("Ignored: %s", e)
 
         # If no source_path in _source.json, try the mapping
         if not source_path and source_filename and source_filename in source_mapping:
@@ -904,8 +905,8 @@ def splitter_save_to_input():
             try:
                 os.remove(source_path)
                 originals_deleted.append(os.path.basename(source_path))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("Ignored: %s", e)
 
     return jsonify({
         "status": "done",
@@ -1022,7 +1023,8 @@ def split_manual():
         try:
             s = int(seg.get("start_page"))
             e = int(seg.get("end_page"))
-        except Exception:
+        except Exception as e:
+            logging.debug("Skipped: %s", e)
             continue
         if s < 1 or e < 1 or s > total_pages or e > total_pages:
             continue
@@ -1035,7 +1037,8 @@ def split_manual():
         try:
             with open(out_path, "wb") as f:
                 writer.write(f)
-        except Exception:
+        except Exception as e:
+            logging.debug("Skipped: %s", e)
             continue
         created.append(
             {
@@ -1126,7 +1129,8 @@ def merge_pdf_upload():
             continue
         try:
             reader = PdfReader(f.stream)
-        except Exception:
+        except Exception as e:
+            logging.debug("Skipped: %s", e)
             continue
         for page in reader.pages:
             writer.add_page(page)
@@ -1188,7 +1192,8 @@ def merge_pdf():
             continue
         try:
             reader = PdfReader(src_path)
-        except Exception:
+        except Exception as e:
+            logging.debug("Skipped: %s", e)
             continue
         for page in reader.pages:
             writer.add_page(page)
@@ -1455,7 +1460,7 @@ def edit_pdf():
     raw_replacements = request.form.get("replacements", "[]")
     try:
         replacements = _json.loads(raw_replacements)
-    except Exception:
+    except Exception as e:
         return jsonify({"error": "invalid_replacements_json"}), 400
 
     if not replacements or not isinstance(replacements, list):

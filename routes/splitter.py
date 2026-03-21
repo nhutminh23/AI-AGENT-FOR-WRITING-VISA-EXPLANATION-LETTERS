@@ -4,6 +4,7 @@ AI PDF Splitter routes: upload, split, classify, download.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -117,8 +118,8 @@ async def _process_splitter_job(file_id: str):
                 orig_path = mapping.get(job["filename"], "")
                 if orig_path:
                     source_meta["source_path"] = orig_path
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("Ignored: %s", e)
         with open(os.path.join(job_output_dir, "_source.json"), "w", encoding="utf-8") as mf:
             json.dump(source_meta, mf, ensure_ascii=False)
 
@@ -444,8 +445,8 @@ def splitter_list_outputs():
                         meta = json.load(mf)
                     source_name = meta.get("source_filename", "")
                     source_project_id = meta.get("project_id")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.debug("Ignored: %s", e)
             # Fallback to in-memory splitter_jobs
             if not source_name and not is_manual and folder_name in splitter_jobs:
                 source_name = splitter_jobs[folder_name].get("filename", "")
@@ -480,7 +481,7 @@ def manual_split_upload_and_split():
     project_id_raw = request.form.get("project_id")
     try:
         segments = json.loads(segments_json)
-    except Exception:
+    except Exception as e:
         return jsonify({"error": "invalid_segments"}), 400
     if not isinstance(segments, list) or not segments:
         return jsonify({"error": "missing_segments"}), 400
@@ -525,7 +526,8 @@ def manual_split_upload_and_split():
         try:
             s = int(seg.get("start_page"))
             e = int(seg.get("end_page"))
-        except Exception:
+        except Exception as e:
+            logging.debug("Skipped: %s", e)
             continue
         if s < 1 or e < 1 or s > total_pages or e > total_pages:
             continue
@@ -538,7 +540,8 @@ def manual_split_upload_and_split():
         try:
             with open(out_path, "wb") as f:
                 writer.write(f)
-        except Exception:
+        except Exception as e:
+            logging.debug("Skipped: %s", e)
             continue
         created.append(
             {
@@ -720,8 +723,8 @@ def splitter_merge_outputs():
         try:
             os.remove(fpath)
             deleted.append(f"{fid}/{fname}")
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Ignored: %s", e)
 
     return jsonify({
         "status": "done",
@@ -940,8 +943,8 @@ def run_translate_stream():
                     fixed = (fix_result.content or "").strip()
                     if fixed:
                         translated_text = fixed
-                except Exception:
-                    pass  # Keep original if fix fails
+                except Exception as e:
+                    logging.debug("Ignored: %s", e)  # Keep original if fix fails
 
             yield from send_event(1, "✅ OCR + Dịch hoàn tất")
 
@@ -1012,8 +1015,8 @@ def run_translate_stream():
                 if temp_path and os.path.exists(temp_path):
                     try:
                         os.remove(temp_path)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logging.debug("Ignored: %s", e)
 
     return Response(
         generate(),

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import re
 import tempfile
@@ -126,12 +127,12 @@ If this is ONE single document or package: {{"documents": [{{"doc_type_en": "REN
     
     try:
         parsed = json.loads(text)
-    except Exception:
+    except Exception as e:
         match = re.search(r"\{[\s\S]*\}", text)
         if match:
             try:
                 parsed = json.loads(match.group())
-            except Exception:
+            except Exception as e:
                 return []
         else:
             return []
@@ -539,8 +540,8 @@ def precheck_scan():
                     try:
                         from pypdf import PdfReader as _PdfR
                         page_count = len(_PdfR(fpath).pages)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logging.debug("Ignored: %s", e)
                 # Single page or known single-doc type → skip LLM
                 if page_count <= 2:
                     doc_type = quick_type
@@ -588,7 +589,7 @@ def precheck_scan():
                     page_texts_len = [len((p.extract_text() or "").strip()) for p in _reader.pages]
                     has_scanned_pages = any(tl < 30 for tl in page_texts_len)
                     all_scanned = all(tl < 30 for tl in page_texts_len)
-                except Exception:
+                except Exception as e:
                     total_pages = 1
                     has_scanned_pages = True
                     all_scanned = True
@@ -653,8 +654,8 @@ def precheck_scan():
                                     doc_type = vision_doc_type
                     except QuotaExhaustedError:
                         raise
-                    except Exception:
-                        pass  # Vision detection failed, keep original result
+                    except Exception as e:
+                        logging.debug("Ignored: %s", e)  # Vision detection failed, keep original result
 
             # POST-PROCESSING: enrich doc_type with bank name + period from filename
             doc_type = _enrich_doc_type(doc_type, fname, sub_path)
@@ -971,7 +972,7 @@ def processor_merge_files():
         for tf in tmp_files:
             try:
                 os.remove(tf)
-            except:
-                pass
+            except Exception as e:
+                logging.debug("Ignored error: %s", e)
 
 

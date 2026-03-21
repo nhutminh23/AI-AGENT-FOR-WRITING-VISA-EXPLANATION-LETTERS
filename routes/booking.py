@@ -4,6 +4,7 @@ Booking routes: generate bookings, AI booking, SerpAPI flights/hotels.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from datetime import datetime, timedelta
@@ -1274,7 +1275,7 @@ def generate_hotel_booking_from_serp():
             try:
                 with open(fpath, "r", encoding="utf-8") as f:
                     all_htmls.append(f.read())
-            except Exception:
+            except Exception as e:
                 all_htmls.append(first_html if i == 0 else "")
 
     return jsonify({
@@ -1296,14 +1297,14 @@ def _serp_dt_parts(dt_str: str) -> tuple[str, str]:
     try:
         yyyy, mm, dd = ymd.split("-")
         return f"{dd}/{mm}/{yyyy}", hm
-    except Exception:
+    except Exception as e:
         return "", hm
 
 
 def _serp_minutes_to_duration(minutes: Any) -> str:
     try:
         total = int(minutes or 0)
-    except Exception:
+    except Exception as e:
         total = 0
     h = total // 60
     m = total % 60
