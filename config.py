@@ -27,13 +27,19 @@ class Config:
     SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 
     # --- Directories ---
-    INPUT_DIR = "pdf/input"
+    INPUT_DIR = os.path.join("pdf", "input")
     OUTPUT_DIR = "output"
-    BOOKING_INPUT_DIR = "booking/input"
+    PDF_OUTPUT_DIR = os.path.join("pdf", "output")
+    BOOKING_INPUT_DIR = os.path.join("booking", "input")
     SPLITTER_UPLOADS_DIR = "splitter_uploads"
     SPLITTER_OUTPUTS_DIR = "splitter_outputs"
+    SCAN_SPLITTER_OUTPUTS_DIR = "scan_splitter_outputs"
+    CLASSIFIER_INPUT_DIR = os.path.join("phanloai", "input")
+    CLASSIFIER_OUTPUT_DIR = os.path.join("phanloai", "output")
+    CLASSIFIER_TEMP_OUTPUT_DIR = os.path.join("phanloai", "_temp_output")
     TRANSLATION_TEMPLATE_DIR = os.path.join("dich", "HTML template")
     TRANSLATION_OUTPUT_DIR = os.path.join("dich", "output")
+    TRANSLATION_HTML_SAVE_DIR = os.path.join("dich", "html")
 
     # --- OCR ---
     OCR_DPI = 250

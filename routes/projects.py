@@ -11,6 +11,7 @@ import shutil
 from flask import Blueprint, jsonify, request
 
 import database as db
+from config import Config
 
 projects_bp = Blueprint("projects", __name__)
 
@@ -71,7 +72,7 @@ def clear_project(project_id: int):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     # Go up one level since this file is in routes/
     base_dir = os.path.dirname(base_dir)
-    upload_dir = os.path.join(base_dir, "splitter_uploads")
+    upload_dir = os.path.join(base_dir, Config.SPLITTER_UPLOADS_DIR)
     prefix = f"p{project_id}__"
     deleted_uploads = 0
     if os.path.isdir(upload_dir):
@@ -83,7 +84,7 @@ def clear_project(project_id: int):
                 except OSError:
                     pass
     # Xóa thư mục trong splitter_outputs có _source.json với project_id trùng
-    output_dir = os.path.join(base_dir, "splitter_outputs")
+    output_dir = os.path.join(base_dir, Config.SPLITTER_OUTPUTS_DIR)
     deleted_output_dirs = 0
     if os.path.isdir(output_dir):
         for folder_name in os.listdir(output_dir):

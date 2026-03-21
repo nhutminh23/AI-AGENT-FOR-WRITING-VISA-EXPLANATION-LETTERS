@@ -27,6 +27,7 @@ import database as db
 from core.agents import detect_domain
 from core.errors import QuotaExhaustedError, is_quota_error
 from core.helpers import get_text_model, get_vision_model, list_input_files, cache_dir
+from config import Config
 
 pipeline_bp = Blueprint("pipeline", __name__)
 
@@ -77,7 +78,7 @@ def pipeline_send_to_splitter():
     if not file_paths:
         return jsonify({"error": "no_files_selected"}), 400
 
-    target_dir = os.path.join("splitter_uploads")
+    target_dir = Config.SPLITTER_UPLOADS_DIR
     os.makedirs(target_dir, exist_ok=True)
     copied = []
 
@@ -141,7 +142,7 @@ def splitter_save_to_source():
         return jsonify({"error": "original_file_not_found", "path": original_path}), 404
 
     # Find split output directory
-    output_dir = os.path.join(_BASE_DIR, "splitter_outputs", file_id)
+    output_dir = os.path.join(_BASE_DIR, Config.SPLITTER_OUTPUTS_DIR, file_id)
     if not os.path.isdir(output_dir):
         return jsonify({"error": "split_output_not_found"}), 404
 
@@ -192,7 +193,7 @@ def splitter_save_to_source():
 @pipeline_bp.get("/api/splitter/source-mapping")
 def splitter_source_mapping():
     """Return the stored_name → original_path mapping for save-to-source."""
-    mapping_file = os.path.join("splitter_uploads", "_source_mapping.json")
+    mapping_file = os.path.join(Config.SPLITTER_UPLOADS_DIR, "_source_mapping.json")
     if os.path.isfile(mapping_file):
         try:
             with open(mapping_file, "r", encoding="utf-8") as mf:
@@ -207,7 +208,7 @@ def pipeline_send_clean_to_classifier():
     """Copy clean (single-doc) files directly → classifier input folder."""
     payload = request.get_json(force=True) or {}
     file_paths = payload.get("file_paths", [])
-    target_dir = payload.get("target_dir", os.path.join("phanloai", "input"))
+    target_dir = payload.get("target_dir", Config.CLASSIFIER_INPUT_DIR)
 
     if not file_paths:
         return jsonify({"error": "no_files_selected"}), 400
@@ -232,7 +233,7 @@ def pipeline_send_clean_to_classifier():
 
 @pipeline_bp.get("/api/classifier/files")
 def list_classifier_files():
-    input_dir = request.args.get("input_dir", os.path.join("phanloai", "input"))
+    input_dir = request.args.get("input_dir", Config.CLASSIFIER_INPUT_DIR)
     if not os.path.isdir(input_dir):
         return jsonify({"input_dir": input_dir, "files": [], "exists": False})
     items = list_input_files(input_dir)
@@ -264,7 +265,7 @@ def classifier_delete_file():
 def classifier_delete_all():
     """Delete all files from classifier input folder."""
     payload = request.get_json(force=True) or {}
-    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    input_dir = payload.get("input_dir", Config.CLASSIFIER_INPUT_DIR)
     count = 0
     if os.path.isdir(input_dir):
         for fname in os.listdir(input_dir):
@@ -278,8 +279,8 @@ def classifier_delete_all():
 @pipeline_bp.post("/api/classifier/run")
 def run_classifier():
     payload = request.get_json(force=True) or {}
-    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
-    output_dir = payload.get("output_dir", os.path.join("phanloai", "output"))
+    input_dir = payload.get("input_dir", Config.CLASSIFIER_INPUT_DIR)
+    output_dir = payload.get("output_dir", Config.CLASSIFIER_OUTPUT_DIR)
     save_output = payload.get("save_output", False)  # Don't auto-save by default
     model = payload.get("model") or get_vision_model()  # classifier reads images
 
@@ -287,7 +288,7 @@ def run_classifier():
         return jsonify({"error": "folder_not_found", "input_dir": input_dir}), 404
 
     # If save_output is False, use a temp dir so classifier doesn't write to real output
-    actual_output = output_dir if save_output else os.path.join("phanloai", "_temp_output")
+    actual_output = output_dir if save_output else Config.CLASSIFIER_TEMP_OUTPUT_DIR
     result = classify_files_in_folder(input_dir=input_dir, output_dir=actual_output, model=model)
     # Store the temp dir in result so save-output can use it
     result["_temp_output"] = actual_output
@@ -297,7 +298,7 @@ def run_classifier():
 @pipeline_bp.get("/api/classifier/last-result")
 def classifier_last_result():
     """Scan _temp_output to reconstruct last classification result."""
-    temp_output = os.path.join("phanloai", "_temp_output")
+    temp_output = Config.CLASSIFIER_TEMP_OUTPUT_DIR
     if not os.path.isdir(temp_output):
         return jsonify({"exists": False})
 
@@ -342,7 +343,7 @@ def classifier_last_result():
         "skipped_count": 0,
         "person_counts": person_counts,
         "_temp_output": temp_output,
-        "_final_output": os.path.join("phanloai", "output"),
+        "_final_output": Config.CLASSIFIER_OUTPUT_DIR,
     })
 
 
@@ -350,8 +351,8 @@ def classifier_last_result():
 def classifier_save_output():
     """Copy classified results from temp to final output folder."""
     payload = request.get_json(force=True) or {}
-    temp_output = payload.get("temp_output", os.path.join("phanloai", "_temp_output"))
-    final_output = payload.get("output_dir", os.path.join("phanloai", "output"))
+    temp_output = payload.get("temp_output", Config.CLASSIFIER_TEMP_OUTPUT_DIR)
+    final_output = payload.get("output_dir", Config.CLASSIFIER_OUTPUT_DIR)
 
     if not os.path.isdir(temp_output):
         return jsonify({"error": "no_results_to_save"}), 404
@@ -376,7 +377,7 @@ def classifier_save_output():
 
     # Optional: clean input files too
     clean_input = payload.get("clean_input", False)
-    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    input_dir = payload.get("input_dir", Config.CLASSIFIER_INPUT_DIR)
     if clean_input and os.path.isdir(input_dir):
         try:
             shutil.rmtree(input_dir)
@@ -394,7 +395,7 @@ def classifier_rename_file():
     old_path = payload.get("old_path", "")  # relative path like "UNKNOWN PERSON/FINANCIAL_BANK STATEMENT.pdf"
     new_person = payload.get("new_person", "").strip()
     new_doc_type = payload.get("new_doc_type", "").strip()
-    temp_output = payload.get("temp_output", os.path.join("phanloai", "_temp_output"))
+    temp_output = payload.get("temp_output", Config.CLASSIFIER_TEMP_OUTPUT_DIR)
 
     if not old_path or not new_person:
         return jsonify({"error": "old_path and new_person are required"}), 400
@@ -460,12 +461,12 @@ def pipeline_send_to_classifier():
     Walks splitter_outputs/ recursively, skipping .zip files."""
     payload = request.get_json(force=True) or {}
     file_id = payload.get("file_id", "")
-    target_dir = payload.get("target_dir", os.path.join("phanloai", "input"))
+    target_dir = payload.get("target_dir", Config.CLASSIFIER_INPUT_DIR)
 
     # Find source: specific file_id or all outputs
-    source_dir = os.path.join("splitter_outputs", file_id) if file_id else ""
+    source_dir = os.path.join(Config.SPLITTER_OUTPUTS_DIR, file_id) if file_id else ""
     if not source_dir or not os.path.isdir(source_dir):
-        source_dir = "splitter_outputs"
+        source_dir = Config.SPLITTER_OUTPUTS_DIR
         if not os.path.isdir(source_dir):
             return jsonify({"error": "no_splitter_output"}), 404
 
@@ -590,7 +591,7 @@ def scan_splitter_split():
         return jsonify({"error": "Only PDF files are supported"}), 400
 
     # Save uploaded file to temp
-    scan_output_dir = "scan_splitter_outputs"
+    scan_output_dir = Config.SCAN_SPLITTER_OUTPUTS_DIR
     os.makedirs(scan_output_dir, exist_ok=True)
 
     original_name = file.filename
@@ -776,7 +777,7 @@ def scan_splitter_progress():
 @pipeline_bp.get("/api/scan-splitter/download/<path:filename>")
 def scan_splitter_download(filename):
     """Download a single split file."""
-    scan_output_dir = "scan_splitter_outputs"
+    scan_output_dir = Config.SCAN_SPLITTER_OUTPUTS_DIR
     fpath = os.path.join(scan_output_dir, filename)
     if not os.path.isfile(fpath):
         return jsonify({"error": "File not found"}), 404
@@ -786,7 +787,7 @@ def scan_splitter_download(filename):
 @pipeline_bp.get("/api/scan-splitter/view/<path:filename>")
 def scan_splitter_view(filename):
     """View a single split file inline in browser."""
-    scan_output_dir = "scan_splitter_outputs"
+    scan_output_dir = Config.SCAN_SPLITTER_OUTPUTS_DIR
     fpath = os.path.join(scan_output_dir, filename)
     if not os.path.isfile(fpath):
         return jsonify({"error": "File not found"}), 404
@@ -798,7 +799,7 @@ def scan_splitter_download_zip():
     """Download all split files as ZIP."""
     import zipfile
     import io
-    scan_output_dir = "scan_splitter_outputs"
+    scan_output_dir = Config.SCAN_SPLITTER_OUTPUTS_DIR
     if not os.path.isdir(scan_output_dir):
         return jsonify({"error": "No output files"}), 404
 
@@ -824,13 +825,13 @@ def splitter_save_to_input():
     target_dir = payload.get("target_dir", "input")  # fallback base
     delete_originals = payload.get("delete_originals", True)
 
-    output_base = "splitter_outputs"
+    output_base = Config.SPLITTER_OUTPUTS_DIR
     if not os.path.isdir(output_base):
         return jsonify({"error": "no_splitter_output"}), 404
 
     # Also load the source mapping as fallback
     source_mapping = {}
-    mapping_file = os.path.join("splitter_uploads", "_source_mapping.json")
+    mapping_file = os.path.join(Config.SPLITTER_UPLOADS_DIR, "_source_mapping.json")
     if os.path.isfile(mapping_file):
         try:
             with open(mapping_file, "r", encoding="utf-8") as mf:
@@ -918,7 +919,7 @@ def splitter_save_to_input():
 def pipeline_send_to_input():
     """Copy classifier output files → letter/booking input folder."""
     payload = request.get_json(force=True) or {}
-    source_dir = payload.get("source_dir", os.path.join("phanloai", "output"))
+    source_dir = payload.get("source_dir", Config.CLASSIFIER_OUTPUT_DIR)
     target_dir = payload.get("target_dir", "input")
 
     if not os.path.isdir(source_dir):
@@ -959,7 +960,7 @@ def split_manual():
     source_file_id = (payload.get("source_file_id") or "").strip()
     source_filename = (payload.get("source_filename") or "").strip()
     # Legacy support: direct source path
-    input_dir = payload.get("input_dir", os.path.join("phanloai", "input"))
+    input_dir = payload.get("input_dir", Config.CLASSIFIER_INPUT_DIR)
     source = (payload.get("source") or "").strip()
     project_id = payload.get("project_id")
     segments = payload.get("segments") or []
@@ -1104,7 +1105,7 @@ def _pdf_merge_pick_unique(dest_dir: str, stem: str, ext: str) -> str:
 @pipeline_bp.route("/api/pdf/merge-upload", methods=["POST"])
 def merge_pdf_upload():
     """Merge PDFs uploaded from user's computer. Order of form fields = page order."""
-    output_dir = os.path.join("pdf", "output")
+    output_dir = Config.PDF_OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=True)
     output_name = (request.form.get("output_name") or "").strip()
     if not output_name:
@@ -1158,8 +1159,8 @@ def merge_pdf_upload():
 @pipeline_bp.route("/api/pdf/merge", methods=["POST"])
 def merge_pdf():
     payload = request.get_json(force=True) or {}
-    input_dir = payload.get("input_dir", os.path.join("pdf", "input"))
-    output_dir = payload.get("output_dir", os.path.join("pdf", "output"))
+    input_dir = payload.get("input_dir", Config.INPUT_DIR)
+    output_dir = payload.get("output_dir", Config.PDF_OUTPUT_DIR)
     files = payload.get("files") or []
     output_name = (payload.get("output_name") or "").strip()
 
@@ -1221,7 +1222,7 @@ def merge_pdf():
 @pipeline_bp.route("/api/pdf/rename", methods=["POST"])
 def rename_pdf():
     payload = request.get_json(force=True) or {}
-    input_dir = payload.get("input_dir", os.path.join("pdf", "input"))
+    input_dir = payload.get("input_dir", Config.INPUT_DIR)
     source = (payload.get("source") or "").strip()
     prefix = (payload.get("prefix") or "").strip()
     doc_type = (payload.get("doc_type") or "").strip()

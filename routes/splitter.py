@@ -18,6 +18,7 @@ from flask import Blueprint, Response, jsonify, request, send_file, send_from_di
 import database as db
 from pdf_tools.pdf_service import pdf_to_images, get_page_count, create_output_files
 from pdf_tools.ai_service import classify_all_pages
+from config import Config
 
 splitter_bp = Blueprint("splitter", __name__)
 
@@ -25,8 +26,8 @@ splitter_bp = Blueprint("splitter", __name__)
 _BASE_DIR = SplitterPath(__file__).parent.parent
 
 # Directories for AI splitter
-SPLITTER_UPLOAD_DIR = _BASE_DIR / "splitter_uploads"
-SPLITTER_OUTPUT_DIR = _BASE_DIR / "splitter_outputs"
+SPLITTER_UPLOAD_DIR = _BASE_DIR / Config.SPLITTER_UPLOADS_DIR
+SPLITTER_OUTPUT_DIR = _BASE_DIR / Config.SPLITTER_OUTPUTS_DIR
 SPLITTER_UPLOAD_DIR.mkdir(exist_ok=True)
 SPLITTER_OUTPUT_DIR.mkdir(exist_ok=True)
 
