@@ -1,0 +1,512 @@
+// Event Listeners
+// Extracted from app.js
+
+// ==================== EVENT LISTENERS ====================
+
+refreshBtn.addEventListener("click", fetchFiles);
+loadStepsBtn.addEventListener("click", loadSteps);
+runItineraryBtn.addEventListener("click", runItinerary);
+runAllBtn.addEventListener("click", runAll);
+saveItineraryContextBtn.addEventListener("click", saveItineraryContext);
+runBookingBtn.addEventListener("click", runBookingGeneration);
+extractTripBtn.addEventListener("click", extractTripInfo);
+saveTripInfoBtn.addEventListener("click", saveTripInfo);
+if (runAIBookingHotelBtn) runAIBookingHotelBtn.addEventListener("click", () => runAIBooking("hotel"));
+if (bookingModeHotelBtn) bookingModeHotelBtn.addEventListener("click", () => setBookingMode("hotel"));
+if (bookingModeFlightBtn) bookingModeFlightBtn.addEventListener("click", () => setBookingMode("flight"));
+loadClassifierFilesBtn.addEventListener("click", loadClassifierFiles);
+runClassifierBtn.addEventListener("click", runClassifier);
+if (pdfBuildSplitFormBtn) {
+  pdfBuildSplitFormBtn.addEventListener("click", buildPdfManualSegments);
+}
+if (pdfRunSplitBtn) {
+  pdfRunSplitBtn.addEventListener("click", runPdfManualSplit);
+}
+if (pdfRunMergeBtn) {
+  pdfRunMergeBtn.addEventListener("click", runPdfMerge);
+}
+if (pdfRunRenameBtn) {
+  pdfRunRenameBtn.addEventListener("click", runPdfRename);
+}
+if (pdfRenameGenBtn) {
+  pdfRenameGenBtn.addEventListener("click", genPdfRenameDocType);
+}
+if (pdfRenamePrefixEl) {
+  pdfRenamePrefixEl.addEventListener("change", updatePdfRenamePreview);
+}
+if (pdfRenameDocTypeEl) {
+  pdfRenameDocTypeEl.addEventListener("change", updatePdfRenamePreview);
+}
+if (pdfRenameDocTypeCustomEl) {
+  pdfRenameDocTypeCustomEl.addEventListener("input", updatePdfRenamePreview);
+}
+if (pdfMergeGenBtn) {
+  pdfMergeGenBtn.addEventListener("click", genPdfMergeDocType);
+}
+if (pdfMergePrefixEl) {
+  pdfMergePrefixEl.addEventListener("change", updatePdfMergePreview);
+}
+if (pdfMergeDocTypeEl) {
+  pdfMergeDocTypeEl.addEventListener("change", updatePdfMergePreview);
+}
+if (pdfMergeDocTypeCustomEl) {
+  pdfMergeDocTypeCustomEl.addEventListener("input", updatePdfMergePreview);
+}
+
+// PDF Export helpers
+function printIframeAsPdf(iframeEl, title) {
+  const iframeDoc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
+  if (!iframeDoc || !iframeDoc.body || iframeDoc.body.innerHTML.trim() === "") {
+    alert("Chưa có nội dung để xuất PDF.");
+    return;
+  }
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
+    return;
+  }
+
+  // Clone iframe HTML content and add print-optimized styles
+  const htmlContent = iframeDoc.documentElement.outerHTML;
+  printWin.document.open();
+  printWin.document.write(htmlContent);
+  printWin.document.close();
+
+  // Add print-friendly CSS
+  const style = printWin.document.createElement("style");
+  style.textContent = `
+    @media print {
+      body { margin: 0; }
+      @page { size: A4; margin: 10mm; }
+    }
+  `;
+  printWin.document.head.appendChild(style);
+
+  // Wait for content to load, then trigger print
+  printWin.onload = () => {
+    setTimeout(() => {
+      printWin.print();
+    }, 300);
+  };
+
+  // Fallback if onload doesn't fire
+  setTimeout(() => {
+    printWin.print();
+  }, 800);
+}
+
+exportHotelPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(hotelBookingResultEl, "Hotel Booking");
+});
+
+exportFlightPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(flightBookingResultEl, "Flight Booking");
+});
+
+exportItineraryPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(itineraryResultEl, "Travel Itinerary");
+});
+
+exportCombinedItineraryPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(combinedItineraryResultEl, "Travel Itinerary");
+});
+
+exportCombinedFlightPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(combinedFlightBookingResultEl, "Flight Booking");
+});
+
+exportCombinedHotelPdfBtn.addEventListener("click", () => {
+  printIframeAsPdf(combinedHotelBookingResultEl, "Hotel Booking");
+});
+
+function buildCombinedHotelsHtml(htmls, autoPrint = false) {
+  const escapeSrcdoc = (html) => html.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const frames = (htmls || []).map((html, i) => {
+    return `<div class="doc-section">
+      <iframe id="hotel-frame-${i}" srcdoc="${escapeSrcdoc(html)}" scrolling="no" style="width:100%;border:none;display:block;"></iframe>
+    </div>`;
+  });
+
+  const printScript = autoPrint ? `
+    let loaded = 0;
+    const total = document.querySelectorAll('iframe').length;
+    document.querySelectorAll('iframe').forEach(frame => {
+      frame.addEventListener('load', () => {
+        loaded++;
+        if (loaded >= total) setTimeout(() => window.print(), 600);
+      });
+    });` : '';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hotel Bookings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; }
+    .doc-section {
+      page-break-after: always;
+      width: 100%;
+    }
+    .doc-section:last-child { page-break-after: auto; }
+    @media print {
+      body { margin: 0; }
+      @page { size: A4; margin: 0; }
+      .doc-section iframe { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  ${frames.join("\n")}
+  <script>
+    function resizeFrame(frame) {
+      try {
+        const doc = frame.contentDocument || frame.contentWindow.document;
+        const h = Math.max(doc.body.scrollHeight, doc.body.offsetHeight, doc.documentElement.scrollHeight, doc.documentElement.offsetHeight);
+        frame.style.height = h + 'px';
+      } catch(e) {}
+    }
+    document.querySelectorAll('iframe').forEach(frame => {
+      frame.onload = () => resizeFrame(frame);
+      setTimeout(() => resizeFrame(frame), 500);
+    });
+    ${printScript}
+  </script>
+</body>
+</html>`;
+}
+
+// Export ALL hotel bookings as one PDF with page breaks
+function printAllHotelsAsPdf() {
+  if (!hotelHtmls || hotelHtmls.length === 0) {
+    alert("Chưa có booking khách sạn để xuất.");
+    return;
+  }
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
+    return;
+  }
+
+  const combinedHtml = buildCombinedHotelsHtml(hotelHtmls, true);
+
+  printWin.document.open();
+  printWin.document.write(combinedHtml);
+  printWin.document.close();
+}
+
+function printCombinedPackagePdf() {
+  // Read from ORIGINAL individual result iframes (not combined preview)
+  const itineraryDoc =
+    itineraryResultEl?.contentDocument ||
+    itineraryResultEl?.contentWindow?.document;
+  const flightDoc =
+    flightBookingResultEl?.contentDocument ||
+    flightBookingResultEl?.contentWindow?.document;
+
+  const hasItinerary = itineraryDoc?.body?.innerHTML?.trim();
+  const hasFlight = flightDoc?.body?.innerHTML?.trim();
+  const hasHotel = hotelHtmls && hotelHtmls.length > 0;
+
+  if (!hasItinerary || !hasFlight || !hasHotel) {
+    alert("Cần đủ 3 nội dung: lịch trình, booking máy bay, booking khách sạn.");
+    return;
+  }
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    alert("Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup rồi thử lại.");
+    return;
+  }
+
+  // Extract <style> blocks from HTML string
+  const extractStyles = (html) => {
+    const styles = [];
+    const regex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      styles.push(match[1]);
+    }
+    return styles.join("\n");
+  };
+
+  // Extract <body> content from HTML string
+  const extractBody = (html) => {
+    const match = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    return match ? match[1] : html;
+  };
+
+  // Get full HTML from iframe document
+  const getFullHtml = (doc) => {
+    return doc.documentElement?.outerHTML || doc.body?.innerHTML || "";
+  };
+
+  // Scope CSS: prefix every selector with .doc-N to avoid conflicts
+  const scopeStyles = (css, scopeClass) => {
+    // Remove @media blocks first, process them separately
+    let result = '';
+    let remaining = css;
+
+    // Process @media blocks
+    const mediaRegex = /@media\s+[^{]+\{([\s\S]*?\})\s*\}/g;
+    let mediaMatch;
+    const mediaBlocks = [];
+    while ((mediaMatch = mediaRegex.exec(css)) !== null) {
+      const inner = mediaMatch[1];
+      // Scope the inner rules
+      const scoped = inner.replace(/([^{}@]+)\{([^{}]+)\}/g, (m, sel, body) => {
+        const scopedSel = sel.split(',').map(s => {
+          s = s.trim();
+          if (!s || s.startsWith('@')) return s;
+          if (s === 'body' || s === 'html') return '.' + scopeClass;
+          return '.' + scopeClass + ' ' + s;
+        }).join(', ');
+        return scopedSel + '{' + body + '}';
+      });
+      mediaBlocks.push(mediaMatch[0].replace(mediaMatch[1], scoped));
+    }
+
+    // Remove @media from remaining
+    remaining = remaining.replace(mediaRegex, '');
+
+    // Scope remaining rules
+    const scoped = remaining.replace(/([^{}@]+)\{([^{}]+)\}/g, (m, sel, body) => {
+      const scopedSel = sel.split(',').map(s => {
+        s = s.trim();
+        if (!s || s.startsWith('@') || s.startsWith('/*')) return s;
+        if (s === 'body' || s === 'html') return '.' + scopeClass;
+        return '.' + scopeClass + ' ' + s;
+      }).join(', ');
+      return scopedSel + '{' + body + '}';
+    });
+
+    return scoped + '\n' + mediaBlocks.join('\n');
+  };
+
+  // Build sections from all documents
+  const docHtmls = [
+    getFullHtml(itineraryDoc),
+    getFullHtml(flightDoc),
+    ...hotelHtmls
+  ];
+
+  let allStyles = '';
+  let allSections = '';
+
+  docHtmls.forEach((html, i) => {
+    const scopeClass = 'doc-' + i;
+    const styles = extractStyles(html);
+    const body = extractBody(html);
+
+    // Scope the CSS and add print overrides
+    allStyles += `
+      /* Document ${i} styles */
+      ${scopeStyles(styles, scopeClass)}
+      .${scopeClass} .a4, .${scopeClass} .a4-page {
+        min-height: auto !important;
+        height: auto !important;
+        page-break-after: auto !important;
+      }
+    `;
+
+    const pageBreak = i > 0 ? 'page-break-before: always;' : '';
+    allSections += `<div class="${scopeClass}" style="${pageBreak}">${body}</div>\n`;
+  });
+
+  const combinedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Combined Package PDF</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; margin: 0; padding: 0; }
+    @media print {
+      @page { size: A4; margin: 10mm; }
+    }
+    ${allStyles}
+  </style>
+</head>
+<body>
+  ${allSections}
+</body>
+</html>`;
+
+  printWin.document.open();
+  printWin.document.write(combinedHtml);
+  printWin.document.close();
+
+  printWin.onload = () => {
+    setTimeout(() => { printWin.print(); }, 500);
+  };
+  setTimeout(() => { printWin.print(); }, 1000);
+}
+
+exportAllHotelPdfBtn.addEventListener("click", printAllHotelsAsPdf);
+exportCombinedAllPdfBtn.addEventListener("click", printCombinedPackagePdf);
+
+stepsListEl.addEventListener("click", (event) => {
+  const btn = event.target.closest(".step-btn");
+  if (btn) {
+    if (btn.disabled) return;
+    const step = btn.dataset.step;
+    const done = btn.dataset.done === "true";
+    if (step) runStep(step, done);
+    return;
+  }
+
+  const toggle = event.target.closest(".step-log-toggle");
+  if (!toggle) return;
+  const step = toggle.dataset.stepLogToggle;
+  if (!step) return;
+  if (activeStepLog === step) {
+    showStepLog(step, false);
+  } else {
+    showStepLog(step, true);
+  }
+});
+
+stepsListEl.addEventListener("input", (event) => {
+  const target = event.target;
+  if (target && target.id === "writerContext") {
+    writerContextCache = target.value || "";
+  }
+});
+
+hotelBookingTabsEl.addEventListener("click", (event) => {
+  const btn = event.target.closest(".hotel-tab-btn");
+  if (!btn) return;
+  const index = parseInt(btn.dataset.index);
+  showHotelTab(index);
+});
+
+tabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+});
+
+if (addTranslateFlowBtn) {
+  addTranslateFlowBtn.addEventListener("click", async () => {
+    await loadTranslationTemplates();
+    createTranslateFlow();
+  });
+}
+
+window.addEventListener("load", async () => {
+  setActiveTab("precheck");
+  await fetchFiles();
+  await loadSteps();
+  await loadLatestItinerary();
+  await loadLatestBooking();
+  await loadItineraryContext();
+  await loadLatestTripInfo();
+  await loadDestinations();
+  await loadClassifierFiles();
+  await initTranslationSection();
+  initSerpFlightUI();
+  setBookingMode("hotel");
+  syncCombinedPreviews();
+  await loadOutputHistory();
+});
+
+
+// ==================== PIPELINE BUTTON LISTENERS ====================
+const sendToInputBtn = document.getElementById("sendToInputBtn");
+if (sendToInputBtn) {
+  sendToInputBtn.addEventListener("click", sendToInput);
+}
+
+// Pre-check / Process button listeners
+const precheckScanBtn = document.getElementById("precheckScanBtn");
+if (precheckScanBtn) {
+  precheckScanBtn.addEventListener("click", precheckScan);
+}
+const applyRenameBtn = document.getElementById("applyRenameBtn");
+if (applyRenameBtn) {
+  applyRenameBtn.addEventListener("click", applyRename);
+}
+const sendMultiToSplitterBtn = document.getElementById("sendMultiToSplitterBtn");
+if (sendMultiToSplitterBtn) {
+  sendMultiToSplitterBtn.addEventListener("click", sendMultiToSplitter);
+}
+
+// Restore last classifier result on page load
+(async function restoreClassifierResult() {
+  try {
+    // Try fetching from server (scans _temp_output folder)
+    let data = null;
+    try {
+      const res = await fetch("/api/classifier/last-result");
+      const json = await res.json();
+      if (json.exists && json.copied && json.copied.length > 0) {
+        data = json;
+      }
+    } catch(e) {}
+
+    // Fallback: try localStorage
+    if (!data) {
+      const saved = localStorage.getItem("classifierLastResult");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.copied && parsed.copied.length > 0) data = parsed;
+      }
+    }
+
+    if (!data) return;
+
+    // Render result
+    classifierResultEl.innerHTML = formatClassifierResult(data);
+    setupClassifierRename();
+
+    // Restore global vars
+    window._classifierTempOutput = data._temp_output;
+    window._classifierFinalOutput = data._final_output;
+
+    // Show pipeline buttons + save button
+    const pipelineBtns = document.getElementById("pipelineToInputBtns");
+    if (pipelineBtns) {
+      pipelineBtns.style.display = "flex";
+      if (!document.getElementById("saveClassifierOutputBtn")) {
+        const saveBtn = document.createElement("button");
+        saveBtn.id = "saveClassifierOutputBtn";
+        saveBtn.textContent = "💾 Lưu vào output folder";
+        saveBtn.style.cssText = "background:#059669;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;";
+        saveBtn.addEventListener("click", async () => {
+          const cleanInput = confirm("Sau khi lưu, xóa luôn file input gốc để tiết kiệm dung lượng?\n\n• OK = Lưu + xóa input\n• Cancel = Chỉ lưu, giữ input");
+          saveBtn.disabled = true;
+          saveBtn.textContent = "⏳ Đang lưu...";
+          try {
+            const res = await fetch("/api/classifier/save-output", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                temp_output: window._classifierTempOutput,
+                output_dir: window._classifierFinalOutput,
+                clean_input: cleanInput,
+                input_dir: classifierInputDirEl.value.trim() || "phanloai/input",
+              }),
+            });
+            const result = await res.json();
+            if (res.ok) {
+              alert(`✅ Đã lưu ${result.file_count} file vào: ${result.output_dir}\n🧹 Đã dọn temp output.${cleanInput ? '\n🗑️ Đã xóa file input gốc.' : ''}`);
+              localStorage.removeItem("classifierLastResult");
+              classifierResultEl.innerHTML = "<div style='padding:12px; color:#34d399;'>✅ Đã lưu thành công. Chạy phân loại mới để xem kết quả.</div>";
+              await loadClassifierFiles();
+            } else {
+              alert(`Lỗi: ${result.error}`);
+            }
+          } catch (e) {
+            alert(`Lỗi: ${e.message}`);
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "💾 Lưu vào output folder";
+          }
+        });
+        pipelineBtns.appendChild(saveBtn);
+      }
+    }
+  } catch (e) { /* ignore restore errors */ }
+})();
+
