@@ -14,6 +14,8 @@ from flask import Blueprint, Response, jsonify, request, send_file
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.helpers import cache_dir as get_cache_dir
+
 import database as db
 from booking.generator import (
     generate_all_bookings,
@@ -36,8 +38,7 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _OUTPUT_DIR = os.path.join(_BASE_DIR, "output")
 
 
-def _cache_dir(output_path: str) -> str:
-    return os.path.join(os.path.dirname(output_path), "cache")
+# _cache_dir → imported as cache_dir from core.helpers
 
 
 # Import model helpers from server (they will stay in server.py for now)
@@ -288,7 +289,7 @@ def extract_trip():
         trip_info = dict(DEFAULT_TRIP_INFO)
 
     # Cache trip info to file
-    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    cache_dir = get_cache_dir(os.path.join("output", "letter.txt"))
     os.makedirs(cache_dir, exist_ok=True)
     with open(os.path.join(cache_dir, "booking_trip_info.json"), "w", encoding="utf-8") as f:
         json.dump(trip_info, f, ensure_ascii=False, indent=2)
@@ -314,7 +315,7 @@ def get_booking_trip_latest():
         ti = db.get_latest_trip_info(project_id)
         data = ti["data"] if ti else dict(DEFAULT_TRIP_INFO)
         return jsonify({"trip_info": data})
-    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    cache_dir = get_cache_dir(os.path.join("output", "letter.txt"))
     trip_path = os.path.join(cache_dir, "booking_trip_info.json")
     if not os.path.exists(trip_path):
         return jsonify({"trip_info": dict(DEFAULT_TRIP_INFO)})
@@ -405,7 +406,7 @@ def save_booking_trip():
     merged.update(trip_info)
 
     # Save to file cache
-    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    cache_dir = get_cache_dir(os.path.join("output", "letter.txt"))
     os.makedirs(cache_dir, exist_ok=True)
     with open(os.path.join(cache_dir, "booking_trip_info.json"), "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
@@ -434,7 +435,7 @@ def ai_generate_booking():
     trip_info_override = payload.get("trip_info")
     project_id = payload.get("project_id")
 
-    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    cache_dir = get_cache_dir(os.path.join("output", "letter.txt"))
     booking_cache_path = os.path.join(cache_dir, "ai_booking_data.json")
     trip_cache_path = os.path.join(cache_dir, "booking_trip_info.json")
 
@@ -554,7 +555,7 @@ def ai_generate_booking_stream():
     trip_info_override = payload.get("trip_info")
     project_id = payload.get("project_id")
 
-    cache_dir = _cache_dir(os.path.join("output", "letter.txt"))
+    cache_dir = get_cache_dir(os.path.join("output", "letter.txt"))
     booking_cache_path = os.path.join(cache_dir, "ai_booking_data.json")
     trip_cache_path = os.path.join(cache_dir, "booking_trip_info.json")
 

@@ -26,6 +26,7 @@ from pypdf import PdfReader, PdfWriter
 import database as db
 from core.agents import detect_domain
 from core.errors import QuotaExhaustedError, is_quota_error
+from core.helpers import get_text_model, get_vision_model, list_input_files, cache_dir
 
 pipeline_bp = Blueprint("pipeline", __name__)
 
@@ -34,36 +35,9 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _OUTPUT_DIR = os.path.join(_BASE_DIR, "output")
 
 
-def get_text_model() -> str:
-    return os.getenv("TEXT_MODEL", "gpt-5-mini")
-
-
-def get_vision_model() -> str:
-    return os.getenv("VISION_MODEL", "gpt-4o-mini")
-
-
-def _list_input_files(input_dir: str) -> List[Dict[str, str]]:
-    items: List[Dict[str, str]] = []
-    for root, _, filenames in os.walk(input_dir):
-        for fname in filenames:
-            path = os.path.join(root, fname)
-            rel_path = os.path.relpath(path, input_dir).replace("\\", "/")
-            items.append(
-                {
-                    "name": fname,
-                    "rel_path": rel_path,
-                    "path": path,
-                    "domain": detect_domain(fname),
-                }
-            )
-    return items
-
+# get_text_model, get_vision_model, list_input_files, cache_dir → imported from core.helpers
 
 STEP_ORDER = ["ingest", "summary", "writer"]
-
-
-def _cache_dir(output_path: str) -> str:
-    return os.path.join(os.path.dirname(output_path), "cache")
 
 
 def _state_path(cache_dir: str) -> str:
@@ -261,7 +235,7 @@ def list_classifier_files():
     input_dir = request.args.get("input_dir", os.path.join("phanloai", "input"))
     if not os.path.isdir(input_dir):
         return jsonify({"input_dir": input_dir, "files": [], "exists": False})
-    items = _list_input_files(input_dir)
+    items = list_input_files(input_dir)
     return jsonify(
         {
             "input_dir": input_dir,
