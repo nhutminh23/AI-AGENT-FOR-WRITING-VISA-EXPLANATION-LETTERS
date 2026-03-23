@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DS-160 Auto Config Generator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="static/style.css?v=20260320-3">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="header-top">
+                <h1>DS-160 Auto Config Generator</h1>
+                <div class="lang-toggle" id="langToggle">
+                    <button id="langVi" class="lang-btn active" type="button" aria-label="Tiếng Việt">
+                        <img class="lang-flag" src="assets/Flag_of_Vietnam.svg.png" alt="Vietnam flag" width="12" height="12">
+                        <span>VI</span>
+                    </button>
+                    <button id="langEn" class="lang-btn" type="button" aria-label="English">
+                        <img class="lang-flag" src="assets/Flag_of_the_United_Kingdom_(1-2).svg.png" alt="UK flag" width="12" height="12">
+                        <span>EN</span>
+                    </button>
+                </div>
+            </div>
+            <p class="subtitle" id="subtitleText">Tự động sinh config cho 18 script Tampermonkey DS-160</p>
+        </div>
+    </header>
+
+    <main>
+        <section class="controls">
+            <div class="control-group">
+                <button id="btnProcess" class="btn btn-primary">
+                    <span class="btn-icon">&#9654;</span>
+                    <span id="btnProcessText">Xử lý dữ liệu từ thư mục /input</span>
+                </button>
+                <button id="btnLoadSaved" class="btn btn-secondary">
+                    <span class="btn-icon">&#128190;</span>
+                    <span id="btnLoadSavedText">Tải kết quả đã lưu</span>
+                </button>
+            </div>
+            <div id="inputStatus" class="status-bar"></div>
+        </section>
+
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="spinner-container">
+                <div class="spinner"></div>
+                <p class="loading-text" id="loadingText">Đang xử lý... AI đang phân tích dữ liệu và sinh config</p>
+                <p class="loading-sub" id="loadingSubText">Quá trình này có thể mất 30-60 giây</p>
+            </div>
+        </div>
+
+        <section id="resultsSection" class="results hidden">
+            <div class="results-header">
+                <h2 id="resultsTitle">Kết quả: 18 Script DS-160</h2>
+                <span id="resultSource" class="badge"></span>
+            </div>
+            <div id="accordion" class="accordion"></div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="static/app.js?v=20260320-3"></script>
+</body>
+</html>

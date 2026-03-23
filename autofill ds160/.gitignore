@@ -1,0 +1,20 @@
+# ===== SECRETS (QUAN TRỌNG - KHÔNG BAO GIỜ PUSH) =====
+.env
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ===== Virtual environments =====
+myenv/
+venv/
+.venv/
+env/
+
+# ===== Runtime data (hồ sơ visa người dùng) =====
+input/
+output/
