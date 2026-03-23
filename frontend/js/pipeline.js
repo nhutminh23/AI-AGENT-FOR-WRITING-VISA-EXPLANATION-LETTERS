@@ -579,7 +579,8 @@ function setBookingMode(mode = "hotel") {
   }
 
   if (isFlight) {
-    prefillSerpPassengerInfo();
+    // Reload trip data from server, then fill passenger info
+    loadLatestTripInfo().then(() => prefillSerpPassengerInfo());
   }
 }
 

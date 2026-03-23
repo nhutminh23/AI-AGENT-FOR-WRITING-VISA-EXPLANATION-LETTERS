@@ -421,6 +421,8 @@ async function saveTripInfo() {
     }
     setTripInfoForm(data.trip_info);
     tripInfoPanelEl.textContent = "✅ Đã lưu thông tin chuyến đi.";
+    // Auto-refresh: update flight tab with latest saved data
+    prefillSerpPassengerInfo();
   } catch (error) {
     tripInfoPanelEl.textContent = `❌ Lỗi lưu: ${error.message}`;
   } finally {

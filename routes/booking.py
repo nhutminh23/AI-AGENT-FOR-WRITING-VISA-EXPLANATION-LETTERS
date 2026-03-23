@@ -747,32 +747,43 @@ def search_flights():
     arrival_id = payload.get("arrival_id", "")
     outbound_date = payload.get("outbound_date", "")
 
-    if not departure_id or not outbound_date:
-        return jsonify({"error": "departure_id and outbound_date are required"}), 400
-    if flight_type != "3" and not arrival_id:
-        return jsonify({"error": "arrival_id is required for non-multi-city searches"}), 400
+    if flight_type != "3":
+        if not departure_id or not outbound_date:
+            return jsonify({"error": "departure_id and outbound_date are required"}), 400
+        if not arrival_id:
+            return jsonify({"error": "arrival_id is required"}), 400
 
     params = {
         "engine": "google_flights",
         "hl": payload.get("hl", "en"),
         "gl": payload.get("gl", "vn"),
         "type": flight_type,
-        "departure_id": departure_id,
-        "arrival_id": arrival_id,
-        "outbound_date": outbound_date,
         "adults": int(payload.get("adults", 1)),
         "currency": payload.get("currency", "VND"),
         "api_key": _get_serpapi_key(),
     }
 
-    if payload.get("return_date"):
-        params["return_date"] = payload["return_date"]
+    # Multi-city uses only multi_city_json; standard uses departure_id/arrival_id/outbound_date
+    if flight_type == "3":
+        if payload.get("multi_city_json"):
+            params["multi_city_json"] = payload["multi_city_json"]
+        else:
+            return jsonify({"error": "multi_city_json is required for multi-city searches"}), 400
+    else:
+        params["departure_id"] = departure_id
+        params["arrival_id"] = arrival_id
+        params["outbound_date"] = outbound_date
+        if payload.get("return_date"):
+            params["return_date"] = payload["return_date"]
+
     if payload.get("children"):
         params["children"] = int(payload["children"])
     if payload.get("departure_token"):
         params["departure_token"] = payload["departure_token"]
-    if payload.get("multi_city_json"):
-        params["multi_city_json"] = payload["multi_city_json"]
+
+    # Debug log
+    debug_params = {k: v for k, v in params.items() if k != "api_key"}
+    print(f"[FLIGHTS] SerpAPI params: {debug_params}")
 
     try:
         search = GoogleSearch(params)
@@ -780,9 +791,17 @@ def search_flights():
     except Exception as e:
         return jsonify({"error": f"SerpAPI error: {str(e)}"}), 500
 
+    best = results.get("best_flights", [])
+    other = results.get("other_flights", [])
+    print(f"[FLIGHTS] Results: {len(best)} best, {len(other)} other flights")
+    if not best and not other:
+        print(f"[FLIGHTS] SerpAPI raw keys: {list(results.keys())}")
+        if "error" in results:
+            print(f"[FLIGHTS] SerpAPI error: {results['error']}")
+
     return jsonify({
-        "best_flights": results.get("best_flights", []),
-        "other_flights": results.get("other_flights", []),
+        "best_flights": best,
+        "other_flights": other,
         "search_parameters": results.get("search_parameters", {}),
     })
 

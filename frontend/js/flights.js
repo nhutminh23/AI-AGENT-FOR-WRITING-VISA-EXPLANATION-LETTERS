@@ -63,11 +63,25 @@ function addMultiCityLeg() {
   const row = document.createElement("div");
   row.className = "row";
   row.style.marginTop = "6px";
+  row.style.alignItems = "end";
   row.innerHTML = `
     <div><label>Chặng ${idx}: Sân bay đi</label><input type="text" class="mc-dep" placeholder="IATA" /></div>
     <div><label>Sân bay đến</label><input type="text" class="mc-arr" placeholder="IATA" /></div>
     <div><label>Ngày bay</label><input type="date" class="mc-date" /></div>
+    <button type="button" class="mc-remove-btn" style="padding:6px 10px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap;" title="Xóa chặng này">✕</button>
   `;
+  row.querySelector(".mc-remove-btn").addEventListener("click", () => {
+    if (serpMultiCityLegsEl.children.length <= 2) {
+      alert("Cần ít nhất 2 chặng bay.");
+      return;
+    }
+    row.remove();
+    // Re-number remaining legs
+    serpMultiCityLegsEl.querySelectorAll(".row").forEach((r, i) => {
+      const label = r.querySelector("label");
+      if (label) label.textContent = `Chặng ${i + 1}: Sân bay đi`;
+    });
+  });
   serpMultiCityLegsEl.appendChild(row);
 }
 
@@ -131,6 +145,19 @@ function renderFlightResults(flights, containerId, selectionCallback) {
     const airline = firstLeg.airline || "";
     const logo = firstLeg.airline_logo || option.airline_logo || "";
 
+    // Build route summary showing all segments
+    let routeSummary;
+    if (legs.length >= 2) {
+      // Multi-leg: show each segment
+      routeSummary = legs.map(l => {
+        const ld = (l.departure_airport || {}).id || "?";
+        const la = (l.arrival_airport || {}).id || "?";
+        return `${ld} → ${la}`;
+      }).join(" • ");
+    } else {
+      routeSummary = `${depAirport.id || "?"} → ${arrAirport.id || "?"}`;
+    }
+
     const legsHtml = legs.map((l, li) => {
       const ldep = l.departure_airport || {};
       const larr = l.arrival_airport || {};
@@ -139,8 +166,12 @@ function renderFlightResults(flights, containerId, selectionCallback) {
         const lo = layovers[li];
         layoverHtml = `<span style="color:#d97706;font-size:12px;margin-left:8px;">⏱ ${_formatDuration(lo.duration)} tại ${lo.name} (${lo.id})</span>`;
       }
+      // Add leg label for multi-leg
+      const legLabel = legs.length >= 2
+        ? `<span style="display:inline-block;background:#1E3A8A;color:#fff;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:600;margin-right:6px;">Chặng ${li + 1}</span>`
+        : "";
       return `<div style="font-size:13px;margin-top:4px;">
-        ${_formatTime(ldep.time)} ${ldep.id} → ${_formatTime(larr.time)} ${larr.id}
+        ${legLabel}${_formatTime(ldep.time)} ${ldep.id} → ${_formatTime(larr.time)} ${larr.id}
         &nbsp;|&nbsp; ${l.airline || ""} ${l.flight_number || ""} &nbsp;|&nbsp; ${l.airplane || ""} &nbsp;|&nbsp; ${_formatDuration(l.duration)}
         ${layoverHtml}
       </div>`;
@@ -156,7 +187,7 @@ function renderFlightResults(flights, containerId, selectionCallback) {
           <img src="${logo}" width="32" alt="${airline}" style="border-radius:4px;">
           <div>
             <strong>${_formatTime(depAirport.time)} – ${_formatTime(arrAirport.time)}</strong>
-            <span style="color:#6b7280;font-size:13px;margin-left:8px;">${depAirport.id} → ${arrAirport.id}</span>
+            <span style="color:#6b7280;font-size:13px;margin-left:8px;">${routeSummary}</span>
           </div>
         </div>
         <div style="text-align:right;">
@@ -265,6 +296,9 @@ async function serpSearchFlights() {
       serpSelectedOutbound = selected;
       if (flightType === "1" && selected.departure_token) {
         serpSearchReturnFlights(selected.departure_token, payload);
+      } else if (flightType === "3" && selected.departure_token) {
+        // Multi-city: fetch next leg using departure_token
+        serpSearchNextLeg(selected.departure_token, payload);
       } else {
         serpSelectedReturn = null;
         serpReturnResultsEl.innerHTML = "";
@@ -322,13 +356,55 @@ async function serpSearchReturnFlights(departureToken, originalPayload) {
   }
 }
 
+async function serpSearchNextLeg(departureToken, originalPayload) {
+  serpReturnResultsEl.innerHTML = "<p style='color:#d97706;'>⏳ Đang tìm chuyến bay chặng tiếp theo...</p>";
+
+  try {
+    const payload = {
+      ...originalPayload,
+      departure_token: departureToken,
+    };
+    const res = await fetch("/api/flights/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      serpReturnResultsEl.innerHTML = `<span style='color:#dc2626;'>❌ ${data.error}</span>`;
+      return;
+    }
+
+    const allFlights = [...(data.best_flights || []), ...(data.other_flights || [])];
+    if (allFlights.length === 0) {
+      serpReturnResultsEl.innerHTML = "<span style='color:#d97706;'>Không tìm thấy chuyến bay cho chặng tiếp theo.</span>";
+      showSerpGenerateArea();
+      return;
+    }
+
+    serpReturnResultsEl.innerHTML = `<h3 style="margin-bottom:8px;">✈️ Chọn chuyến bay chặng tiếp theo (${allFlights.length} kết quả)</h3>`;
+    const listDiv = document.createElement("div");
+    listDiv.id = "serpReturnList";
+    listDiv.style.maxHeight = "400px";
+    listDiv.style.overflowY = "auto";
+    serpReturnResultsEl.appendChild(listDiv);
+
+    renderFlightResults(allFlights, "serpReturnList", (selected) => {
+      serpSelectedReturn = selected;
+      showSerpGenerateArea();
+    });
+  } catch (e) {
+    serpReturnResultsEl.innerHTML = `<span style='color:#dc2626;'>❌ ${e.message}</span>`;
+  }
+}
+
 function prefillSerpPassengerInfo() {
   const tripGuestNames = tripGuestNamesEl?.value?.trim();
-  if (tripGuestNames && serpPassengerNamesEl && !serpPassengerNamesEl.value.trim()) {
+  if (tripGuestNames && serpPassengerNamesEl) {
     serpPassengerNamesEl.value = tripGuestNames;
   }
   const contactName = tripGuestNamesEl?.value?.trim().split("\n")[0] || "";
-  if (contactName && serpContactNameEl && !serpContactNameEl.value.trim()) {
+  if (contactName && serpContactNameEl) {
     serpContactNameEl.value = contactName.replace(/\s*\[child\]\s*/gi, "").toUpperCase();
   }
 }
@@ -345,8 +421,13 @@ async function serpGenerateTicket() {
   }
   const flightType = serpFlightTypeEl.value;
   const isRoundTrip = flightType === "1";
+  const isMultiCity = flightType === "3";
   if (isRoundTrip && !serpSelectedReturn) {
     alert("Vui lòng chọn chuyến bay về.");
+    return;
+  }
+  if (isMultiCity && !serpSelectedReturn) {
+    alert("Vui lòng chọn chuyến bay chặng tiếp theo.");
     return;
   }
 
@@ -377,19 +458,19 @@ async function serpGenerateTicket() {
   const firstDep = outboundFlights[0]?.departure_airport?.time || "";
 
   const directions = [{
-    label: isRoundTrip ? "Departure" : (flightType === "3" ? "Leg 1" : "Departure"),
+    label: isRoundTrip ? "Departure" : (isMultiCity ? "Leg 1" : "Departure"),
     flights: outboundFlights,
     layovers: outboundLayovers,
     extensions: outboundExtensions,
     airline_logo: serpSelectedOutbound.airline_logo || "",
   }];
 
-  if (isRoundTrip && serpSelectedReturn) {
+  if ((isRoundTrip || isMultiCity) && serpSelectedReturn) {
     const retFlights = serpSelectedReturn.flights || [];
     const retLayovers = serpSelectedReturn.layovers || [];
     const retExtensions = serpSelectedReturn.extensions || [];
     directions.push({
-      label: "Return",
+      label: isRoundTrip ? "Return" : "Leg 2",
       flights: retFlights,
       layovers: retLayovers,
       extensions: retExtensions,
@@ -397,12 +478,9 @@ async function serpGenerateTicket() {
     });
   }
 
-  // SerpAPI Google Flights returns prices that are TOTAL for all passengers.
-  // For round trip, each direction's price is the total for all pax for THAT direction.
-  // We use the higher of outbound/return as the full round-trip total for all pax.
+  // Pricing: use the latest selected price (for multi-city, leg 2 price is the combined total)
   let totalPrice;
-  if (isRoundTrip && serpSelectedReturn?.price) {
-    // Use the larger price — typically the updated round-trip total
+  if ((isRoundTrip || isMultiCity) && serpSelectedReturn?.price) {
     totalPrice = Math.max(serpSelectedOutbound.price || 0, serpSelectedReturn.price || 0);
   } else {
     totalPrice = serpSelectedOutbound.price || 0;
@@ -410,7 +488,6 @@ async function serpGenerateTicket() {
   const numAdults = parseInt(serpAdultsEl?.value) || 1;
   const numChildren = parseInt(serpChildrenEl?.value) || 0;
   const totalPax = numAdults + numChildren;
-  // Price per person = total / number of passengers
   const perPerson = totalPax > 0 ? Math.round(totalPrice / totalPax) : totalPrice;
   passengers.forEach(p => {
     p.ticket_price = _formatPrice(perPerson, currency);
