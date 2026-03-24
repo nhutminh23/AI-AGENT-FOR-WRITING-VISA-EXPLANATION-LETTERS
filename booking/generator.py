@@ -4,12 +4,11 @@ Generates realistic hotel and flight booking confirmations for visa applications
 """
 
 import json
-import logging
 import os
 import random
 import re
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 # Load hotels database

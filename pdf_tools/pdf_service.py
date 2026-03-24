@@ -8,7 +8,7 @@ import base64
 import os
 import io
 from PIL import Image
-from typing import List, Dict, Tuple
+from typing import List, Dict
 
 
 def pdf_to_images(pdf_path: str, dpi: int = 150) -> List[str]:

@@ -3,22 +3,17 @@ Pre-check routes: file listing, document scanning, rename, merge.
 """
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
 import re
-import tempfile
-from typing import Any, Dict, List, Optional, Tuple
 
-from flask import Blueprint, Response, jsonify, request, send_file
+from flask import Blueprint, jsonify, request
 
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from core.errors import QuotaExhaustedError, check_and_raise_quota
 
-import database as db
-from core.agents import detect_domain
-from core.errors import QuotaExhaustedError, is_quota_error
+# Alias for underscore-prefixed name used in this file
+_check_and_raise_quota = check_and_raise_quota
 from core.helpers import get_vision_model, list_input_files
 
 precheck_bp = Blueprint("precheck", __name__)

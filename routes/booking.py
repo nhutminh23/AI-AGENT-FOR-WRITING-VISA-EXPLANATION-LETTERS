@@ -4,16 +4,14 @@ Booking routes: generate bookings, AI booking, SerpAPI flights/hotels.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import re
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from flask import Blueprint, Response, jsonify, request, send_file
+from flask import Blueprint, Response, jsonify, request
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.helpers import cache_dir as get_cache_dir
 
@@ -561,7 +559,6 @@ def ai_generate_booking_stream():
     trip_cache_path = os.path.join(cache_dir, "booking_trip_info.json")
 
     def generate():
-        import time as _time
 
         def send_event(step, msg, data=None):
             evt = {"step": step, "msg": msg}

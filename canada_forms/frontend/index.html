@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canada IMM5645E — Family Information Auto-Fill</title>
+    <link rel="stylesheet" href="/canada/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <a href="/" class="back-link">← Quay lại</a>
+                <div class="header-title">
+                    <h1>🇨🇦 IMM5645E — Family Information</h1>
+                    <p class="subtitle">Auto-fill Canada visa family form from your documents</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <span id="templateStatus" class="status-badge loading">Checking template...</span>
+            </div>
+        </header>
+
+        <!-- Step indicators -->
+        <div class="steps-bar">
+            <div class="step active" data-step="1">
+                <span class="step-number">1</span>
+                <span class="step-label">Upload Documents</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="2">
+                <span class="step-number">2</span>
+                <span class="step-label">AI Extract</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="3">
+                <span class="step-number">3</span>
+                <span class="step-label">Review & Edit</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="4">
+                <span class="step-number">4</span>
+                <span class="step-label">Fill & Download</span>
+            </div>
+        </div>
+
+        <!-- Step 1: Upload -->
+        <section id="step1" class="step-content active">
+            <div class="card">
+                <h2>📁 Upload Documents</h2>
+                <p class="card-desc">Upload CCCD, passport, birth certificates, family register, etc. AI will extract family information.</p>
+                
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📄</div>
+                    <p class="upload-text">Drag & drop files here or click to browse</p>
+                    <p class="upload-hint">Supported: PDF, DOCX, JPG, PNG, TIFF</p>
+                    <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.bmp,.tiff,.tif" hidden>
+                </div>
+
+                <div id="fileList" class="file-list" style="display:none;">
+                    <h3>📎 Uploaded Files</h3>
+                    <div id="fileListItems"></div>
+                </div>
+
+                <div class="action-row">
+                    <button id="uploadBtn" class="btn btn-primary" disabled>
+                        ⬆️ Upload & Continue
+                    </button>
+                </div>
+                <div id="uploadStatus" class="status-msg"></div>
+            </div>
+        </section>
+
+        <!-- Step 2: AI Extract -->
+        <section id="step2" class="step-content">
+            <div class="card">
+                <h2>🤖 AI Extraction</h2>
+                <p class="card-desc">AI is analyzing your documents to extract family information. This may take 30-60 seconds.</p>
+                
+                <div id="extractLoading" class="loading-area" style="display:none;">
+                    <div class="spinner"></div>
+                    <p>Đang phân tích tài liệu...</p>
+                    <p class="loading-sub">GPT is reading and extracting family data</p>
+                </div>
+                
+                <div class="action-row">
+                    <button id="extractBtn" class="btn btn-primary">
+                        🔍 Start AI Extraction
+                    </button>
+                    <button id="skipExtractBtn" class="btn btn-secondary">
+                        ✍️ Manual Entry Instead
+                    </button>
+                </div>
+                <div id="extractStatus" class="status-msg"></div>
+            </div>
+        </section>
+
+        <!-- Step 3: Review & Edit -->
+        <section id="step3" class="step-content">
+            <div class="card">
+                <h2>📋 Review & Edit Extracted Data</h2>
+                <p class="card-desc">Review AI-extracted data. Edit any field before filling the PDF. 
+                    <span class="badge badge-high">High</span> = confident, 
+                    <span class="badge badge-medium">Medium</span> = verify, 
+                    <span class="badge badge-low">Low</span> = likely manual needed
+                </p>
+
+                <!-- Application Type -->
+                <div class="form-section">
+                    <h3>📝 Application Type</h3>
+                    <div class="radio-group">
+                        <label><input type="radio" name="appType" value="visitor" checked> Visitor</label>
+                        <label><input type="radio" name="appType" value="worker"> Worker</label>
+                        <label><input type="radio" name="appType" value="student"> Student</label>
+                        <label><input type="radio" name="appType" value="other"> Other</label>
+                    </div>
+                </div>
+
+                <!-- Section A: Applicant -->
+                <div class="form-section">
+                    <h3>Section A — Applicant</h3>
+                    <div class="form-grid" id="applicantFields"></div>
+                </div>
+
+                <!-- Section A: Spouse -->
+                <div class="form-section">
+                    <h3>Section A — Spouse / Common-law Partner</h3>
+                    <div class="form-grid" id="spouseFields"></div>
+                    <div class="accompanying-row">
+                        <label>Accompanying to Canada?</label>
+                        <select id="spouseAccompanying">
+                            <option value="">— Select —</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Section A: Mother -->
+                <div class="form-section">
+                    <h3>Section A — Mother</h3>
+                    <div class="form-grid" id="motherFields"></div>
+                    <div class="accompanying-row">
+                        <label>Accompanying to Canada?</label>
+                        <select id="motherAccompanying">
+                            <option value="">— Select —</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Section A: Father -->
+                <div class="form-section">
+                    <h3>Section A — Father</h3>
+                    <div class="form-grid" id="fatherFields"></div>
+                    <div class="accompanying-row">
+                        <label>Accompanying to Canada?</label>
+                        <select id="fatherAccompanying">
+                            <option value="">— Select —</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Section B: Children -->
+                <div class="form-section">
+                    <h3>Section B — Children <button id="addChildBtn" class="btn btn-sm">+ Add Child</button></h3>
+                    <div id="childrenContainer"></div>
+                </div>
+
+                <!-- Section C: Siblings -->
+                <div class="form-section">
+                    <h3>Section C — Brothers & Sisters <button id="addSiblingBtn" class="btn btn-sm">+ Add Sibling</button></h3>
+                    <div id="siblingsContainer"></div>
+                </div>
+
+                <div class="action-row">
+                    <button id="fillBtn" class="btn btn-primary btn-large">
+                        ✍️ Fill PDF & Download
+                    </button>
+                </div>
+                <div id="fillStatus" class="status-msg"></div>
+            </div>
+        </section>
+
+        <!-- Step 4: Download -->
+        <section id="step4" class="step-content">
+            <div class="card card-success">
+                <h2>✅ PDF Filled Successfully!</h2>
+                <p class="card-desc">Your IMM5645E form has been filled with the extracted data.</p>
+                <div class="action-row">
+                    <a id="downloadLink" class="btn btn-primary btn-large" href="#" download>
+                        📥 Download Filled PDF
+                    </a>
+                    <button id="startOverBtn" class="btn btn-secondary">
+                        🔄 Start Over
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/canada/static/app.js"></script>
+</body>
+</html>

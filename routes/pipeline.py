@@ -3,31 +3,29 @@ Pipeline routes: classifier, scan-splitter, pdf-tools, itinerary, run.
 """
 from __future__ import annotations
 
-import asyncio
-import base64
-import io
 import json
 import logging
+import io
 import os
 import re
 import shutil
-import tempfile
-import traceback
 import uuid
 import zipfile
 from pathlib import Path as SplitterPath
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from flask import Blueprint, Response, jsonify, request, send_file, send_from_directory
+from flask import Blueprint, Response, jsonify, request, send_file
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from pypdf import PdfReader, PdfWriter
 
 import database as db
-from core.agents import detect_domain, itinerary_writer
+from core.agents import detect_domain, itinerary_writer, extract_text_with_openai
 from core.errors import QuotaExhaustedError, is_quota_error
 from core.helpers import get_text_model, get_vision_model, list_input_files, cache_dir
+from core.state import GraphState
+from classifier.agent import classify_files_in_folder
 from config import Config
 
 pipeline_bp = Blueprint("pipeline", __name__)
@@ -35,6 +33,12 @@ pipeline_bp = Blueprint("pipeline", __name__)
 # Base directory (project root, one level up from routes/)
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _OUTPUT_DIR = os.path.join(_BASE_DIR, "output")
+
+# Splitter output directory (needed by manual split routes)
+SPLITTER_OUTPUT_DIR = SplitterPath(_BASE_DIR) / Config.SPLITTER_OUTPUTS_DIR
+
+# Alias for backward compat
+_is_quota_error = is_quota_error
 
 
 # get_text_model, get_vision_model, list_input_files, cache_dir → imported from core.helpers
@@ -88,6 +92,84 @@ def _check_and_raise_quota(response):
         finish = meta.get("finish_reason", "")
         if finish == "error":
             raise QuotaExhaustedError("API quota exceeded")
+
+
+def _save_state(cache_directory: str, state: dict) -> None:
+    """Persist pipeline state (files, model, paths) to disk."""
+    os.makedirs(cache_directory, exist_ok=True)
+    state_file = os.path.join(cache_directory, "state.json")
+    # Filter out non-serialisable values (llm instance, etc.)
+    safe_state = {}
+    for k, v in state.items():
+        try:
+            json.dumps(v, ensure_ascii=False)
+            safe_state[k] = v
+        except (TypeError, ValueError):
+            pass  # skip non-serialisable (e.g. llm object)
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump(safe_state, f, ensure_ascii=False, indent=2)
+
+
+def _save_step_output(cache_directory: str, step: str, data: dict) -> None:
+    """Write a step-completion marker with the step's output."""
+    os.makedirs(cache_directory, exist_ok=True)
+    marker = os.path.join(cache_directory, f"step_{step}.json")
+    safe_data = {}
+    for k, v in data.items():
+        try:
+            json.dumps(v, ensure_ascii=False)
+            safe_data[k] = v
+        except (TypeError, ValueError):
+            pass
+    with open(marker, "w", encoding="utf-8") as f:
+        json.dump({"step": step, "done": True, "data": safe_data}, f, ensure_ascii=False, indent=2)
+
+
+def _missing_prereq_step(cache_directory: str, step: str) -> Optional[str]:
+    """Return the name of the first prerequisite step that hasn't run yet, or None."""
+    if step not in STEP_ORDER:
+        return None
+    idx = STEP_ORDER.index(step)
+    for prereq in STEP_ORDER[:idx]:
+        if not _is_step_done(cache_directory, prereq):
+            return prereq
+    return None
+
+
+def _run_single_step(state: dict, step: str, **kwargs) -> dict:
+    """Execute a single pipeline step and return updated state."""
+    from core.agents import (
+        ingest_documents,
+        generate_summary,
+        write_letter,
+    )
+    if step == "ingest":
+        return ingest_documents(state)
+    elif step == "summary":
+        return generate_summary(state)
+    elif step == "writer":
+        return write_letter(state, **kwargs)
+    raise ValueError(f"Unknown step: {step}")
+
+
+def _resolve_input_file_path(input_dir: str, filename: str) -> str:
+    """Safely join input_dir + filename, preventing path traversal."""
+    base = os.path.abspath(input_dir)
+    full = os.path.abspath(os.path.join(input_dir, filename))
+    if not full.startswith(base):
+        raise ValueError(f"Path traversal detected: {filename}")
+    return full
+
+
+def _upsert_file_record(project_id: int, file_info: dict) -> None:
+    """Insert or update a file record in the database for a project."""
+    try:
+        db.save_letter_state(
+            project_id,
+            files_data=[file_info],
+        )
+    except Exception as e:
+        logging.debug("_upsert_file_record ignored: %s", e)
 
 @pipeline_bp.post("/api/pipeline/send-to-splitter")
 def pipeline_send_to_splitter():
@@ -1353,7 +1435,6 @@ def pdf_rename_suggest_name():
 def extract_pdf_objects():
     """Extract text blocks from PDF with bbox, font, size, color info."""
     import fitz
-    import io
 
     if "file" not in request.files:
         return jsonify({"error": "missing_file"}), 400

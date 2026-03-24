@@ -3,20 +3,28 @@ AI PDF Splitter routes: upload, split, classify, download.
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
 import re
 import shutil
+import tempfile
 import uuid
 import zipfile
 import threading
 from pathlib import Path as SplitterPath
 from typing import Any, Dict, List, Optional
 
-from flask import Blueprint, Response, jsonify, request, send_file, send_from_directory
+from pypdf import PdfReader, PdfWriter
 
-import database as db
+from flask import Blueprint, Response, jsonify, request, send_from_directory
+
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from core.errors import QuotaExhaustedError, is_quota_error
+
 from pdf_tools.pdf_service import pdf_to_images, get_page_count, create_output_files
 from pdf_tools.ai_service import classify_all_pages
 from config import Config
@@ -43,6 +51,187 @@ TRANSLATE_TEMPLATE_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_TEMPLAT
 TRANSLATE_DEFAULT_TEMPLATE = Config.TRANSLATION_DEFAULT_TEMPLATE
 TRANSLATE_OUTPUT_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_OUTPUT_DIR)
 TRANSLATE_HTML_SAVE_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_HTML_SAVE_DIR)
+
+
+# In-memory cache for uploaded translation files
+translation_upload_cache: Dict[str, Dict] = {}
+
+# Alias for backward compatibility
+_is_quota_error = is_quota_error
+
+
+def _safe_name(name: str) -> str:
+    """Sanitize a filename: remove path separators, control chars, collapse spaces."""
+    name = os.path.basename(name)
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', ' ', name)
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name
+
+
+def _resolve_translate_source_path(input_dir: str, file_ref: str) -> Optional[str]:
+    """Resolve a file reference to an absolute path for translation.
+    
+    Handles:
+    - upload_token:<token> → temp file from translation_upload_cache
+    - relative path → joined with input_dir
+    - absolute path → used directly
+    """
+    if file_ref.startswith("upload_token:"):
+        token = file_ref.split(":", 1)[1].strip()
+        meta = translation_upload_cache.get(token)
+        if meta and os.path.isfile(meta.get("temp_path", "")):
+            return meta["temp_path"]
+        return None
+    
+    # Try as relative path under input_dir
+    candidate = os.path.join(input_dir, file_ref)
+    if os.path.isfile(candidate):
+        return os.path.abspath(candidate)
+    
+    # Try as absolute path
+    if os.path.isfile(file_ref):
+        return os.path.abspath(file_ref)
+    
+    return None
+
+
+def _ocr_and_translate_document(
+    llm,
+    source_path: str,
+    source_lang: str = "tiếng Việt",
+    page_callback=None,
+) -> str:
+    """OCR + translate a document (PDF or image) in one pass per page.
+    
+    For PDF: converts each page to image, sends to vision model for OCR+translate.
+    For images: sends directly.
+    Returns the full translated English text.
+    """
+    ext = os.path.splitext(source_path)[1].lower()
+    pages_text = []
+    
+    if ext == ".pdf":
+        import fitz
+        doc = fitz.open(source_path)
+        total = len(doc)
+        for i, page in enumerate(doc):
+            pix = page.get_pixmap(dpi=200)
+            img_bytes = pix.tobytes("png")
+            b64 = base64.b64encode(img_bytes).decode("ascii")
+            
+            if page_callback:
+                page_callback(i + 1, total)
+            
+            prompt = (
+                f"This is page {i+1}/{total} of a document originally in {source_lang}. "
+                "OCR all text from the image and translate it fully to English. "
+                "Keep the original structure (headings, paragraphs, lists, tables). "
+                "Output ONLY the English translation."
+            )
+            try:
+                result = llm.invoke([
+                    SystemMessage(content="You are a professional document translator. OCR and translate to English."),
+                    HumanMessage(content=[
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                    ]),
+                ])
+                text = (result.content or "").strip()
+                if text:
+                    pages_text.append(text)
+            except Exception as e:
+                logging.warning("OCR page %d failed: %s", i + 1, e)
+                pages_text.append(f"[Page {i+1}: OCR failed]")
+        doc.close()
+    elif ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
+        with open(source_path, "rb") as f:
+            img_bytes = f.read()
+        mime = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext.lstrip('.')}"
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        
+        if page_callback:
+            page_callback(1, 1)
+        
+        try:
+            result = llm.invoke([
+                SystemMessage(content="You are a professional document translator. OCR and translate to English."),
+                HumanMessage(content=[
+                    {"type": "text", "text": f"OCR all text from this {source_lang} document image and translate fully to English. Keep structure intact. Output ONLY English."},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                ]),
+            ])
+            pages_text.append((result.content or "").strip())
+        except Exception as e:
+            logging.warning("OCR image failed: %s", e)
+    else:
+        # Text file — just read and translate
+        try:
+            with open(source_path, "r", encoding="utf-8") as f:
+                raw_text = f.read()
+            result = llm.invoke([
+                SystemMessage(content="You are a professional translator."),
+                HumanMessage(content=f"Translate this {source_lang} text to English. Keep formatting:\n\n{raw_text}"),
+            ])
+            pages_text.append((result.content or "").strip())
+        except Exception as e:
+            logging.warning("Text translate failed: %s", e)
+    
+    return "\n\n".join(pages_text)
+
+
+def _build_translation_html(
+    llm,
+    translated_text: str,
+    template_html: str,
+    original_text: str = "",
+) -> str:
+    """Use LLM to build a formatted HTML document from translated text + template."""
+    prompt = (
+        "You are a document formatter. Given a translated English text and an HTML template, "
+        "create a complete HTML document by filling the template with the translated content.\n\n"
+        "RULES:\n"
+        "- Keep the template's CSS and structure intact\n"
+        "- Replace placeholder content with the translated text\n"
+        "- Format paragraphs, headings, and lists properly\n"
+        "- Output ONLY the complete HTML (no markdown, no explanation)\n\n"
+        f"=== TEMPLATE HTML ===\n{template_html}\n\n"
+        f"=== TRANSLATED TEXT ===\n{translated_text}"
+    )
+    try:
+        result = llm.invoke([
+            SystemMessage(content="You are an expert HTML document formatter. Output only valid HTML."),
+            HumanMessage(content=prompt),
+        ])
+        html = (result.content or "").strip()
+        # Strip markdown code fences if present
+        if html.startswith("```"):
+            html = html.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return html
+    except Exception as e:
+        logging.error("Build HTML failed: %s", e)
+        raise
+
+
+def _auto_detect_template(translated_text: str) -> str:
+    """Auto-detect the best translation template based on content."""
+    text_lower = translated_text.lower()
+    
+    templates_dir = TRANSLATE_TEMPLATE_DIR
+    if not os.path.isdir(templates_dir):
+        return TRANSLATE_DEFAULT_TEMPLATE
+    
+    available = [f for f in os.listdir(templates_dir) if f.lower().endswith(".html")]
+    if not available:
+        return TRANSLATE_DEFAULT_TEMPLATE
+    
+    # Simple keyword matching
+    for template in available:
+        stem = os.path.splitext(template)[0].lower()
+        keywords = stem.replace("_", " ").replace("-", " ").split()
+        if any(kw in text_lower for kw in keywords if len(kw) > 3):
+            return template
+    
+    return TRANSLATE_DEFAULT_TEMPLATE
 
 
 def _ensure_translate_template_dir():
@@ -961,8 +1150,21 @@ def run_translate_stream():
             tpl_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
             if not tpl_path.startswith(tpl_root) or not os.path.exists(tpl_path):
                 tpl_path = os.path.join(TRANSLATE_TEMPLATE_DIR, TRANSLATE_DEFAULT_TEMPLATE)
-            with open(tpl_path, "r", encoding="utf-8") as f:
-                template_html = f.read()
+            if os.path.isfile(tpl_path):
+                with open(tpl_path, "r", encoding="utf-8") as f:
+                    template_html = f.read()
+            else:
+                # Resilient fallback — generate simple HTML if no template
+                logging.warning("Template not found: %s, using inline fallback", tpl_path)
+                template_html = (
+                    '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                    '<title>Translated Document</title>'
+                    '<style>body{font-family:"Times New Roman",serif;padding:20px;max-width:800px;margin:auto;}'
+                    'h1{text-align:center;font-size:20px;text-transform:uppercase;}'
+                    '.doc-content{white-space:pre-wrap;line-height:1.7;font-size:14px;}</style></head>'
+                    '<body><h1>Translated Document</h1>'
+                    '<div class="doc-content">{{CONTENT}}</div></body></html>'
+                )
 
             # Step 2: Build HTML
             yield from send_event(2, "⏳ Đang tạo HTML theo template...")

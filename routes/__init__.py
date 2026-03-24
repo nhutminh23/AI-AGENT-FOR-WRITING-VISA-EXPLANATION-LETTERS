@@ -15,9 +15,11 @@ def register_blueprints(app: Flask) -> None:
     from routes.precheck import precheck_bp
     from routes.pipeline import pipeline_bp
     from routes.ds160 import ds160_bp
+    from routes.canada_forms import canada_forms_bp
     app.register_blueprint(projects_bp)
     app.register_blueprint(booking_bp)
     app.register_blueprint(splitter_bp)
     app.register_blueprint(precheck_bp)
     app.register_blueprint(pipeline_bp)
     app.register_blueprint(ds160_bp)
+    app.register_blueprint(canada_forms_bp)

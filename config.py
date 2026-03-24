@@ -38,9 +38,14 @@ class Config:
     CLASSIFIER_OUTPUT_DIR = os.path.join("phanloai", "output")
     CLASSIFIER_TEMP_OUTPUT_DIR = os.path.join("phanloai", "_temp_output")
     TRANSLATION_TEMPLATE_DIR = os.path.join("dich", "HTML template")
-    TRANSLATION_DEFAULT_TEMPLATE = "mau_dich.html"
+    TRANSLATION_DEFAULT_TEMPLATE = "a4.html"
     TRANSLATION_OUTPUT_DIR = os.path.join("dich", "output")
     TRANSLATION_HTML_SAVE_DIR = os.path.join("dich", "html")
+
+    # --- Canada Forms ---
+    CANADA_FORMS_INPUT_DIR = os.path.join("canada_forms", "input")
+    CANADA_FORMS_OUTPUT_DIR = os.path.join("canada_forms", "output")
+    CANADA_FORMS_TEMPLATE_DIR = os.path.join("canada_forms", "templates")
 
     # --- OCR ---
     OCR_DPI = 250
