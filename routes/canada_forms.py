@@ -1,14 +1,15 @@
 """
 Canada visa form auto-fill routes.
-Serves the Canada forms frontend and handles document upload, AI extraction,
-and PDF form filling.
+Serves the Canada forms frontend and handles JSON-based form filling
+and PDF generation for IMM5645E.
+
+Simplified workflow: Copy Prompt → Paste JSON → Review → Fill PDF
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
-import uuid
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_from_directory, send_file
@@ -25,15 +26,8 @@ canada_forms_bp = Blueprint("canada_forms", __name__)
 # ---------------------------------------------------------------------------
 CANADA_BASE_DIR = Path(__file__).resolve().parent.parent / "canada_forms"
 CANADA_FRONTEND_DIR = CANADA_BASE_DIR / "frontend"
-CANADA_INPUT_DIR = Path(Config.CANADA_FORMS_INPUT_DIR)
 CANADA_OUTPUT_DIR = Path(Config.CANADA_FORMS_OUTPUT_DIR)
 CANADA_TEMPLATE_DIR = Path(Config.CANADA_FORMS_TEMPLATE_DIR)
-
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}
-
-
-def _allowed_file(filename: str) -> bool:
-    return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
 
 
 # ---------------------------------------------------------------------------
@@ -51,93 +45,26 @@ def canada_static(filename: str):
 
 
 # ---------------------------------------------------------------------------
-# API: Upload documents
+# API: Get Grok prompt template
 # ---------------------------------------------------------------------------
-@canada_forms_bp.post("/canada/api/upload")
-def canada_upload():
-    """Upload document files for extraction."""
-    CANADA_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+@canada_forms_bp.get("/canada/api/prompt-template")
+def canada_prompt_template():
+    """Return the Grok prompt template text for the frontend to display."""
+    template_path = CANADA_BASE_DIR / "grok_prompt_template.md"
+    if not template_path.exists():
+        return jsonify({"error": "Prompt template not found"}), 404
 
-    if "files" not in request.files:
-        return jsonify({"error": "No files uploaded"}), 400
+    content = template_path.read_text(encoding="utf-8")
 
-    files = request.files.getlist("files")
-    if not files:
-        return jsonify({"error": "No files selected"}), 400
+    # Extract just the prompt section (after "## PROMPT (Copy từ đây)")
+    marker = "## PROMPT (Copy từ đây)"
+    idx = content.find(marker)
+    if idx != -1:
+        prompt_text = content[idx + len(marker):].strip()
+    else:
+        prompt_text = content
 
-    # Create a unique session folder
-    session_id = str(uuid.uuid4())[:8]
-    session_dir = CANADA_INPUT_DIR / session_id
-    session_dir.mkdir(parents=True, exist_ok=True)
-
-    uploaded = []
-    for f in files:
-        if f.filename and _allowed_file(f.filename):
-            filename = secure_filename(f.filename)
-            filepath = session_dir / filename
-            f.save(str(filepath))
-            uploaded.append({
-                "filename": filename,
-                "size": os.path.getsize(str(filepath)),
-            })
-        else:
-            logger.warning("Skipped unsupported file: %s", f.filename)
-
-    if not uploaded:
-        return jsonify({"error": "No valid files uploaded"}), 400
-
-    return jsonify({
-        "session_id": session_id,
-        "files": uploaded,
-        "count": len(uploaded),
-    })
-
-
-# ---------------------------------------------------------------------------
-# API: AI Extract family info
-# ---------------------------------------------------------------------------
-@canada_forms_bp.post("/canada/api/extract")
-def canada_extract():
-    """Extract family information from uploaded documents using AI."""
-    data = request.get_json(silent=True) or {}
-    session_id = data.get("session_id")
-
-    if not session_id:
-        return jsonify({"error": "Missing session_id"}), 400
-
-    session_dir = CANADA_INPUT_DIR / session_id
-    if not session_dir.exists():
-        return jsonify({"error": "Session not found. Please upload files first."}), 404
-
-    # Collect all files
-    file_paths = []
-    for f in session_dir.iterdir():
-        if f.is_file() and _allowed_file(f.name):
-            file_paths.append(str(f))
-
-    if not file_paths:
-        return jsonify({"error": "No valid files found in session"}), 400
-
-    try:
-        from canada_forms.agent import extract_family_info
-        result = extract_family_info(file_paths)
-
-        # Save extraction result for later use
-        result_path = session_dir / "extraction_result.json"
-        with open(result_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-
-        return jsonify({
-            "raw": result["raw"],
-            "form_fields": result["form_fields"],
-            "confidence": result["confidence"],
-            "files_processed": len(file_paths),
-        })
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as exc:
-        logger.exception("AI extraction failed")
-        return jsonify({"error": f"AI extraction failed: {str(exc)}"}), 500
+    return jsonify({"prompt": prompt_text})
 
 
 # ---------------------------------------------------------------------------
@@ -148,20 +75,30 @@ def canada_fill():
     """Fill IMM5645E PDF form with provided data."""
     data = request.get_json(silent=True) or {}
     form_fields = data.get("form_fields")
-    session_id = data.get("session_id", "manual")
 
     if not form_fields:
         return jsonify({"error": "Missing form_fields"}), 400
+
+    # DEBUG: Log child/sibling keys to trace duplicate issue
+    child_sib_keys = {k: v for k, v in sorted(form_fields.items())
+                      if 'child' in k or 'sibling' in k or 'accomp' in k}
+    logger.info("=== FORM DATA DEBUG: child/sibling keys ===")
+    for k, v in child_sib_keys.items():
+        logger.info("  %s = %s", k, str(v)[:50])
 
     # Find template
     template_path = CANADA_TEMPLATE_DIR / "imm5645e.pdf"
     if not template_path.exists():
         return jsonify({
-            "error": f"Template not found: {template_path}. Please place imm5645e.pdf in {CANADA_TEMPLATE_DIR}"
+            "error": f"Template not found: {template_path}. "
+                     f"Please place imm5645e.pdf in {CANADA_TEMPLATE_DIR}"
         }), 404
 
     # Output path
     CANADA_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    import uuid
+    session_id = str(uuid.uuid4())[:8]
     output_filename = f"IMM5645E_filled_{session_id}.pdf"
     output_path = CANADA_OUTPUT_DIR / output_filename
 
@@ -195,16 +132,6 @@ def canada_download(filename: str):
         download_name=filename,
         mimetype="application/pdf",
     )
-
-
-# ---------------------------------------------------------------------------
-# API: Get field metadata (for frontend form building)
-# ---------------------------------------------------------------------------
-@canada_forms_bp.get("/canada/api/fields")
-def canada_fields():
-    """Return field metadata for IMM5645E form."""
-    from canada_forms.fill_imm5645 import get_field_list
-    return jsonify({"fields": get_field_list()})
 
 
 # ---------------------------------------------------------------------------

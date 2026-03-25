@@ -393,6 +393,21 @@ if (addTranslateFlowBtn) {
     createTranslateFlow();
   });
 }
+if (addTranslateFlowBtnFallback) {
+  addTranslateFlowBtnFallback.addEventListener("click", async () => {
+    await loadTranslationTemplates();
+    createTranslateFlow();
+  });
+}
+if (bulkCheckBtn) {
+  bulkCheckBtn.addEventListener("click", () => runBulkBilingualCheck());
+}
+if (bulkCreateStreamsBtn) {
+  bulkCreateStreamsBtn.addEventListener("click", () => bulkCreateTranslateStreams());
+}
+if (bulkTranslateAllBtn) {
+  bulkTranslateAllBtn.addEventListener("click", () => runTranslateAll());
+}
 
 window.addEventListener("load", async () => {
   setActiveTab("precheck");

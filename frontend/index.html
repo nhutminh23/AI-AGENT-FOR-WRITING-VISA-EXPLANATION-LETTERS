@@ -573,10 +573,79 @@
         <section class="card">
           <div class="card-header-row">
             <h2>Dịch tài liệu (đa luồng)</h2>
-            <button id="addTranslateFlowBtn" style="background:#16a34a;">➕ Thêm luồng mới</button>
           </div>
           <div class="hint">
-            Mặc định có 1 luồng. Workflow: Upload file → OCR → Dịch → Tạo HTML → <b>Sửa HTML trực tiếp</b> → Lưu PDF. Đầu ra luôn bằng <b>Tiếng Anh</b>.
+            Upload tất cả file → AI quét trang đầu → phát hiện file cần dịch → tự tạo luồng → ấn Dịch tất cả.
+          </div>
+
+          <!-- Bulk Upload Area -->
+          <div style="margin-top:12px; border:2px dashed #4f46e5; border-radius:10px; padding:16px; background:#eef2ff;">
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <div style="flex:1; min-width:250px;">
+                <label for="bulkTranslateFiles" style="font-weight:600; display:block; margin-bottom:6px;">📂 Chọn tất cả file cần kiểm tra</label>
+                <input id="bulkTranslateFiles" type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.webp" multiple
+                  style="width:100%;" />
+              </div>
+              <div style="display:flex; gap:8px; align-items:flex-end;">
+                <button id="bulkCheckBtn" type="button"
+                  style="background:#4f46e5; padding:10px 20px; font-size:14px; white-space:nowrap;">
+                  🤖 Quét & Phân loại
+                </button>
+              </div>
+            </div>
+            <div id="bulkCheckStatus" style="margin-top:8px; font-size:0.9em; color:#64748b;"></div>
+            <div id="bulkCheckProgress" style="display:none; margin-top:8px;">
+              <div style="background:#e2e8f0; border-radius:6px; height:6px; overflow:hidden;">
+                <div id="bulkCheckProgressBar"
+                  style="background:#4f46e5; height:100%; width:0%; transition:width 0.3s ease;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Table -->
+          <div id="bulkCheckResults" style="display:none; margin-top:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+              <h3 style="margin:0;">📋 Kết quả quét</h3>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <span id="bulkResultSummary" style="font-size:0.9em; color:#64748b;"></span>
+              </div>
+            </div>
+            <div style="overflow-x:auto; max-height:350px; overflow-y:auto;">
+              <table id="bulkResultsTable" style="width:100%; border-collapse:collapse; font-size:0.88em;">
+                <thead style="position:sticky; top:0; background:#f1f5f9;">
+                  <tr>
+                    <th style="padding:8px; text-align:left; border-bottom:2px solid #cbd5e1;">#</th>
+                    <th style="padding:8px; text-align:left; border-bottom:2px solid #cbd5e1;">Tên file</th>
+                    <th style="padding:8px; text-align:center; border-bottom:2px solid #cbd5e1;">Ngôn ngữ</th>
+                    <th style="padding:8px; text-align:center; border-bottom:2px solid #cbd5e1;">Trạng thái</th>
+                    <th style="padding:8px; text-align:left; border-bottom:2px solid #cbd5e1;">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody id="bulkResultsBody"></tbody>
+              </table>
+            </div>
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="bulkCreateStreamsBtn" type="button"
+                style="background:#16a34a; padding:10px 20px; font-size:14px;">
+                🔀 Tạo luồng cho file cần dịch
+              </button>
+              <button id="bulkTranslateAllBtn" type="button"
+                style="background:#dc2626; padding:10px 20px; font-size:14px; display:none;">
+                🚀 Dịch tất cả
+              </button>
+              <button id="addTranslateFlowBtn" type="button"
+                style="background:#64748b; padding:8px 14px; font-size:13px;">
+                ➕ Thêm luồng thủ công
+              </button>
+            </div>
+          </div>
+
+          <!-- Show manual add button when no results yet -->
+          <div id="bulkManualFallback" style="margin-top:12px;">
+            <button id="addTranslateFlowBtnFallback" type="button"
+              style="background:#16a34a; padding:8px 16px;">
+              ➕ Thêm luồng mới
+            </button>
           </div>
         </section>
 
@@ -737,8 +806,9 @@
               <label for="pdfMergeOutputName">Tên file sau khi nối (không cần .pdf)</label>
               <input type="text" id="pdfMergeOutputName" placeholder="VD: Ho so tong hop" style="width:100%; padding:8px; margin-top:4px; border:1px solid #d1d5db; border-radius:6px;" />
             </div>
-            <div style="margin-left: 12px; align-self: flex-end;">
+            <div style="margin-left: 12px; align-self: flex-end; display:flex; gap:8px;">
               <button id="pdfRunMergeBtn">Nối PDF</button>
+              <button id="pdfClearMergeBtn" style="background:#dc2626;">🗑️ Xóa tất cả</button>
             </div>
           </div>
         </section>

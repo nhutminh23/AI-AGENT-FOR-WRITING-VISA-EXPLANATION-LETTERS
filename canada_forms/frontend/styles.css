@@ -367,3 +367,53 @@ h1 { font-size: 22px; font-weight: 700; }
     .step-label { display: none; }
     .app-header { flex-direction: column; gap: 12px; align-items: flex-start; }
 }
+
+/* ---- Prompt Display (Step 1) ---- */
+.prompt-display {
+    margin: 16px 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-primary);
+    max-height: 400px;
+    overflow-y: auto;
+}
+.prompt-text {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--text-primary);
+    padding: 20px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.prompt-loading, .prompt-error {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+.prompt-error { color: var(--error); }
+
+/* ---- JSON Textarea (Step 2) ---- */
+#jsonInput {
+    width: 100%;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+#jsonInput:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+#jsonInput::placeholder {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+

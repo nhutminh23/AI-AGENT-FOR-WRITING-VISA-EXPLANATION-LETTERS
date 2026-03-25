@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translator Certification</title>
+    <style>
+        /* --- THIẾT LẬP CƠ BẢN --- */
+        body {
+            background-color: #f0f0f0;
+            font-family: "Times New Roman", Times, serif;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            background-color: #fff;
+            padding: 25mm 20mm;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            position: relative;
+        }
+
+        /* --- PHẦN ẢNH HEADER --- */
+        .top-image-container {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .top-image-container img {
+            max-width: 100%;
+            height: auto;
+            display: inline-block;
+            max-height: 100px; /* Giới hạn chiều cao ảnh để tiết kiệm không gian nếu cần */
+        }
+
+        /* --- NỘI DUNG LỜI CHỨNG --- */
+        .certification-box {
+            width: 100%;
+            margin-top: 0;
+        }
+
+        .bilingual-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .bilingual-table td {
+            vertical-align: top;
+            padding: 10px;
+            width: 50%;
+            font-size: 14px;
+            line-height: 1.5;
+            text-align: justify;
+        }
+
+        .en-text {
+            font-style: italic;
+            color: #333;
+        }
+
+        .vi-text {
+            font-weight: normal;
+            color: #000;
+        }
+
+        /* --- ĐƯỜNG KẺ DÀI NGĂN CÁCH --- */
+        .long-separator {
+            width: 100%;
+            border-top: 1px solid #000;
+            margin: 20px auto;
+        }
+
+        /* --- PHẦN NGÀY THÁNG & CHỮ KÝ --- */
+        .signature-section {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .signature-block {
+            text-align: center;
+            width: 60%;
+        }
+
+        .date-line {
+            font-size: 14px;
+            margin-bottom: 5px;
+            font-style: italic;
+        }
+
+        .sign-title {
+            font-weight: bold;
+            font-size: 14px;
+            border-top: none; 
+            display: block;
+            margin-top: 5px;
+        }
+
+        .signature-space {
+            height: 100px;
+        }
+
+        .translator-name {
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        /* --- CẤU HÌNH IN ẤN (QUAN TRỌNG) --- */
+        @page {
+            size: A4;
+            margin: 0; /* Xóa lề mặc định của trình duyệt khi in */
+        }
+
+        @media print {
+            body {
+                background-color: white;
+                padding: 0;
+                margin: 0;
+                display: block; /* Đảm bảo layout block khi in */
+            }
+
+            .a4-page {
+                box-shadow: none; /* Xóa bóng đổ khi in */
+                margin: 0 auto;
+                width: 210mm;
+                height: 297mm; /* Cố định chiều cao A4 */
+                page-break-after: avoid; /* Tránh ngắt trang */
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="a4-page">
+        
+        <div class="top-image-container">
+            <img src="./passport_lounge.jpg" alt="Passport Lounge Logo">
+        </div>
+
+        <div class="certification-box">
+            <table class="bilingual-table">
+                <tr>
+                    <td class="en-text">
+                        "I, <b>Tran Thai Qui</b>, Citizen Identity Card No.: <b>089204011001</b>, do undertake to translate accurately and correctly content of this paper/document attached hereto from Vietnamese into English"
+                    </td>
+                    <td class="vi-text">
+                        "Tôi, <b>Trần Thái Quí</b>, Căn Cước Công Dân số <b>089204011001</b>, cam đoan đã dịch chính xác nội dung của giấy tờ/văn bản này từ tiếng Việt sang tiếng Anh"
+                    </td>
+                </tr>
+            </table>
+
+            <div class="long-separator"></div>
+
+            <div class="signature-section">
+                <div class="signature-block">
+                    <div class="date-line">Date: 25/03/2026</div>
+                    
+                    <div class="sign-title">Chữ ký của người dịch/Signature of translator</div>
+                    
+                    <div class="signature-space"></div>
+                    
+                    <div class="translator-name">Trần Thái Quí</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

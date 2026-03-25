@@ -227,6 +227,13 @@ def extract_family_info(file_paths: list[str]) -> dict:
     # 2. Build messages
     messages, has_images = _build_messages(file_contents)
 
+    # Count images for logging
+    total_images = sum(
+        len(fc.get("images") or [])
+        for fc in file_contents
+        if fc.get("images")
+    )
+
     # 3. Choose model based on content type
     text_model = os.getenv("TEXT_MODEL", "gpt-5-mini")
     vision_model = os.getenv("VISION_MODEL", "gpt-4o-mini")
@@ -236,22 +243,47 @@ def extract_family_info(file_paths: list[str]) -> dict:
         model=model_name,
         temperature=0,
         api_key=os.getenv("OPENAI_API_KEY"),
+        timeout=120,       # 2 min timeout for large payloads
+        max_retries=3,     # Retry on 500/429 errors
     )
 
     logger.info(
-        "Extracting family info using model=%s, files=%d (images=%s)",
-        model_name, len(file_contents), has_images,
+        "Extracting family info: model=%s, files=%d, images=%d, has_vision=%s",
+        model_name, len(file_contents), total_images, has_images,
     )
 
-    # 4. Call LLM
-    response = llm.invoke(messages)
-    raw_text = response.content.strip()
+    # 4. Call LLM with retry
+    import time
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = llm.invoke(messages)
+            raw_text = response.content.strip()
+            break
+        except Exception as exc:
+            last_error = exc
+            err_msg = str(exc)
+            logger.warning(
+                "LLM call attempt %d/3 failed: %s", attempt + 1, err_msg[:200]
+            )
+            if attempt < 2:
+                wait = 2 ** attempt  # 1s, 2s
+                logger.info("Retrying in %ds...", wait)
+                time.sleep(wait)
+    else:
+        raise RuntimeError(
+            f"AI extraction failed after 3 attempts. "
+            f"Files: {len(file_contents)}, Images: {total_images}. "
+            f"Last error: {last_error}"
+        )
 
     # 5. Parse response
     ai_output = _parse_json_response(raw_text)
 
     # 6. Transform to form fields
     form_fields = _transform_to_form_fields(ai_output)
+
+    logger.info("Extraction complete: %d form fields extracted", len(form_fields))
 
     return {
         "raw": ai_output,

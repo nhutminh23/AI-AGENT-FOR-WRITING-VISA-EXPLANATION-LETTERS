@@ -464,6 +464,15 @@ if (pdfMergeFileInput) {
   pdfMergeFileInput.addEventListener("change", updatePdfMergeFileListDisplay);
 }
 
+const pdfClearMergeBtn = document.getElementById("pdfClearMergeBtn");
+if (pdfClearMergeBtn) {
+  pdfClearMergeBtn.addEventListener("click", () => {
+    pdfMergeFilesArray = [];
+    if (pdfMergeFileInput) pdfMergeFileInput.value = "";
+    renderPdfMergeFileList();
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SCAN SPLITTER — Split scanned PDFs by Translation Certification
 // ═══════════════════════════════════════════════════════════════

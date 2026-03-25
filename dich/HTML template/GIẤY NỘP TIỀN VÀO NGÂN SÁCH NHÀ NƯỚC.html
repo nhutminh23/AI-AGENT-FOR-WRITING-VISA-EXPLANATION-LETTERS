@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Payment Slip Into The State Budget - Document 6</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #525659;
+      font-family: "Times New Roman", Times, serif;
+      color: #000;
+      font-size: 13px;
+    }
+    .a4-page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      padding: 15mm 20mm;
+      box-sizing: border-box;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    }
+    .flex-between { display: flex; justify-content: space-between; }
+    .flex-start { display: flex; justify-content: flex-start; align-items: center; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .bold { font-weight: bold; }
+    .italic { font-style: italic; }
+    
+    .header-left { width: 55%; line-height: 1.4; font-size: 14px; }
+    .header-right { width: 45%; line-height: 1.5; font-size: 13px; }
+    
+    /* VietinBank Logo Simulation */
+    .bank-logo {
+      font-size: 28px;
+      font-weight: bold;
+      color: #005a9e; 
+      font-family: Arial, Helvetica, sans-serif;
+      margin-top: 10px;
+      letter-spacing: -1px;
+    }
+    
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      margin: 15px 0 5px 0;
+      text-transform: uppercase;
+    }
+    
+    /* Checkbox Styling */
+    .checkbox-container {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-right: 25px;
+    }
+    .box {
+      width: 14px;
+      height: 14px;
+      border: 1px solid #000;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 12px;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      line-height: 1;
+      padding-bottom: 2px;
+    }
+    
+    .form-row { margin-bottom: 6px; line-height: 1.6; }
+    .grid-address { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+    .grid-district { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    
+    /* Table styling */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      margin-bottom: 5px;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 6px 4px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 11px;
+    }
+    th { font-weight: normal; }
+    .text-left-td { text-align: left; padding-left: 5px;}
+    .text-right-td { text-align: right; padding-right: 5px;}
+    
+    /* Split Header above main table */
+    .top-header-th {
+      border-bottom: 1px solid #000;
+      padding: 5px 0;
+    }
+    
+    /* KBNN Box */
+    .kbnn-box {
+      border: 1px solid #000;
+      padding: 8px 10px;
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+
+    /* Signature Section Layout */
+    .signature-area {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 5px;
+    }
+    
+    .sig-left {
+      width: 45%;
+      text-align: center;
+    }
+    .digital-sig-block {
+      text-align: left;
+      margin-top: 2px;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      padding-left: 20%;
+      line-height: 1.3;
+    }
+    
+    .sig-right {
+      width: 55%;
+    }
+    .sig-right-header {
+      text-align: right;
+      font-weight: bold;
+      font-size: 15px;
+      margin-bottom: 5px;
+      padding-right: 15%;
+    }
+    .sig-right-date {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 15px;
+    }
+    .sig-right-roles {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 10px;
+    }
+    .sig-right-roles div {
+      font-weight: bold;
+      width: 33%;
+      text-align: center;
+    }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .a4-page { box-shadow: none; margin: 0; width: 100%; padding: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="a4-page">
+    
+    <div class="flex-between">
+      <div class="header-left bold">
+        VIETNAM JOINT STOCK COMMERCIAL BANK FOR<br>INDUSTRY AND TRADE
+        <div class="bank-logo">VietinBank</div>
+      </div>
+      <div class="header-right">
+        <div class="flex-start"><span style="width: 90px;">Form No.:</span> 02</div>
+        <div class="flex-start"><span style="width: 90px;">Symbol:</span> C1-02/NS</div>
+        <div class="flex-start"><span style="width: 90px;">Code:</span></div>
+        <div class="flex-start"><span style="width: 90px;">No.:</span> 11020250052688177</div>
+        <div class="flex-start"><span style="width: 90px;">Reference No.:</span> 444N25C0TOHESAZW</div>
+        <div class="flex-start"><span style="width: 90px;">Tax code:</span> 040082035944</div>
+      </div>
+    </div>
+
+    <div class="title">PAYMENT SLIP INTO THE STATE BUDGET</div>
+
+    <div class="flex-between" style="margin-bottom: 10px; margin-top: 15px;">
+      <div class="flex-start">
+        <div class="checkbox-container">Cash: <span class="box"></span></div>
+        <div class="checkbox-container">Transfer: <span class="box">X</span></div>
+      </div>
+      <div class="flex-start">
+        <div class="checkbox-container">Currency:</div>
+        <div class="checkbox-container">VND <span class="box">X</span></div>
+        <div class="checkbox-container">USD <span class="box"></span></div>
+        <div class="checkbox-container">Other <span class="box" style="border: none; border-bottom: 1px dotted #000; width: 30px;"></span></div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <span class="bold">Payer:</span> HO KINH DOANH TRAN DINH DUONG
+    </div>
+    <div class="grid-address form-row">
+      <div><span class="bold">Address:</span> Hamlet 9</div>
+      <div><span class="bold">Commune:</span></div>
+    </div>
+    <div class="grid-district form-row">
+      <div><span class="bold">District:</span> 40323130-Dong Thanh Commune</div>
+      <div><span class="bold">Province/City:</span> 403-Nghe An Province</div>
+    </div>
+
+    <div class="form-row" style="margin-top: 10px;">
+      <span class="bold">Request VietinBank to debit account No.:</span> 100876531062
+      <span style="margin-left: 20px;"><span class="bold">to pay into the State Budget according to:</span></span>
+    </div>
+    <div class="form-row flex-start" style="padding-left: 20px;">
+      <div class="checkbox-container">State Budget revenue account <span class="box">X</span></div>
+      <div class="checkbox-container">Temporary collection account <span class="box"></span></div>
+      <div class="checkbox-container">VAT refund recovery account <span class="box"></span></div>
+    </div>
+    
+    <div class="form-row">
+      <span class="bold">Into the account of State Treasury:</span> 40701007 - Transaction Office No. 17 - State Treasury Area XI
+      <span style="margin-left: 10px;"><span class="bold">Opened at authorized collecting bank:</span> 40201003 Vietnam Joint Stock Commercial Bank for Industry and Trade - North Nghe An Branch</span>
+    </div>
+
+    <div class="form-row flex-start" style="margin-top: 5px;">
+      <span class="bold" style="margin-right: 15px;">Submitted according to document of the competent authority:</span>
+      <div style="display: flex; flex-direction: column;">
+        <div>State Audit <span class="box"></span> <span style="margin-left: 30px;">Government Inspectorate <span class="box"></span></span></div>
+        <div>Financial Inspectorate <span class="box"></span> <span style="margin-left: 30px;">Other competent authority <span class="box"></span></span></div>
+      </div>
+    </div>
+    
+    <div class="form-row">
+      <span class="bold">Name of revenue managing agency:</span> 1140907-Dong Thanh Commune - Tax Facility 8 Nghe An Province
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th colspan="4" class="top-header-th" style="border-right: 1px solid #000;">Part for taxpayer to fill</th>
+          <th colspan="5" class="top-header-th">Part for authorized collecting bank/co-operating bank/State Treasury to fill</th>
+        </tr>
+        <tr>
+          <th style="width: 4%;">No.</th>
+          <th style="width: 16%;">Declaration form No./<br>Decision No./<br>Notification No./<br>File identifier (ID)</th>
+          <th style="width: 10%;">Tax period/<br>Decision date/<br>Notification date</th>
+          <th style="width: 36%;">Content of payments to the State Budget</th>
+          <th style="width: 6%;">Original Currency</th>
+          <th style="width: 10%;">Amount (VND)</th>
+          <th style="width: 6%;">Chapter code</th>
+          <th style="width: 6%;">NDKT(TM) code</th>
+          <th style="width: 6%;">DBHC code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>/</td>
+          <td>17/12/2025</td>
+          <td class="text-left-td">Value-added tax on domestic production and business goods (including services in the oil and gas sector) Personal income tax from production and business activities of individuals +1102500014929787+17/12/2025+++</td>
+          <td>VND</td>
+          <td class="text-right-td">800,000</td>
+          <td>857</td>
+          <td>1003</td>
+          <td>17530</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>/</td>
+          <td>17/12/2025</td>
+          <td class="text-left-td">Payment of other taxes tax code 040082035944</td>
+          <td>VND</td>
+          <td class="text-right-td">800,000</td>
+          <td>857</td>
+          <td>1701</td>
+          <td>17530</td>
+        </tr>
+        <tr>
+          <td colspan="4" class="text-center">Total :</td>
+          <td></td>
+          <td class="text-right-td">1,600,000</td>
+          <td colspan="3"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="form-row">
+      <span class="bold">Total amount in words:</span> <span class="italic">One million, six hundred thousand dong</span>
+    </div>
+
+    <div class="kbnn-box">
+      <div class="bold" style="margin-bottom: 5px;">PART FOR STATE TREASURY WHEN MAKING ACCOUNTING ENTRIES:</div>
+      <div class="flex-between">
+        <div>Tax agency code: 1140907</div>
+        <div style="width: 30%;">
+          <div>Debit Account: 100876531062</div>
+          <div>Credit Account: 7111</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="signature-area">
+      <div class="sig-left">
+        <div>Date 17 month 12 year 2025</div>
+        <div class="bold" style="margin: 2px 0;">Electronic signature</div>
+        <div class="digital-sig-block">
+          Digitally signed by VIETNAM JOINT STOCK<br>
+          COMMERCIAL BANK FOR INDUSTRY AND TRADE<br>
+          Date: 2025.12.17 17:10:37 ICT<br>
+          Reason: Digital Invoice Signing
+        </div>
+      </div>
+      
+      <div class="sig-right">
+        <div class="sig-right-header">PAYER</div>
+        <div class="sig-right-date">
+          <div>Date 17 month 12 year 2025</div>
+          <div>Date 17 month 12 year 2025</div>
+        </div>
+        <div class="sig-right-roles">
+          <div>Payer</div>
+          <div>Chief Accountant</div>
+          <div>Head of unit</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -946,6 +946,234 @@ def splitter_clear_outputs():
     return jsonify({"status": "done", "deleted_count": deleted_count})
 
 
+# ---------------------------------------------------------------------------
+# Bulk bilingual check — OCR page 1 only, parallel
+# ---------------------------------------------------------------------------
+
+# Document types that should NOT be translated (keep original for embassy check)
+_SKIP_TRANSLATION_KEYWORDS = [
+    "passport", "photo", "citizen_identity", "cccd",
+    "residence_permit", "visa_application", "visa_form",
+]
+
+def _should_skip_by_filename(filename: str) -> tuple:
+    """Check if file should skip translation based on filename patterns.
+    Returns (should_skip: bool, reason: str).
+    """
+    name_lower = filename.lower().replace(" ", "_").replace("-", "_")
+    for kw in _SKIP_TRANSLATION_KEYWORDS:
+        if kw in name_lower:
+            label = kw.replace("_", " ").title()
+            return True, f"Loại '{label}' — giữ gốc, không cần dịch"
+    return False, ""
+
+
+def _check_single_file_bilingual(filepath: str, filename: str, llm) -> dict:
+    """OCR page 1 of a file and check if it's bilingual or needs translation.
+    
+    Skips passport, CCCD, photo, visa forms, bank statements by filename.
+    For remaining: OCRs page 1 via vision LLM to detect languages.
+    """
+    # --- Pre-filter by filename ---
+    skip, skip_reason = _should_skip_by_filename(filename)
+    if skip:
+        return {
+            "filename": filename,
+            "is_bilingual": False,
+            "needs_translation": False,
+            "languages": [],
+            "reason": skip_reason,
+        }
+
+    import fitz
+    ext = os.path.splitext(filepath)[1].lower()
+    
+    # Get page 1 as base64 image
+    b64 = None
+    mime = "image/png"
+    
+    try:
+        if ext == ".pdf":
+            doc = fitz.open(filepath)
+            if len(doc) == 0:
+                doc.close()
+                return {"filename": filename, "needs_translation": False, 
+                        "reason": "Empty PDF", "is_bilingual": False}
+            pix = doc[0].get_pixmap(dpi=200)
+            img_bytes = pix.tobytes("png")
+            b64 = base64.b64encode(img_bytes).decode("ascii")
+            doc.close()
+        elif ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
+            with open(filepath, "rb") as f:
+                img_bytes = f.read()
+            mime = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext.lstrip('.')}"
+            b64 = base64.b64encode(img_bytes).decode("ascii")
+        else:
+            return {"filename": filename, "needs_translation": False, 
+                    "reason": f"Unsupported format: {ext}", "is_bilingual": False}
+    except Exception as e:
+        return {"filename": filename, "needs_translation": False, 
+                "reason": f"Cannot read file: {str(e)}", "is_bilingual": False}
+    
+    if not b64:
+        return {"filename": filename, "needs_translation": False, 
+                "reason": "Cannot extract image", "is_bilingual": False}
+    
+    # Ask LLM to check if the document page needs translation
+    prompt = (
+        "Look at this document image. Determine:\n"
+        "1) What TYPE of document is this?\n"
+        "2) Does it contain bilingual text (Vietnamese + English)?\n"
+        "3) Does it NEED translation?\n\n"
+        "Answer in this EXACT JSON format only:\n"
+        '{"is_bilingual": true/false, "needs_translation": true/false, '
+        '"doc_type": "type", "languages": ["list"], "reason": "brief explanation"}\n\n'
+        "Rules for needs_translation:\n"
+        "- Photo/portrait with no meaningful text → needs_translation: false\n"
+        "- Passport → needs_translation: false (international standard)\n"
+        "- ID card / CCCD / Citizen Identity Card → needs_translation: false (keep original)\n"
+        "- Visa application form → needs_translation: false (already in English)\n"
+        "- Residence permit → needs_translation: false (keep original)\n"
+        "- Bank statements with bilingual column headers (e.g. 'Ngày GD / Trans Date', 'Số dư / Balance') → needs_translation: false\n"
+        "- Bank statements where headers/labels have BOTH Vietnamese and English → needs_translation: false (already bilingual)\n"
+        "- Bank statements with ONLY Vietnamese headers → needs_translation: true\n"
+        "- Already bilingual (Vietnamese + English) → needs_translation: false\n"
+        "- Vietnamese-only administrative document → needs_translation: true\n"
+        "- Vietnamese-only certificate/license → needs_translation: true\n"
+        "Output ONLY the JSON, nothing else."
+    )
+    
+    try:
+        result = llm.invoke([
+            SystemMessage(content="You analyze document images for language detection. Respond only with JSON."),
+            HumanMessage(content=[
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+            ]),
+        ])
+        
+        raw = (result.content or "").strip()
+        # Parse JSON from response (handle markdown code blocks)
+        raw = re.sub(r'^```(?:json)?\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw)
+        
+        info = json.loads(raw)
+        is_bilingual = info.get("is_bilingual", False)
+        # Use AI's needs_translation if provided, otherwise infer from bilingual status
+        needs = info.get("needs_translation", not is_bilingual)
+        
+        return {
+            "filename": filename,
+            "is_bilingual": is_bilingual,
+            "needs_translation": needs,
+            "doc_type": info.get("doc_type", ""),
+            "languages": info.get("languages", []),
+            "reason": info.get("reason", ""),
+        }
+    except Exception as e:
+        logging.warning("Bilingual check failed for %s: %s", filename, e)
+        # Default to needing translation if check fails
+        return {
+            "filename": filename,
+            "is_bilingual": False,
+            "needs_translation": True,
+            "reason": f"Check failed, assuming needs translation: {str(e)}",
+            "languages": [],
+        }
+
+
+@splitter_bp.post("/api/translate/check_bilingual")
+def check_bilingual():
+    """Upload multiple files and check which ones need translation.
+    
+    OCRs only page 1 of each file for speed. Processes in parallel.
+    Returns per-file results with bilingual status and upload tokens.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"error": "no_files", "detail": "No files uploaded"}), 400
+    
+    # Save all files to temp and create upload tokens
+    file_entries = []
+    for f in files:
+        if not f or not f.filename:
+            continue
+        orig_name = os.path.basename(f.filename)
+        safe = _safe_name(orig_name).replace("..", ".")
+        if not safe:
+            continue
+        
+        base, ext = os.path.splitext(safe)
+        ext = ext or ".bin"
+        token = uuid.uuid4().hex
+        out_name = f"translate_{token}{ext}"
+        out_path = os.path.join(tempfile.gettempdir(), out_name)
+        
+        try:
+            f.save(out_path)
+            translation_upload_cache[token] = {"temp_path": out_path, "filename": safe}
+            file_entries.append({
+                "token": token, 
+                "path": out_path, 
+                "filename": safe,
+                "file_ref": f"upload_token:{token}",
+            })
+        except Exception as e:
+            logging.warning("Failed to save %s: %s", safe, e)
+    
+    if not file_entries:
+        return jsonify({"error": "no_valid_files"}), 400
+    
+    # Create LLM instance for bilingual check (use project's configured vision model)
+    from core.helpers import get_vision_model
+    llm = ChatOpenAI(model=get_vision_model(), temperature=0)
+    
+    # Check all files in parallel
+    results = [None] * len(file_entries)
+    
+    with ThreadPoolExecutor(max_workers=min(6, len(file_entries))) as executor:
+        future_to_idx = {
+            executor.submit(
+                _check_single_file_bilingual, 
+                entry["path"], entry["filename"], llm
+            ): i 
+            for i, entry in enumerate(file_entries)
+        }
+        
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            try:
+                result = future.result()
+                # Add upload token/ref to result
+                result["upload_token"] = file_entries[idx]["token"]
+                result["file_ref"] = file_entries[idx]["file_ref"]
+                results[idx] = result
+            except Exception as e:
+                results[idx] = {
+                    "filename": file_entries[idx]["filename"],
+                    "needs_translation": True,
+                    "is_bilingual": False,
+                    "reason": f"Error: {str(e)}",
+                    "upload_token": file_entries[idx]["token"],
+                    "file_ref": file_entries[idx]["file_ref"],
+                }
+    
+    needs_count = sum(1 for r in results if r and r.get("needs_translation"))
+    bilingual_count = sum(1 for r in results if r and not r.get("needs_translation") and r.get("is_bilingual"))
+    skipped_count = sum(1 for r in results if r and not r.get("needs_translation") and not r.get("is_bilingual"))
+    
+    return jsonify({
+        "status": "success",
+        "total": len(results),
+        "needs_translation": needs_count,
+        "already_bilingual": bilingual_count,
+        "skipped": skipped_count,
+        "results": results,
+    })
+
+
 @splitter_bp.get("/api/translate/templates")
 def list_translate_templates():
     _ensure_translate_template_dir()

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Household Business Registration Certificate</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #e5e7eb;
+      font-family: "Times New Roman", serif;
+      color: #000;
+      font-size: 14.5px; 
+      line-height: 1.35; 
+    }
+    .a4-page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      /* Căn lề trong: Trên 25mm (2.5cm), các cạnh còn lại 20mm (2cm) */
+      padding: 25mm 20mm 20mm 20mm; 
+      box-sizing: border-box;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .text-center { text-align: center; }
+    .bold { font-weight: bold; }
+    .italic { font-style: italic; }
+    .uppercase { text-transform: uppercase; }
+    
+    h1 {
+      margin: 15px 0 8px 0; 
+      font-size: 18px;
+      text-align: center;
+      text-transform: uppercase;
+      color: #000;
+    }
+    p { margin: 4px 0; } 
+    
+    .header-box { display: flex; justify-content: space-between; margin-bottom: 15px; }
+    .header-col { width: 48%; text-align: center; }
+
+    .info-table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: 8px; 
+      font-size: 14px;
+    }
+    .info-table th, .info-table td { 
+      border: 1px solid #000; 
+      padding: 5px; 
+      text-align: center; 
+      vertical-align: middle; 
+    }
+    .info-table th { font-weight: bold; }
+    .info-table td:nth-child(2), .info-table td:nth-child(3) { text-align: left; }
+
+    .signature-box { display: flex; justify-content: flex-end; margin-top: 15px; }
+    .signature-col { width: 45%; text-align: center; }
+
+    /* CSS IN ẤN - KHÓA CỨNG LỀ TRONG CHỐNG BỊ TRÌNH DUYỆT GHI ĐÈ */
+    @media print {
+      @page {
+        size: A4;
+        margin: 0; /* Xóa lề tự động của trình duyệt */
+      }
+      body { 
+        background: #fff; 
+        padding: 0; 
+        margin: 0;
+      }
+      .a4-page {
+        box-shadow: none;
+        margin: 0;
+        /* Khóa cứng khoảng hở trên giấy: Trên 2.5cm, các cạnh 2cm */
+        padding: 25mm 20mm 20mm 20mm !important; 
+        width: 210mm;
+        height: 297mm;
+        page-break-after: avoid; 
+        overflow: hidden;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="a4-page">
+    
+    <div class="header-box">
+      <div class="header-col">
+        <div class="bold uppercase">PEOPLE'S COMMITTEE OF BEN TRE CITY</div>
+        <div class="bold uppercase" style="text-decoration: underline;">FINANCE - PLANNING DIVISION</div>
+      </div>
+      <div class="header-col">
+        <div class="bold uppercase">SOCIALIST REPUBLIC OF VIETNAM</div>
+        <div class="bold" style="text-decoration: underline;">Independence - Freedom - Happiness</div>
+      </div>
+    </div>
+
+    <h1 class="bold uppercase">CERTIFICATE OF HOUSEHOLD BUSINESS REGISTRATION</h1>
+    <p class="text-center bold">No.: 55A8012101</p>
+    <p class="text-center italic">First registration: December 13, 2011</p>
+    <p class="text-center italic">Registration of 2nd amendment: March 02, 2020</p>
+    <br>
+
+    <p><strong>1. Name of household business: 9999</strong></p>
+
+    <p style="margin-top: 8px;"><strong>2. Business location:</strong> No. 115/3, Route No. 4, Quarter 3, Ward 4, Ben Tre City, Ben Tre Province</p>
+    <div style="display: flex; gap: 50px;">
+      <p>Telephone: 0753 811 461</p>
+      <p>Fax: None</p>
+    </div>
+    <div style="display: flex; gap: 50px;">
+      <p>Email: None</p>
+      <p style="margin-left: 55px;">Website: None</p>
+    </div>
+
+    <p style="margin-top: 8px;"><strong>3. Business lines:</strong> Manufacture of confectionery (the household business is only permitted to operate when ensuring the business conditions according to current regulations)</p>
+
+    <p style="margin-top: 8px;"><strong>4. Business capital:</strong> 800,000,000 VND</p>
+
+    <p style="margin-top: 8px;"><strong>5. Entity establishing the household business:</strong> Household</p>
+
+    <p style="margin-top: 8px;"><strong>6. Information on the representative of the household business</strong></p>
+    <p>Full name (in capital letters): <strong>NGUYEN THUY NGA</strong></p>
+    <p>Gender: Female</p>
+    <p>Date of birth: 21/04/1974 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ethnicity: Kinh &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Nationality: Vietnamese</p>
+    <p>Type of personal identification: Identity Card</p>
+    <p>Personal identification number: 320894194</p>
+    <p>Date of issue: 05/03/2016 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Place of issue: Ben Tre Provincial Police</p>
+    <p>Registered place of permanent residence: No. 229F, Quarter 2, Phu Khuong Ward, Ben Tre City, Ben Tre Province</p>
+    <p>Current residence: No. 229F, Quarter 2, Phu Khuong Ward, Ben Tre City, Ben Tre Province</p>
+
+    <p style="margin-top: 12px;"><strong>7. List of individuals contributing capital to establish the household business:</strong></p>
+    
+    <table class="info-table">
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Name of member</th>
+          <th>Registered place of permanent residence</th>
+          <th>Value of contributed capital (VND)</th>
+          <th>Percentage (%)</th>
+          <th>ID card number (or other legal personal identification)</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Nguyen Thuy Trang</td>
+          <td>Phu Khuong Ward, Ben Tre City, Ben Tre Province</td>
+          <td>400,000,000</td>
+          <td>50%</td>
+          <td>320894196</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Nguyen Thuy Nga</td>
+          <td>Phu Khuong Ward, Ben Tre City, Ben Tre Province</td>
+          <td>400,000,000</td>
+          <td>50%</td>
+          <td>320894194</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="signature-box">
+      <div class="signature-col">
+        <p class="bold uppercase">HEAD OF DIVISION</p>
+        <p class="italic" style="color: #666; margin-top: 45px;">[signed & stamped]</p>
+        <p class="bold" style="margin-top: 5px;">Huynh Mai Nguyen</p>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

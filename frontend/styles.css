@@ -1,49 +1,63 @@
 /* ================================================================
-   VISA LETTER AGENT — Trust & Authority Design System
-   Colors: Navy #1E3A8A / Gold #B45309 / Slate BG #F8FAFC
-   Fonts: EB Garamond (headings) + Lato (body)
+   VISA LETTER AGENT — V3 "Diplomat Noir" Design System
+   Dark theme: Deep midnight backgrounds, soft indigo accents
+   Font: Inter (clean, professional, comfortable for long sessions)
    ================================================================ */
-@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&family=Lato:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --primary: #1E3A8A;
-  --primary-light: #2563EB;
-  --primary-dark: #1E3370;
-  --cta: #B45309;
-  --cta-hover: #92400E;
-  --success: #059669;
-  --success-hover: #047857;
-  --danger: #DC2626;
-  --danger-hover: #B91C1C;
+  /* ─── Backgrounds ─── */
+  --bg:             #0d1117;
+  --bg-card:        #161b22;
+  --bg-card-alt:    #1c2129;
+  --bg-input:       #0d1117;
+  --bg-elevated:    #1e2430;
+  --bg-overlay:     rgba(0, 0, 0, 0.6);
 
-  --bg: #F8FAFC;
-  --bg-card: #FFFFFF;
-  --bg-card-alt: #F1F5F9;
-  --bg-dark: #0F172A;
-  --bg-dark-lighter: #1E293B;
+  /* ─── Accent colors ─── */
+  --primary:        #6366f1;
+  --primary-light:  #818cf8;
+  --primary-dark:   #4f46e5;
+  --primary-subtle: rgba(99, 102, 241, 0.15);
+  --primary-ghost:  rgba(99, 102, 241, 0.08);
 
-  --text: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
-  --text-on-dark: #E2E8F0;
+  /* ─── Semantic ─── */
+  --success:        #16a34a;
+  --success-hover:  #15803d;
+  --warning:        #eab308;
+  --danger:         #dc2626;
+  --danger-hover:   #b91c1c;
+  --info:           #0ea5e9;
 
-  --border: #E2E8F0;
-  --border-focus: #1E3A8A;
+  /* ─── Text ─── */
+  --text:           #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-muted:     #6b7280;
+  --text-accent:    #a5b4fc;
+  --text-on-primary:#ffffff;
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.04);
+  /* ─── Borders ─── */
+  --border:         rgba(255, 255, 255, 0.06);
+  --border-subtle:  rgba(255, 255, 255, 0.04);
+  --border-focus:   #6366f1;
+  --border-input:   #2a2d3a;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  /* ─── Shadows ─── */
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:  0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg:  0 8px 24px rgba(0, 0, 0, 0.3);
 
-  --font-heading: 'EB Garamond', Georgia, serif;
-  --font-body: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* ─── Radii ─── */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  16px;
 
-  --transition: 200ms ease;
+  /* ─── Typography ─── */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ─── Transitions ─── */
+  --transition: 180ms ease;
 }
 
 * {
@@ -52,7 +66,7 @@
 
 body {
   margin: 0;
-  font-family: var(--font-body);
+  font-family: var(--font);
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
@@ -64,102 +78,113 @@ body {
 .container {
   max-width: 100%;
   margin: 0;
-  padding: 20px 28px;
+  padding: 16px 24px;
 }
 
-/* ===== HEADER ===== */
+/* ===== HEADER / PROJECT BAR ===== */
 header {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+#projectBar {
+  background: #111827 !important;
+  border-radius: var(--radius-lg);
+  padding: 10px 16px !important;
+  margin-bottom: 12px !important;
+  border: 1px solid var(--border);
 }
 
 h1 {
   margin: 0 0 6px;
-  font-family: var(--font-heading);
-  font-size: 26px;
+  font-family: var(--font);
+  font-size: 22px;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--text);
   letter-spacing: -0.02em;
 }
 
 h2 {
-  font-family: var(--font-heading);
-  font-size: 20px;
+  font-family: var(--font);
+  font-size: 16px;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text);
   letter-spacing: -0.01em;
   margin: 0 0 12px;
 }
 
 h3 {
-  font-family: var(--font-heading);
-  font-size: 17px;
+  font-family: var(--font);
+  font-size: 14px;
   font-weight: 600;
-  color: var(--primary-dark);
+  color: var(--text);
 }
 
 /* ===== CARDS ===== */
 .card {
   background: var(--bg-card);
   padding: 20px 24px;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  margin-bottom: 18px;
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+  margin-bottom: 16px;
   border: 1px solid var(--border);
-  transition: box-shadow var(--transition);
+  transition: border-color var(--transition);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lg);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
 }
 
 .collapsible summary {
   cursor: pointer;
   font-weight: 600;
   margin-bottom: 8px;
-  color: var(--primary);
-  font-family: var(--font-heading);
-  font-size: 15px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
 }
 
-/* ===== TABS — Pill-style navigation ===== */
+/* ===== TABS — Horizontal pill navigation ===== */
 .tabs {
   display: flex;
   gap: 4px;
-  margin: 0 0 20px;
-  padding: 5px;
-  background: var(--bg-card-alt);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
+  margin: 0 0 16px;
+  padding: 4px;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   overflow-x: auto;
 }
 
 .tab-btn {
   background: transparent;
-  color: var(--text-secondary);
-  padding: 9px 16px;
+  color: var(--text-muted);
+  padding: 8px 14px;
   border-radius: var(--radius-md);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: var(--font-body);
-  border: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--font);
+  border: 1px solid transparent;
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 .tab-btn:hover {
-  background: rgba(30, 58, 138, 0.08);
-  color: var(--primary);
+  background: var(--primary-ghost);
+  color: var(--text-accent);
 }
 
 .tab-btn.active {
-  background: var(--primary);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.3);
+  background: var(--primary-subtle);
+  color: var(--text-accent);
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: none;
 }
 
 .section.hidden {
@@ -187,40 +212,45 @@ h3 {
 /* ===== FORM ELEMENTS ===== */
 label {
   display: block;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--text-secondary);
   margin-bottom: 5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 input {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  font-family: var(--font-body);
+  font-family: var(--font);
   font-size: 14px;
   color: var(--text);
-  background: var(--bg-card);
+  background: var(--bg-input);
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
 input:focus {
   border-color: var(--border-focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.12);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+input::placeholder {
+  color: var(--text-muted);
 }
 
 textarea {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  font-family: var(--font-body);
+  font-family: var(--font);
   font-size: 14px;
   color: var(--text);
+  background: var(--bg-input);
   resize: vertical;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
@@ -228,16 +258,20 @@ textarea {
 textarea:focus {
   border-color: var(--border-focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.12);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+textarea::placeholder {
+  color: var(--text-muted);
 }
 
 select {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  font-family: var(--font-body);
+  background: var(--bg-input);
+  font-family: var(--font);
   font-size: 14px;
   color: var(--text);
   cursor: pointer;
@@ -247,7 +281,12 @@ select {
 select:focus {
   border-color: var(--border-focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.12);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+select option {
+  background: var(--bg-card);
+  color: var(--text);
 }
 
 select[multiple] {
@@ -261,19 +300,19 @@ button {
   border: none;
   border-radius: var(--radius-sm);
   background: var(--primary);
-  color: #fff;
+  color: var(--text-on-primary);
   cursor: pointer;
-  font-family: var(--font-body);
+  font-family: var(--font);
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   transition: all var(--transition);
 }
 
 button:hover {
   background: var(--primary-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
 }
 
 button:active {
@@ -281,7 +320,7 @@ button:active {
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -295,33 +334,35 @@ button:disabled {
 
 .btn-outline {
   background: transparent;
-  color: var(--primary);
-  border: 1.5px solid var(--primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-input);
 }
 
 .btn-outline:hover {
-  background: rgba(30, 58, 138, 0.06);
+  background: var(--primary-ghost);
+  color: var(--text-accent);
+  border-color: rgba(99, 102, 241, 0.3);
   transform: translateY(-1px);
 }
 
 .btn-danger {
   background: transparent;
   color: var(--danger);
-  border-color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
 .btn-danger:hover {
-  background: rgba(220, 38, 38, 0.06);
+  background: rgba(220, 38, 38, 0.1);
 }
 
 /* ===== FILE LIST ===== */
 .file-list {
   margin-top: 12px;
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--border-input);
   border-radius: var(--radius-md);
   padding: 14px;
   min-height: 60px;
-  background: var(--bg-card-alt);
+  background: var(--bg-input);
 }
 
 .file-list.empty {
@@ -354,12 +395,11 @@ button:disabled {
   background: var(--bg-card-alt);
   display: grid;
   gap: 10px;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition);
 }
 
 .step-row:hover {
-  border-color: rgba(30, 58, 138, 0.2);
-  box-shadow: var(--shadow-sm);
+  border-color: rgba(99, 102, 241, 0.2);
 }
 
 .step-main {
@@ -383,8 +423,8 @@ button:disabled {
 }
 
 .step-log-toggle {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
   color: var(--text);
 }
 
@@ -396,15 +436,15 @@ button:disabled {
 
 .step-btn:disabled,
 .step-log-toggle:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .step-name {
-  font-weight: 700;
-  font-family: var(--font-heading);
-  font-size: 15px;
-  color: var(--primary);
+  font-weight: 600;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
 }
 
 .step-status {
@@ -416,11 +456,11 @@ button:disabled {
 .step-log {
   padding: 12px 16px;
   border-radius: var(--radius-sm);
-  background: var(--bg-dark);
-  color: var(--text-on-dark);
+  background: #0a0e14;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   min-height: 60px;
-  font-family: 'Courier New', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -432,7 +472,7 @@ button:disabled {
 }
 
 .file-name {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -450,40 +490,50 @@ button:disabled {
   line-height: 1.5;
 }
 
+.hint code {
+  background: var(--primary-ghost);
+  color: var(--text-accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 /* ===== RESULT / SUMMARY / PROGRESS (dark panels) ===== */
 .result {
-  background: var(--bg-dark);
-  color: var(--text-on-dark);
+  background: #0a0e14;
+  color: var(--text-secondary);
   padding: 16px;
   border-radius: var(--radius-md);
   white-space: pre-wrap;
   min-height: 160px;
-  font-family: 'Courier New', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.5;
-  border: 1px solid var(--bg-dark-lighter);
+  border: 1px solid var(--border);
 }
 
 .summary {
-  background: var(--bg-dark);
-  color: var(--text-on-dark);
+  background: #0a0e14;
+  color: var(--text-secondary);
   padding: 16px;
   border-radius: var(--radius-md);
   white-space: pre-wrap;
   min-height: 140px;
   font-size: 13px;
   line-height: 1.5;
+  border: 1px solid var(--border);
 }
 
 .progress {
-  background: var(--bg-dark);
-  color: var(--text-on-dark);
+  background: #0a0e14;
+  color: var(--text-secondary);
   padding: 16px;
   border-radius: var(--radius-md);
   white-space: pre-wrap;
   min-height: 120px;
   font-size: 13px;
   line-height: 1.5;
+  border: 1px solid var(--border);
 }
 
 /* ===== IFRAMES ===== */
@@ -492,7 +542,7 @@ button:disabled {
   min-height: 600px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-card);
+  background: var(--bg-input);
 }
 
 .booking-frame {
@@ -500,7 +550,7 @@ button:disabled {
   min-height: 600px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-card);
+  background: var(--bg-input);
 }
 
 /* ===== BOOKING TABS ===== */
@@ -512,28 +562,28 @@ button:disabled {
 
 .hotel-tab-btn {
   padding: 8px 18px;
-  border: 1.5px solid var(--border);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  background: var(--bg-card-alt);
+  background: var(--bg-input);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  font-family: var(--font-body);
+  font-family: var(--font);
   transition: all var(--transition);
 }
 
 .hotel-tab-btn:hover {
-  background: rgba(30, 58, 138, 0.06);
-  border-color: var(--primary);
-  color: var(--primary);
+  background: var(--primary-ghost);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--text-accent);
 }
 
 .hotel-tab-btn.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.25);
+  background: var(--primary-subtle);
+  color: var(--text-accent);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: none;
 }
 
 input[type="number"] {
@@ -562,14 +612,14 @@ input[type="number"] {
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  font-family: var(--font-body);
+  font-family: var(--font);
   transition: all var(--transition);
 }
 
 .export-pdf-btn:hover {
   background: var(--success-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
 }
 
 .export-btn-group {
@@ -578,27 +628,28 @@ input[type="number"] {
 }
 
 .export-pdf-btn.export-all {
-  background: var(--cta);
+  background: var(--primary);
 }
 
 .export-pdf-btn.export-all:hover {
-  background: var(--cta-hover);
-  box-shadow: 0 4px 12px rgba(180, 83, 9, 0.3);
+  background: var(--primary-dark);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
 }
 
 /* ===== TRANSLATE ===== */
 .translate-flow-card {
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  background: var(--bg-card) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: none;
   margin-bottom: 16px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  transition: box-shadow var(--transition);
+  padding: 20px 24px !important;
+  border: 1px solid var(--border) !important;
+  transition: border-color var(--transition);
 }
 
 .translate-flow-card:hover {
-  box-shadow: var(--shadow-md);
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none;
 }
 
 .translate-status {
@@ -606,6 +657,90 @@ input[type="number"] {
   font-size: 12px;
   color: var(--text-muted);
   font-weight: 500;
+}
+
+/* ===== TABLES (precheck result table) ===== */
+.precheck-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.precheck-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-card-alt);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+}
+
+.precheck-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.precheck-table tr:hover td {
+  background: var(--primary-ghost);
+}
+
+/* ===== PROGRESS BARS ===== */
+progress {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+  background: var(--bg-card-alt);
+}
+
+progress::-webkit-progress-bar {
+  background: var(--bg-card-alt);
+  border-radius: 4px;
+}
+
+progress::-webkit-progress-value {
+  background: var(--primary);
+  border-radius: 4px;
+}
+
+/* ===== FILE INPUTS ===== */
+input[type="file"] {
+  background: transparent;
+  border: 1px dashed var(--border-input);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+input[type="file"]::file-selector-button {
+  background: var(--primary-subtle);
+  color: var(--text-accent);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: all var(--transition);
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: rgba(99, 102, 241, 0.25);
+}
+
+/* ===== RADIO BUTTONS ===== */
+input[type="radio"] {
+  width: auto;
+  accent-color: var(--primary);
 }
 
 /* ===== SPINNER ===== */
@@ -621,7 +756,7 @@ input[type="number"] {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-card-alt);
+  background: var(--bg-card);
   border-radius: 3px;
 }
 
@@ -636,8 +771,144 @@ input[type="number"] {
 
 /* ===== SELECTION ===== */
 ::selection {
-  background: rgba(30, 58, 138, 0.15);
-  color: var(--primary-dark);
+  background: rgba(99, 102, 241, 0.25);
+  color: #fff;
+}
+
+/* ===== DETAILS / SUMMARY ===== */
+details {
+  color: var(--text);
+}
+
+details summary {
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+details summary:hover {
+  color: var(--text-accent);
+}
+
+/* ===== LINKS ===== */
+a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--primary-light);
+}
+
+/* ===== DARK THEME OVERRIDES for inline styles in JS/HTML ===== */
+/* Many JS files set inline background:#f8fafc, #fafafa, #fff, #f0fdf4
+   which creates light-bg + light-text = invisible text. Fix all at once. */
+
+/* Force dark backgrounds on ALL elements with inline light backgrounds */
+#pdfMergeFileList,
+#manualSplitAIFileList,
+#classifierFileList,
+#splitterFileList,
+#splitterOutputHistoryList,
+#filteredFilesTable,
+#precheckSummary,
+#precheckResults,
+#serpHotelResults,
+#serpOutboundResults,
+#serpReturnResults,
+#manualSplitResultList,
+#scanSplitResultList,
+#splitterResults,
+#splitterClassifications,
+#classifierResult,
+#fileList,
+#stepsList,
+.translate-flow-card,
+#editPdfCanvasWrap,
+#bookingHotelPage,
+#bookingFlightPage {
+  background: var(--bg-card-alt) !important;
+  color: var(--text) !important;
+  border-color: var(--border-input) !important;
+}
+
+/* Override light inline colors on status/info text */
+[style*="color:#6b7280"],
+[style*="color:#64748b"],
+[style*="color:#475569"],
+[style*="color:#334155"],
+[style*="color:#1e40af"],
+[style*="color: #6b7280"],
+[style*="color: #64748b"],
+[style*="color: #475569"],
+[style*="color: #334155"] {
+  color: var(--text-secondary) !important;
+}
+
+/* Force dark on any child with light inline bg */
+[style*="background:#f8fafc"],
+[style*="background:#fafafa"],
+[style*="background:#f0fdf4"],
+[style*="background:#f1f5f9"],
+[style*="background:#fffbeb"],
+[style*="background:#fef2f2"],
+[style*="background: #f8fafc"],
+[style*="background: #fafafa"],
+[style*="background: #fff"],
+[style*="background:#fff;"],
+[style*="background:white"] {
+  background: var(--bg-card-alt) !important;
+  color: var(--text) !important;
+}
+
+/* Step progress rows inside iframes won't be affected (different document),
+   but standalone step rows in the main page get dark treatment */
+[style*="border:1px solid #e2e8f0"],
+[style*="border: 1px solid #e2e8f0"],
+[style*="border:2px solid #e2e8f0"],
+[style*="border:1px solid #e5e7eb"] {
+  border-color: var(--border-input) !important;
+}
+
+/* Fix dashed borders */
+[style*="border:1px dashed"] {
+  border-color: var(--border-input) !important;
+}
+
+/* Ensure all text in cards/sections is readable */
+.card, .card * {
+  color: inherit;
+}
+
+.card h2, .card h3, .card label, .card .hint {
+  color: var(--text);
+}
+
+.card .hint {
+  color: var(--text-secondary);
+}
+
+/* Fix hotel/flight cards created by JS */
+.hotel-result-card,
+.flight-result-card,
+[class*="hotel-card"],
+[class*="flight-card"] {
+  background: var(--bg-card-alt) !important;
+  border-color: var(--border-input) !important;
+  color: var(--text) !important;
+}
+
+/* Fix precheck summary green background */
+#precheckSummary {
+  background: rgba(22, 163, 74, 0.1) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(22, 163, 74, 0.2) !important;
+}
+
+/* Fix error areas */
+#scanSplitErrorArea {
+  background: rgba(220, 38, 38, 0.1) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+  color: #fca5a5 !important;
 }
 
 /* ===== RESPONSIVE ===== */
@@ -648,7 +919,7 @@ input[type="number"] {
 
   .tabs {
     gap: 2px;
-    padding: 4px;
+    padding: 3px;
   }
 
   .tab-btn {

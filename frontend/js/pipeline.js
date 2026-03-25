@@ -726,41 +726,40 @@ function createTranslateFlow() {
         </div>
       </div>
 
-      <!-- OCR + Translation textareas side by side -->
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
-        <div>
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-            <label style="font-weight:600; font-size:0.9em;">🧾 Văn bản OCR</label>
-            <button type="button" class="trans-copy-btn" data-target="transOcr-${flowId}" style="padding:2px 8px; font-size:0.8em; background:#64748b; border:none; color:#fff; border-radius:4px; cursor:pointer;">📋 Copy</button>
-          </div>
-          <textarea id="transOcr-${flowId}" style="width:100%; min-height:180px; border:1px solid #cbd5e1; border-radius:6px; padding:8px; font-size:0.85em; font-family:monospace; resize:vertical;" placeholder="Chưa có dữ liệu OCR..."></textarea>
-        </div>
-        <div>
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-            <label style="font-weight:600; font-size:0.9em;">🌐 Bản dịch tiếng Anh</label>
-            <button type="button" class="trans-copy-btn" data-target="transTranslated-${flowId}" style="padding:2px 8px; font-size:0.8em; background:#64748b; border:none; color:#fff; border-radius:4px; cursor:pointer;">📋 Copy</button>
-          </div>
-          <textarea id="transTranslated-${flowId}" style="width:100%; min-height:180px; border:1px solid #cbd5e1; border-radius:6px; padding:8px; font-size:0.85em; font-family:monospace; resize:vertical;" placeholder="Chưa có bản dịch..."></textarea>
-        </div>
-      </div>
-
-      <!-- Rebuild HTML button -->
-      <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-        <button id="transRebuildBtn-${flowId}" type="button" style="background:#7c3aed; padding:8px 14px;">🔄 Tạo lại HTML (từ bản dịch đã sửa)</button>
-        <span id="transRebuildStatus-${flowId}" style="font-size:0.85em; color:#64748b;"></span>
-      </div>
-
-      <!-- HTML Source Editor -->
+      <!-- OCR + Translation textareas (collapsed) -->
       <details style="margin-top:12px;">
-        <summary style="cursor:pointer; font-weight:600; font-size:0.9em;">✏️ Sửa HTML source code</summary>
-        <div style="margin-top:6px;">
-          <textarea id="transHtmlSource-${flowId}" style="width:100%; min-height:250px; border:1px solid #cbd5e1; border-radius:6px; padding:8px; font-size:0.82em; font-family:monospace; resize:vertical;" placeholder="HTML source code sẽ hiện ở đây sau khi tạo..."></textarea>
-          <div style="margin-top:6px; display:flex; gap:8px;">
-            <button id="transApplyHtmlBtn-${flowId}" type="button" style="background:#0ea5e9; padding:6px 14px;">▶️ Áp dụng (reload preview)</button>
-            <button type="button" class="trans-copy-btn" data-target="transHtmlSource-${flowId}" style="padding:6px 14px; background:#64748b; border:none; color:#fff; border-radius:4px; cursor:pointer;">📋 Copy HTML</button>
+        <summary style="cursor:pointer; font-weight:600; font-size:0.9em; color:#64748b;">📄 Văn bản OCR & Bản dịch (ấn để xem)</summary>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px;">
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <label style="font-weight:600; font-size:0.9em;">🧾 Văn bản OCR</label>
+              <button type="button" class="trans-copy-btn" data-target="transOcr-${flowId}" style="padding:2px 8px; font-size:0.8em; background:#64748b; border:none; color:#fff; border-radius:4px; cursor:pointer;">📋 Copy</button>
+            </div>
+            <textarea id="transOcr-${flowId}" style="width:100%; min-height:180px; border:1px solid #cbd5e1; border-radius:6px; padding:8px; font-size:0.85em; font-family:monospace; resize:vertical;" placeholder="Chưa có dữ liệu OCR..."></textarea>
+          </div>
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <label style="font-weight:600; font-size:0.9em;">🌐 Bản dịch tiếng Anh</label>
+              <button type="button" class="trans-copy-btn" data-target="transTranslated-${flowId}" style="padding:2px 8px; font-size:0.8em; background:#64748b; border:none; color:#fff; border-radius:4px; cursor:pointer;">📋 Copy</button>
+            </div>
+            <textarea id="transTranslated-${flowId}" style="width:100%; min-height:180px; border:1px solid #cbd5e1; border-radius:6px; padding:8px; font-size:0.85em; font-family:monospace; resize:vertical;" placeholder="Chưa có bản dịch..."></textarea>
           </div>
         </div>
       </details>
+
+
+
+      <!-- HTML Source Editor (expanded by default) -->
+      <div style="margin-top:12px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+          <label style="font-weight:600; font-size:0.9em;">✏️ Sửa HTML source code</label>
+          <div style="display:flex; gap:6px;">
+            <button id="transApplyHtmlBtn-${flowId}" type="button" style="background:#0ea5e9; padding:4px 12px; font-size:0.85em;">▶️ Áp dụng</button>
+            <button type="button" class="trans-copy-btn" data-target="transHtmlSource-${flowId}" style="padding:4px 12px; font-size:0.85em; background:#64748b; border:none; color:#fff; border-radius:4px; cursor:pointer;">📋 Copy</button>
+          </div>
+        </div>
+        <textarea id="transHtmlSource-${flowId}" style="width:100%; min-height:300px; border:1px solid #cbd5e1; border-radius:6px; padding:8px; font-size:0.82em; font-family:monospace; resize:vertical;" placeholder="HTML source code sẽ hiện ở đây sau khi tạo..."></textarea>
+      </div>
 
       <!-- Save row -->
       <div class="row" style="margin-top:12px; align-items:center;">
@@ -800,8 +799,7 @@ function createTranslateFlow() {
   const saveBtn = document.getElementById(`transSaveHtmlBtn-${flowId}`);
   if (saveBtn) saveBtn.addEventListener("click", () => saveTranslateHtml(flowId));
 
-  const rebuildBtn = document.getElementById(`transRebuildBtn-${flowId}`);
-  if (rebuildBtn) rebuildBtn.addEventListener("click", () => rebuildTranslateHtml(flowId));
+
 
   const applyHtmlBtn = document.getElementById(`transApplyHtmlBtn-${flowId}`);
   if (applyHtmlBtn) {
@@ -1313,12 +1311,217 @@ async function initTranslationSection() {
     if ((translationTemplatesCache || []).length === 0) {
       console.warn("No translation templates found.");
     }
-    createTranslateFlow();
+    // Don't auto-create a flow — user will use bulk upload or manual add
     translateFlowsContainerEl.dataset.inited = "1";
   } catch (e) {
     translateFlowsContainerEl.innerHTML = `<div class="card" style="color:#dc2626;">❌ Không thể khởi tạo tab dịch: ${escapeHtml(e.message)}</div>`;
   }
 }
+
+// Store bulk check results globally for stream creation
+let _bulkCheckResults = [];
+
+async function runBulkBilingualCheck() {
+  if (!bulkTranslateFilesEl || !bulkCheckBtn) return;
+  const files = bulkTranslateFilesEl.files;
+  if (!files || files.length === 0) {
+    if (bulkCheckStatusEl) bulkCheckStatusEl.innerHTML = '<span style="color:#dc2626;">❌ Chưa chọn file nào.</span>';
+    return;
+  }
+
+  // Show progress
+  const origText = bulkCheckBtn.textContent;
+  bulkCheckBtn.disabled = true;
+  bulkCheckBtn.textContent = "⏳ Đang quét...";
+  if (bulkCheckStatusEl) bulkCheckStatusEl.innerHTML = `⏳ Đang upload & quét ${files.length} file (chỉ trang đầu)...`;
+  if (bulkCheckProgressEl) {
+    bulkCheckProgressEl.style.display = "block";
+    bulkCheckProgressBarEl.style.width = "30%";
+  }
+
+  try {
+    const fd = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      fd.append("files", files[i]);
+    }
+
+    if (bulkCheckProgressBarEl) bulkCheckProgressBarEl.style.width = "60%";
+
+    const res = await fetch("/api/translate/check_bilingual", { method: "POST", body: fd });
+    const data = await res.json();
+
+    if (bulkCheckProgressBarEl) bulkCheckProgressBarEl.style.width = "100%";
+
+    if (!res.ok) {
+      if (bulkCheckStatusEl) bulkCheckStatusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${escapeHtml(data.error || 'unknown')}</span>`;
+      return;
+    }
+
+    _bulkCheckResults = data.results || [];
+
+    // Render results table
+    if (bulkResultsBodyEl) {
+      bulkResultsBodyEl.innerHTML = _bulkCheckResults.map((r, i) => {
+        let statusBadge;
+        if (r.needs_translation) {
+          statusBadge = '<span style="background:#fef2f2; color:#dc2626; padding:2px 8px; border-radius:4px; font-size:0.85em;">📝 Cần dịch</span>';
+        } else if (r.is_bilingual) {
+          statusBadge = '<span style="background:#f0fdf4; color:#16a34a; padding:2px 8px; border-radius:4px; font-size:0.85em;">✅ Đã song ngữ</span>';
+        } else {
+          statusBadge = '<span style="background:#fffbeb; color:#d97706; padding:2px 8px; border-radius:4px; font-size:0.85em;">⏭️ Bỏ qua</span>';
+        }
+        const docType = r.doc_type ? escapeHtml(r.doc_type) : (r.languages || []).join(", ") || "—";
+        return `<tr style="border-bottom:1px solid #e2e8f0;">
+          <td style="padding:6px 8px;">${i + 1}</td>
+          <td style="padding:6px 8px; word-break:break-all;">${escapeHtml(r.filename)}</td>
+          <td style="padding:6px 8px; text-align:center; font-size:0.85em;">${docType}</td>
+          <td style="padding:6px 8px; text-align:center;">${statusBadge}</td>
+          <td style="padding:6px 8px; font-size:0.85em; color:#64748b;">${escapeHtml(r.reason || '')}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    // Summary
+    if (bulkResultSummaryEl) {
+      const skipCount = data.skipped || 0;
+      bulkResultSummaryEl.innerHTML = `📊 ${data.total} file | <span style="color:#dc2626;">${data.needs_translation} cần dịch</span> | <span style="color:#16a34a;">${data.already_bilingual} song ngữ</span> | <span style="color:#d97706;">${skipCount} bỏ qua</span>`;
+    }
+
+    // Show results area
+    if (bulkCheckResultsEl) bulkCheckResultsEl.style.display = "block";
+    if (bulkManualFallbackEl) bulkManualFallbackEl.style.display = "none";
+    if (bulkCheckStatusEl) bulkCheckStatusEl.innerHTML = `<span style="color:#16a34a;">✅ Quét xong ${data.total} file!</span>`;
+
+  } catch (e) {
+    if (bulkCheckStatusEl) bulkCheckStatusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${escapeHtml(e.message)}</span>`;
+  } finally {
+    bulkCheckBtn.disabled = false;
+    bulkCheckBtn.textContent = origText;
+    setTimeout(() => {
+      if (bulkCheckProgressEl) bulkCheckProgressEl.style.display = "none";
+    }, 1000);
+  }
+}
+
+async function bulkCreateTranslateStreams() {
+  if (!_bulkCheckResults || _bulkCheckResults.length === 0) return;
+
+  await loadTranslationTemplates();
+
+  const needsTranslation = _bulkCheckResults.filter(r => r.needs_translation);
+  if (needsTranslation.length === 0) {
+    alert("Không có file nào cần dịch!");
+    return;
+  }
+
+  // Clear existing flows
+  if (translateFlowsContainerEl) translateFlowsContainerEl.innerHTML = "";
+  translationFlowCounter = 0;
+
+  // Build a filename → File lookup from the bulk upload input
+  const bulkFiles = bulkTranslateFilesEl ? Array.from(bulkTranslateFilesEl.files) : [];
+  const fileByName = {};
+  for (const f of bulkFiles) {
+    fileByName[f.name] = f;
+    // Also try sanitized name (spaces etc)
+    const safeName = f.name.replace(/[\\/:*?"<>|\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim();
+    fileByName[safeName] = f;
+  }
+
+  // Create a stream for each file that needs translation, pre-setting the upload token
+  for (const r of needsTranslation) {
+    createTranslateFlow();
+    const flowId = translationFlowCounter;
+
+    // Set the uploaded ref (file_ref) so runTranslateFlow can use it
+    const uploadedRefEl = document.getElementById(`transUploadedRef-${flowId}`);
+    const uploadedNameEl = document.getElementById(`transUploadedName-${flowId}`);
+    const fileInfoEl = document.getElementById(`transFileInfo-${flowId}`);
+    const saveNameEl = document.getElementById(`transSaveName-${flowId}`);
+    const statusEl = document.getElementById(`transStatus-${flowId}`);
+
+    if (uploadedRefEl) uploadedRefEl.value = r.file_ref || "";
+    if (uploadedNameEl) uploadedNameEl.value = r.filename || "";
+    if (fileInfoEl) fileInfoEl.innerHTML = `📄 <b>${escapeHtml(r.filename)}</b> — <span style="color:#16a34a;">Đã upload sẵn</span>`;
+    if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;">✅ File đã sẵn sàng để dịch.</span>';
+
+    // Store browser File object for combined PDF export (original pages)
+    const matchedFile = fileByName[r.filename];
+    if (matchedFile) {
+      _transOriginalFiles[flowId] = matchedFile;
+    }
+
+    // Auto-suggest save name
+    if (saveNameEl) {
+      const base = (r.filename || "file").replace(/\.[^.]+$/, "");
+      saveNameEl.value = `${base}.translated.html`;
+    }
+  }
+
+  // Show translate-all button
+  if (bulkTranslateAllBtn) bulkTranslateAllBtn.style.display = "inline-block";
+  if (bulkCreateStreamsBtn) {
+    bulkCreateStreamsBtn.textContent = `✅ Đã tạo ${needsTranslation.length} luồng`;
+    bulkCreateStreamsBtn.disabled = true;
+  }
+}
+
+async function runTranslateAll() {
+  const flowCards = translateFlowsContainerEl?.querySelectorAll(".translate-flow-card") || [];
+  if (flowCards.length === 0) {
+    alert("Chưa có luồng dịch nào.");
+    return;
+  }
+
+  if (bulkTranslateAllBtn) {
+    bulkTranslateAllBtn.disabled = true;
+    bulkTranslateAllBtn.textContent = "⏳ Đang dịch song song...";
+  }
+
+  let doneCount = 0;
+  const total = flowCards.length;
+
+  // Build parallel promises for all flows
+  const promises = Array.from(flowCards).map(card => {
+    const flowId = parseInt(card.id.replace("translateFlow-", ""), 10);
+    if (isNaN(flowId)) return Promise.resolve();
+
+    const refEl = document.getElementById(`transUploadedRef-${flowId}`);
+    if (!refEl || !refEl.value) {
+      console.warn(`Flow ${flowId}: no file_ref, skipping`);
+      return Promise.resolve();
+    }
+
+    // Highlight as running
+    card.style.boxShadow = "0 0 0 3px #3b82f6";
+
+    return runTranslateFlow(flowId)
+      .then(() => {
+        doneCount++;
+        card.style.boxShadow = "0 0 0 3px #16a34a";
+        if (bulkTranslateAllBtn) {
+          bulkTranslateAllBtn.textContent = `⏳ Đang dịch... (${doneCount}/${total})`;
+        }
+      })
+      .catch(e => {
+        doneCount++;
+        console.error(`Flow ${flowId} failed:`, e);
+        card.style.boxShadow = "0 0 0 3px #dc2626";
+        if (bulkTranslateAllBtn) {
+          bulkTranslateAllBtn.textContent = `⏳ Đang dịch... (${doneCount}/${total})`;
+        }
+      });
+  });
+
+  // Run ALL in parallel
+  await Promise.all(promises);
+
+  if (bulkTranslateAllBtn) {
+    bulkTranslateAllBtn.disabled = false;
+    bulkTranslateAllBtn.textContent = `✅ Đã dịch xong ${doneCount}/${total} luồng`;
+  }
+}
+
 
 function setActiveTab(tab) {
   tabButtons.forEach((btn) => {

@@ -15,7 +15,7 @@
                 <a href="/" class="back-link">← Quay lại</a>
                 <div class="header-title">
                     <h1>🇨🇦 IMM5645E — Family Information</h1>
-                    <p class="subtitle">Auto-fill Canada visa family form from your documents</p>
+                    <p class="subtitle">Auto-fill Canada visa family form using JSON from Grok</p>
                 </div>
             </div>
             <div class="header-right">
@@ -27,12 +27,12 @@
         <div class="steps-bar">
             <div class="step active" data-step="1">
                 <span class="step-number">1</span>
-                <span class="step-label">Upload Documents</span>
+                <span class="step-label">Copy Prompt</span>
             </div>
             <div class="step-connector"></div>
             <div class="step" data-step="2">
                 <span class="step-number">2</span>
-                <span class="step-label">AI Extract</span>
+                <span class="step-label">Paste JSON</span>
             </div>
             <div class="step-connector"></div>
             <div class="step" data-step="3">
@@ -42,70 +42,67 @@
             <div class="step-connector"></div>
             <div class="step" data-step="4">
                 <span class="step-number">4</span>
-                <span class="step-label">Fill & Download</span>
+                <span class="step-label">Download PDF</span>
             </div>
         </div>
 
-        <!-- Step 1: Upload -->
+        <!-- Step 1: Copy Prompt -->
         <section id="step1" class="step-content active">
             <div class="card">
-                <h2>📁 Upload Documents</h2>
-                <p class="card-desc">Upload CCCD, passport, birth certificates, family register, etc. AI will extract family information.</p>
-                
-                <div class="upload-zone" id="uploadZone">
-                    <div class="upload-icon">📄</div>
-                    <p class="upload-text">Drag & drop files here or click to browse</p>
-                    <p class="upload-hint">Supported: PDF, DOCX, JPG, PNG, TIFF</p>
-                    <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.bmp,.tiff,.tif" hidden>
-                </div>
+                <h2>📋 Copy Prompt cho Grok</h2>
+                <p class="card-desc">Copy prompt bên dưới → Paste vào Grok cùng với các file hồ sơ (CCCD, hộ chiếu, khai sinh...) → Grok sẽ trả về JSON.</p>
 
-                <div id="fileList" class="file-list" style="display:none;">
-                    <h3>📎 Uploaded Files</h3>
-                    <div id="fileListItems"></div>
+                <div class="prompt-display" id="promptDisplay">
+                    <div class="prompt-loading">Đang tải prompt template...</div>
                 </div>
 
                 <div class="action-row">
-                    <button id="uploadBtn" class="btn btn-primary" disabled>
-                        ⬆️ Upload & Continue
+                    <button id="copyPromptBtn" class="btn btn-primary" disabled>
+                        📋 Copy Prompt
+                    </button>
+                    <button id="goToStep2Btn" class="btn btn-secondary">
+                        Đã có JSON → Tiếp ➡️
                     </button>
                 </div>
-                <div id="uploadStatus" class="status-msg"></div>
+                <div id="copyStatus" class="status-msg"></div>
             </div>
         </section>
 
-        <!-- Step 2: AI Extract -->
+        <!-- Step 2: Paste JSON -->
         <section id="step2" class="step-content">
             <div class="card">
-                <h2>🤖 AI Extraction</h2>
-                <p class="card-desc">AI is analyzing your documents to extract family information. This may take 30-60 seconds.</p>
-                
-                <div id="extractLoading" class="loading-area" style="display:none;">
-                    <div class="spinner"></div>
-                    <p>Đang phân tích tài liệu...</p>
-                    <p class="loading-sub">GPT is reading and extracting family data</p>
-                </div>
-                
+                <h2>📥 Paste JSON từ Grok</h2>
+                <p class="card-desc">Paste JSON mà Grok đã sinh ra vào ô bên dưới. Hỗ trợ cả JSON thuần và JSON trong code block <code>```json</code>.</p>
+
+                <textarea id="jsonInput" rows="16" placeholder='Paste JSON từ Grok vào đây...
+
+Ví dụ:
+{
+  "application_type": "visitor",
+  "applicant": {
+    "name": "NGUYEN VAN A",
+    "dob": "1990-01-15",
+    ...
+  }
+}'></textarea>
+
                 <div class="action-row">
-                    <button id="extractBtn" class="btn btn-primary">
-                        🔍 Start AI Extraction
+                    <button id="applyJsonBtn" class="btn btn-primary">
+                        ✅ Apply JSON
                     </button>
-                    <button id="skipExtractBtn" class="btn btn-secondary">
-                        ✍️ Manual Entry Instead
+                    <button id="backToStep1Btn" class="btn btn-secondary">
+                        ← Quay lại
                     </button>
                 </div>
-                <div id="extractStatus" class="status-msg"></div>
+                <div id="jsonStatus" class="status-msg"></div>
             </div>
         </section>
 
         <!-- Step 3: Review & Edit -->
         <section id="step3" class="step-content">
             <div class="card">
-                <h2>📋 Review & Edit Extracted Data</h2>
-                <p class="card-desc">Review AI-extracted data. Edit any field before filling the PDF. 
-                    <span class="badge badge-high">High</span> = confident, 
-                    <span class="badge badge-medium">Medium</span> = verify, 
-                    <span class="badge badge-low">Low</span> = likely manual needed
-                </p>
+                <h2>📝 Review & Edit</h2>
+                <p class="card-desc">Kiểm tra lại thông tin trước khi fill vào PDF. Chỉnh sửa nếu cần.</p>
 
                 <!-- Application Type -->
                 <div class="form-section">
@@ -182,6 +179,9 @@
                     <button id="fillBtn" class="btn btn-primary btn-large">
                         ✍️ Fill PDF & Download
                     </button>
+                    <button id="backToStep2Btn" class="btn btn-secondary">
+                        ← Sửa JSON
+                    </button>
                 </div>
                 <div id="fillStatus" class="status-msg"></div>
             </div>
@@ -191,19 +191,24 @@
         <section id="step4" class="step-content">
             <div class="card card-success">
                 <h2>✅ PDF Filled Successfully!</h2>
-                <p class="card-desc">Your IMM5645E form has been filled with the extracted data.</p>
+                <p class="card-desc">Form IMM5645E đã được điền xong.</p>
                 <div class="action-row">
                     <a id="downloadLink" class="btn btn-primary btn-large" href="#" download>
                         📥 Download Filled PDF
                     </a>
                     <button id="startOverBtn" class="btn btn-secondary">
-                        🔄 Start Over
+                        🔄 Làm lại từ đầu
                     </button>
                 </div>
             </div>
         </section>
     </div>
 
+    <!-- Modular JS -->
+    <script src="/canada/static/form-builder.js"></script>
+    <script src="/canada/static/prompt-step.js"></script>
+    <script src="/canada/static/json-paste.js"></script>
+    <script src="/canada/static/pdf-filler.js"></script>
     <script src="/canada/static/app.js"></script>
 </body>
 </html>
