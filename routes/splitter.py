@@ -311,27 +311,22 @@ def _build_html_vision_clone(
             '</body></html>'
         )
 
-    # Pre-load Vietnam emblem image as base64 if available
-    emblem_b64 = ""
-    emblem_path = os.path.join(str(_BASE_DIR), "dich", "HTML template", "Emblem_of_Vietnam.png")
-    if os.path.isfile(emblem_path):
-        try:
-            with open(emblem_path, "rb") as f:
-                emblem_b64 = base64.b64encode(f.read()).decode("ascii")
-        except Exception:
-            pass
-
-    emblem_instruction = ""
-    if emblem_b64:
-        emblem_instruction = (
-            "\n\nEMBLEM/COAT OF ARMS RULE:\n"
-            "If the original document contains a national emblem or coat of arms (quốc huy), "
-            "you MUST include it in the translated HTML using this exact img tag:\n"
-            f'<img src="data:image/png;base64,{emblem_b64}" alt="National Emblem" '
-            'style="width:60px;height:auto;display:block;margin:0 auto 8px;">\n'
-            "Place it in the same position as in the original (usually at the top center).\n"
-            "If the original does NOT have an emblem, do NOT add one.\n"
-        )
+    # Emblem handling: DO NOT send base64 in prompt (biases AI to always include it).
+    # Instead, tell AI to use a placeholder IF it sees an emblem in the original.
+    # Post-processing will replace placeholders with actual emblem.
+    emblem_instruction = (
+        "\n\nEMBLEM/COAT OF ARMS RULE (CRITICAL — READ CAREFULLY):\n"
+        "- Look at the ORIGINAL page images carefully.\n"
+        "- ONLY government-issued documents have national emblems (e.g. birth certificates, "
+        "marriage certificates, court decisions, civil judgments).\n"
+        "- Tax reports, bank statements, employment contracts, salary slips, insurance documents, "
+        "company letters, school transcripts do NOT have national emblems.\n"
+        "- If and ONLY if you see a national emblem/coat of arms (quốc huy) in the ORIGINAL images, "
+        'add this placeholder: <img class="emblem-placeholder" alt="National Emblem" '
+        'style="width:60px;height:auto;display:block;margin:0 auto 8px;">\n'
+        "- If the original does NOT have an emblem, absolutely DO NOT add any emblem placeholder.\n"
+        "- When in doubt, DO NOT add an emblem. It is better to miss it than to add a false one.\n"
+    )
 
     # Build vision prompt with resized page images
     num_pages = len(page_images)
@@ -394,6 +389,25 @@ def _build_html_vision_clone(
         # Strip markdown code fences if present
         if html.startswith("```"):
             html = html.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+        # Post-process: replace emblem placeholders with actual emblem image
+        if 'emblem-placeholder' in html:
+            emblem_path = os.path.join(str(_BASE_DIR), "dich", "HTML template", "Emblem_of_Vietnam.png")
+            if os.path.isfile(emblem_path):
+                try:
+                    with open(emblem_path, "rb") as f:
+                        emblem_b64 = base64.b64encode(f.read()).decode("ascii")
+                    # Replace placeholder img with actual emblem
+                    import re as _re
+                    html = _re.sub(
+                        r'<img\s+class="emblem-placeholder"[^>]*>',
+                        f'<img src="data:image/png;base64,{emblem_b64}" alt="National Emblem" '
+                        f'style="width:60px;height:auto;display:block;margin:0 auto 8px;">',
+                        html,
+                    )
+                except Exception:
+                    pass  # If emblem file can't be read, leave placeholder as-is
+
         return html
     except Exception as e:
         logging.error("Vision Layout Clone failed: %s", e)
