@@ -509,6 +509,12 @@ def precheck_scan():
         ext = file_info["ext"]
         sub_path = file_info.get("sub_path", fname)
 
+        # Detect if file is inside a Translate/ subfolder → skip split, add TRANSLATED_ prefix
+        _is_translate_file = False
+        _sub_path_lower = sub_path.replace("\\", "/").lower()
+        if _sub_path_lower.startswith("translate/") or "/translate/" in _sub_path_lower:
+            _is_translate_file = True
+
         # Early exit if quota already exhausted (don't waste API calls)
         if _quota_stop.is_set():
             return {
@@ -551,7 +557,8 @@ def precheck_scan():
                     doc_type_clean = doc_type.upper().strip()
                     doc_type_clean = re.sub(r'[^A-Z0-9]+', '_', doc_type_clean).strip('_')
                     out_ext = '.pdf' if ext in IMAGE_EXTS else ext
-                    suggested_name = f"{person_name}_{doc_type_clean}{out_ext}"
+                    prefix = "TRANSLATED_" if _is_translate_file else ""
+                    suggested_name = f"{prefix}{person_name}_{doc_type_clean}{out_ext}"
                     return {
                         **file_info,
                         "person_name": person_name,
@@ -562,6 +569,7 @@ def precheck_scan():
                         "doc_count": doc_count,
                         "doc_types": doc_types,
                         "fast_classified": True,
+                        "is_translate": _is_translate_file,
                     }
 
             result = classify_doc_type_only(llm, fname, fpath, folder_person=person_name)
@@ -572,9 +580,15 @@ def precheck_scan():
             doc_count = result.get("doc_count", 1)
             doc_types = result.get("doc_types", [doc_type])
 
+            # TRANSLATE FILES: force skip split, never run vision for multi-doc
+            if _is_translate_file:
+                needs_split = False
+                doc_count = 1
+
             # VISION MULTI-DOC DETECTION for PDFs (2+ pages, not already flagged)
             # Only skip vision if ALL pages have extractable text (text-based is reliable)
             # If ANY pages are scanned (empty), vision is needed as backup
+            # Translate files: run vision for CLASSIFICATION only (skip split logic)
             if ext == '.pdf' and not needs_split:
                 try:
                     from pypdf import PdfReader as _PdfR
@@ -591,18 +605,20 @@ def precheck_scan():
                 # Run vision for scanned PDFs to get person name + multi-doc detection
                 # Cost optimization: only run for 2+ pages (multi-doc) OR when filename
                 # has relational clues (con, vợ, mẹ...) suggesting different person
+                # Translate files: ALWAYS run vision (they're scanned images, need vision to classify)
                 _VN_CLUES_FOR_VISION = [
                     'con trai', 'con gái', 'con', 'mẹ', 'vợ', 'bố', 'cha',
                     'chồng', 'anh', 'chị', 'em', 'bà', 'ông',
                 ]
                 fn_lower_check = fname.lower()
                 needs_vision_for_name = any(c in fn_lower_check for c in _VN_CLUES_FOR_VISION)
-                should_run_vision = has_scanned_pages and (total_pages >= 2 or needs_vision_for_name or all_scanned)
+                should_run_vision = _is_translate_file or (has_scanned_pages and (total_pages >= 2 or needs_vision_for_name or all_scanned))
                 if should_run_vision:
                     try:
                         vision_results = _vision_detect_pdf_documents(llm, fpath, fname, total_pages)
                         if vision_results:
-                            if len(vision_results) > 1:
+                            # For Translate files: use vision ONLY for classification, NEVER for split
+                            if len(vision_results) > 1 and not _is_translate_file:
                                 # Check if all results are passport-related (PASSPORT + VISA)
                                 # for the same person → treat as ONE passport, don't split
                                 _PASSPORT_FAMILY = {'PASSPORT', 'VISA', 'OLD PASSPORT'}
@@ -677,13 +693,16 @@ def precheck_scan():
             doc_type_clean = re.sub(r'[^A-Z0-9]+', '_', doc_type_clean).strip('_')
             out_ext = '.pdf' if ext in IMAGE_EXTS else ext
 
+            # Add TRANSLATED_ prefix for files from Translate/ subfolder
+            prefix = "TRANSLATED_" if _is_translate_file else ""
+
             # If doc_owner exists (different person), use ONLY owner name
             # e.g. "Hộ chiếu con trai" → NGUYEN_DUC_TRI_PASSPORT.pdf
             if doc_owner:
                 owner_clean = re.sub(r'[^A-Z0-9]+', '_', doc_owner.upper().strip()).strip('_')
-                suggested_name = f"{owner_clean}_{doc_type_clean}{out_ext}"
+                suggested_name = f"{prefix}{owner_clean}_{doc_type_clean}{out_ext}"
             else:
-                suggested_name = f"{person_name}_{doc_type_clean}{out_ext}"
+                suggested_name = f"{prefix}{person_name}_{doc_type_clean}{out_ext}"
 
             return {
                 **file_info,
@@ -694,6 +713,7 @@ def precheck_scan():
                 "needs_split": needs_split,
                 "doc_count": doc_count,
                 "doc_types": doc_types,
+                "is_translate": _is_translate_file,
             }
         except Exception as e:
             err_str = str(e).lower()
@@ -795,6 +815,7 @@ def precheck_scan():
     total_files = sum(len(f["files"]) for f in folders_output)
     multi_count = sum(1 for r in all_results if r.get("needs_split"))
     quota_errors = sum(1 for r in all_results if r.get("quota_error"))
+    translate_count = sum(1 for r in all_results if r.get("is_translate"))
 
     # Reset progress
     _precheck_progress.update({"total": total_files, "done": total_files, "current_file": "", "running": False})
@@ -804,7 +825,8 @@ def precheck_scan():
         "input_dir": input_dir,
         "total_files": total_files,
         "multi_doc_count": multi_count,
-        "clean_count": total_files - multi_count,
+        "clean_count": total_files - multi_count - translate_count,
+        "translate_count": translate_count,
         "folders": folders_output,
         "quota_exhausted": quota_errors > 0,
         "quota_error_count": quota_errors,

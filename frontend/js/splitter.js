@@ -606,13 +606,19 @@ if (pdfClearMergeBtn) {
     let html = "";
     results.forEach((r, i) => {
       const noCertTag = r.no_cert ? ' <span style="color:#f59e0b; font-size:0.85em;">⚠️ Không có xác nhận dịch</span>' : '';
-      html += `<div style="display:flex; align-items:center; gap:8px; padding:8px 6px; border-bottom:1px solid #f3f4f6;">
+      const baseName = r.filename.replace(/\.pdf$/i, "");
+      html += `<div id="scanRow-${i}" style="display:flex; align-items:center; gap:8px; padding:8px 6px; border-bottom:1px solid #f3f4f6; flex-wrap: wrap;">
         <span style="min-width:24px; font-weight:600; color:#4f46e5;">${i + 1}.</span>
-        <span style="flex:1; font-size:0.93em;">📄 Hồ sơ ${i + 1} <span style="color:#6b7280;">(Trang ${r.pages}, ${r.page_count} trang)</span>${noCertTag}</span>
-        <div style="display:flex; gap:4px;">
-          <a href="/api/scan-splitter/view/${encodeURIComponent(r.filename)}" target="_blank"
+        <span style="flex:0 0 auto; font-size:0.93em;">📄 <span style="color:#6b7280;">(Trang ${r.pages}, ${r.page_count} trang)</span>${noCertTag}</span>
+        <input type="text" id="scanRename-${i}" value="${baseName}" data-original="${r.filename}"
+               style="flex:1; min-width:200px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; font-size:0.88em; background:#1e293b; color:#e2e8f0;"
+               title="Đổi tên file"/>
+        <div style="display:flex; gap:4px; flex-shrink:0;">
+          <button onclick="window._scanRenameFile(${i})"
+             style="padding:4px 10px; background:#10b981; color:#fff; border:none; border-radius:4px; font-size:0.85em; cursor:pointer;" title="Đổi tên">✏️ Đổi tên</button>
+          <a id="scanView-${i}" href="/api/scan-splitter/view/${encodeURIComponent(r.filename)}" target="_blank"
              style="padding:4px 10px; background:#f59e0b; color:#fff; text-decoration:none; border-radius:4px; font-size:0.85em;">👁 Xem</a>
-          <a href="/api/scan-splitter/download/${encodeURIComponent(r.filename)}" 
+          <a id="scanDl-${i}" href="/api/scan-splitter/download/${encodeURIComponent(r.filename)}" 
              style="padding:4px 10px; background:#4f46e5; color:#fff; text-decoration:none; border-radius:4px; font-size:0.85em;"
              download="${r.filename}">⬇ Tải</a>
         </div>
@@ -641,6 +647,47 @@ if (pdfClearMergeBtn) {
     runBtn.disabled = false;
     runBtn.textContent = "🔍 Quét & Tách";
   }
+
+  // Global rename handler for scan split results
+  window._scanRenameFile = async function(idx) {
+    const input = document.getElementById(`scanRename-${idx}`);
+    if (!input) return;
+    const oldFilename = input.dataset.original;
+    let newName = input.value.trim();
+    if (!newName) { alert("Tên file không được để trống!"); return; }
+    if (!newName.toLowerCase().endsWith(".pdf")) newName += ".pdf";
+    if (newName === oldFilename) return; // No change
+
+    try {
+      const resp = await fetch("/api/scan-splitter/rename", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ old_filename: oldFilename, new_filename: newName })
+      });
+      const data = await resp.json();
+      if (!resp.ok) { alert(data.error || "Rename failed"); return; }
+
+      // Update stored filename
+      const finalName = data.new_filename;
+      input.dataset.original = finalName;
+      input.value = finalName.replace(/\.pdf$/i, "");
+
+      // Update view/download links
+      const viewLink = document.getElementById(`scanView-${idx}`);
+      const dlLink = document.getElementById(`scanDl-${idx}`);
+      if (viewLink) viewLink.href = `/api/scan-splitter/view/${encodeURIComponent(finalName)}`;
+      if (dlLink) {
+        dlLink.href = `/api/scan-splitter/download/${encodeURIComponent(finalName)}`;
+        dlLink.download = finalName;
+      }
+
+      // Brief green flash to indicate success
+      input.style.borderColor = "#10b981";
+      setTimeout(() => { input.style.borderColor = "#cbd5e1"; }, 1500);
+    } catch (e) {
+      alert("Lỗi đổi tên: " + e.message);
+    }
+  };
 
   if (downloadZipBtn) {
     downloadZipBtn.addEventListener("click", () => {

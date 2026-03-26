@@ -115,7 +115,7 @@ async function applyRename() {
             const docTypeInput = row.querySelector('td:nth-child(3) input');
             if (docTypeInput) docTypeInput.disabled = true;
             suggestedInput.disabled = true;
-            suggestedInput.style.background = '#d1fae5';
+            suggestedInput.style.background = 'rgba(16,185,129,0.2)'; suggestedInput.style.color = '#6ee7b7';
           }
         });
       }
@@ -173,10 +173,7 @@ function detectMergeGroups() {
       // Highlight the group rows
       files.forEach(f => {
         f.row.style.borderLeft = '3px solid #f59e0b';
-        f.row.style.background = (f.row.style.background || '') + '';
-        if (!f.row.style.background.includes('fef2f2')) {
-          f.row.style.background = '#fffbeb';
-        }
+        f.row.style.background = 'rgba(245,158,11,0.1)';
       });
       // CRITICAL: include tableIdx in groupId to scope per person/folder
       const groupId = `grp_t${tableIdx}_${base.replace(/[^a-z0-9]/g, '_')}`;
@@ -217,28 +214,28 @@ function openMergeModal(groupId) {
   group.forEach((f, i) => {
     listHtml += `
       <div class="merge-item" draggable="true" data-idx="${i}" data-path="${f.path}"
-           style="padding:8px 12px; margin:4px 0; background:white; border:1px solid #d1d5db; border-radius:6px; cursor:grab; display:flex; align-items:center; gap:8px;">
-        <span style="color:#6b7280; font-size:1.1em; cursor:grab;">☰</span>
-        <span style="flex:1;">${f.filename}</span>
-        <button onclick="moveMergeItem(this, -1)" style="border:none;background:none;cursor:pointer;font-size:1em;">⬆️</button>
-        <button onclick="moveMergeItem(this, 1)" style="border:none;background:none;cursor:pointer;font-size:1em;">⬇️</button>
+           style="padding:8px 12px; margin:4px 0; background:rgba(51,65,85,0.8); border:1px solid rgba(148,163,184,0.3); border-radius:6px; cursor:grab; display:flex; align-items:center; gap:8px; color:#e2e8f0;">
+         <span style="color:#94a3b8; font-size:1.1em; cursor:grab;">☰</span>
+         <span style="flex:1; color:#e2e8f0;">${f.filename}</span>
+         <button onclick="moveMergeItem(this, -1)" style="border:none;background:none;cursor:pointer;font-size:1em;">⬆️</button>
+         <button onclick="moveMergeItem(this, 1)" style="border:none;background:none;cursor:pointer;font-size:1em;">⬇️</button>
       </div>`;
   });
 
   overlay.innerHTML = `
-    <div style="background:white; border-radius:12px; padding:24px; width:500px; max-width:90vw; max-height:80vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-      <h3 style="margin:0 0 16px 0; font-size:1.1em;">📎 Gộp ${group.length} file thành 1 PDF</h3>
-      <p style="color:#6b7280; font-size:0.85em; margin:0 0 12px 0;">Kéo thả hoặc dùng nút ⬆️⬇️ để sắp thứ tự trang:</p>
+    <div style="background:#1e293b; border:1px solid rgba(148,163,184,0.3); border-radius:12px; padding:24px; width:500px; max-width:90vw; max-height:80vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.5); color:#e2e8f0;">
+      <h3 style="margin:0 0 16px 0; font-size:1.1em; color:#f1f5f9;">📎 Gộp ${group.length} file thành 1 PDF</h3>
+      <p style="color:#94a3b8; font-size:0.85em; margin:0 0 12px 0;">Kéo thả hoặc dùng nút ⬆️⬇️ để sắp thứ tự trang:</p>
       <div id="mergeItemList" style="margin-bottom:16px;">
         ${listHtml}
       </div>
       <div style="margin-bottom:16px;">
-        <label style="font-size:0.85em; color:#4b5563;">Tên file output:</label>
+        <label style="font-size:0.85em; color:#94a3b8;">Tên file output:</label>
         <input type="text" id="mergeOutputName" value="${defaultName}" 
-               style="width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; margin-top:4px; font-size:0.9em;" />
+               style="width:100%; padding:6px 10px; border:1px solid rgba(148,163,184,0.3); border-radius:6px; margin-top:4px; font-size:0.9em; background:rgba(30,41,59,0.8); color:#e2e8f0;" />
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button onclick="closeMergeModal()" style="padding:8px 16px; background:#e5e7eb; border:none; border-radius:6px; cursor:pointer;">Hủy</button>
+        <button onclick="closeMergeModal()" style="padding:8px 16px; background:rgba(71,85,105,0.8); color:#e2e8f0; border:none; border-radius:6px; cursor:pointer;">Hủy</button>
         <button onclick="executeMerge('${groupId}')" id="mergeConfirmBtn"
                 style="padding:8px 16px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">
           📎 Gộp ngay
@@ -351,20 +348,20 @@ async function executeMerge(groupId) {
       newRow.dataset.person = personName;
       newRow.dataset.ext = '.pdf';
       newRow.dataset.filename = data.output_name;
-      newRow.style.background = '#f0fdf4';  // light green = new merged file
+      newRow.style.background = 'rgba(22,163,106,0.1)';  // dark green = new merged file
       newRow.style.borderLeft = '3px solid #16a34a';
       const mergedUid = `merged_${Date.now()}`;
       newRow.innerHTML = `
-        <td style="padding:6px 8px;"><span style="color:#16a34a;">✅ Gộp</span></td>
-        <td style="padding:6px 8px; overflow:hidden; text-overflow:ellipsis;" title="${data.output_path}">${data.output_name}</td>
+        <td style="padding:6px 8px;"><span style="color:#4ade80;">✅ Gộp</span></td>
+        <td style="padding:6px 8px; overflow:hidden; text-overflow:ellipsis; color:#e2e8f0;" title="${data.output_path}">${data.output_name}</td>
         <td style="padding:6px 8px; overflow:hidden;">
           <input type="text" id="doctype_${mergedUid}" value="MERGED"
-                 style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em;"
+                 style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid rgba(148,163,184,0.3); border-radius:4px; font-size:0.9em; background:rgba(30,41,59,0.8); color:#e2e8f0;"
                  oninput="updateSuggestedName(this)" />
         </td>
         <td style="padding:6px 8px; overflow:hidden;">
           <input type="text" id="suggested_${mergedUid}" value="${data.output_name}"
-                 style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.9em; background:#f9fafb;" />
+                 style="width:100%; box-sizing:border-box; padding:4px 6px; border:1px solid rgba(148,163,184,0.3); border-radius:4px; font-size:0.9em; background:rgba(30,41,59,0.6); color:#f1f5f9;" />
         </td>`;
       parentTbody.appendChild(newRow);
     }

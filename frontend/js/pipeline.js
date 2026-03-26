@@ -780,15 +780,6 @@ function createTranslateFlow() {
   `;
   translateFlowsContainerEl.insertAdjacentHTML("beforeend", html);
 
-  // Auto-scroll to new flow with highlight
-  const newCard = document.getElementById(`translateFlow-${flowId}`);
-  if (newCard) {
-    newCard.scrollIntoView({ behavior: "smooth", block: "start" });
-    newCard.style.transition = "box-shadow 0.3s ease";
-    newCard.style.boxShadow = "0 0 0 3px #3b82f6";
-    setTimeout(() => { newCard.style.boxShadow = ""; }, 2000);
-  }
-
   // Event listeners
   const runBtn = document.getElementById(`transRunBtn-${flowId}`);
   if (runBtn) runBtn.addEventListener("click", () => runTranslateFlow(flowId));

@@ -95,72 +95,136 @@ def _resolve_translate_source_path(input_dir: str, file_ref: str) -> Optional[st
     return None
 
 
+def _resize_image_b64(img_bytes: bytes, max_width: int = 1024, quality: int = 80) -> str:
+    """Resize image to max_width and compress as JPEG. Returns base64 string.
+    
+    This reduces API token cost by ~60-70% compared to full-resolution PNG.
+    OpenAI charges per 512x512 tile — smaller images = fewer tiles = fewer tokens.
+    """
+    from io import BytesIO
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(img_bytes))
+        # Resize if wider than max_width
+        if img.width > max_width:
+            ratio = max_width / img.width
+            new_size = (max_width, int(img.height * ratio))
+            img = img.resize(new_size, Image.LANCZOS)
+        # Convert to RGB (JPEG doesn't support alpha)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        # Save as JPEG with compression
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        return base64.b64encode(buf.getvalue()).decode("ascii")
+    except ImportError:
+        # Pillow not installed — return original as base64
+        logging.warning("Pillow not installed, sending full-resolution image")
+        return base64.b64encode(img_bytes).decode("ascii")
+
+
 def _ocr_and_translate_document(
     llm,
     source_path: str,
     source_lang: str = "tiếng Việt",
     page_callback=None,
-) -> str:
+) -> tuple:
     """OCR + translate a document (PDF or image) in one pass per page.
     
-    For PDF: converts each page to image, sends to vision model for OCR+translate.
-    For images: sends directly.
-    Returns the full translated English text.
+    For PDF: converts each page to image, resizes to max 1024px, sends to vision model.
+    For images: resizes and sends directly.
+    Returns tuple of (translated_text, layout_descriptions, page_images_small).
+    - layout_descriptions: list of text descriptions of each page's layout
+    - page_images_small: small resized base64 images (for fallback only)
     """
     ext = os.path.splitext(source_path)[1].lower()
     pages_text = []
+    layout_descriptions = []
+    page_images = []  # Small resized images (for fallback)
     
     if ext == ".pdf":
         import fitz
         doc = fitz.open(source_path)
         total = len(doc)
         for i, page in enumerate(doc):
-            pix = page.get_pixmap(dpi=200)
+            pix = page.get_pixmap(dpi=150)  # Reduced from 200 to 150 dpi
             img_bytes = pix.tobytes("png")
-            b64 = base64.b64encode(img_bytes).decode("ascii")
+            # Resize to max 1024px width + JPEG compression → saves ~60-70% tokens
+            b64 = _resize_image_b64(img_bytes)
+            page_images.append(b64)
             
             if page_callback:
                 page_callback(i + 1, total)
             
             prompt = (
                 f"This is page {i+1}/{total} of a document originally in {source_lang}. "
-                "OCR all text from the image and translate it fully to English. "
-                "Keep the original structure (headings, paragraphs, lists, tables). "
-                "Output ONLY the English translation."
+                "Do TWO things:\n\n"
+                "1. OCR all text and translate it fully to English. Keep the original structure "
+                "(headings, paragraphs, lists, tables). Output the English translation.\n\n"
+                "2. After the translation, on a NEW LINE write [LAYOUT] followed by a brief description "
+                "of the page layout structure. Include:\n"
+                "- Header elements (emblem/logo, organization name, title)\n"
+                "- Body structure (sections, tables with column count, indented blocks)\n"
+                "- Footer elements (signature blocks, dates, stamps, notes)\n"
+                "- Any borders, decorative elements, or special formatting\n\n"
+                "Format:\n"
+                "[TRANSLATED TEXT HERE]\n\n"
+                "[LAYOUT] Header: ... | Body: ... | Footer: ..."
             )
             try:
                 result = llm.invoke([
-                    SystemMessage(content="You are a professional document translator. OCR and translate to English."),
+                    SystemMessage(content="You are a professional document translator and layout analyst. OCR, translate to English, and describe the layout."),
                     HumanMessage(content=[
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
                     ]),
                 ])
-                text = (result.content or "").strip()
-                if text:
-                    pages_text.append(text)
+                raw = (result.content or "").strip()
+                # Split text and layout description
+                if "[LAYOUT]" in raw:
+                    parts = raw.split("[LAYOUT]", 1)
+                    pages_text.append(parts[0].strip())
+                    layout_descriptions.append(parts[1].strip())
+                else:
+                    pages_text.append(raw)
+                    layout_descriptions.append("")
             except Exception as e:
                 logging.warning("OCR page %d failed: %s", i + 1, e)
                 pages_text.append(f"[Page {i+1}: OCR failed]")
+                layout_descriptions.append("")
         doc.close()
     elif ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
         with open(source_path, "rb") as f:
             img_bytes = f.read()
-        mime = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext.lstrip('.')}"
-        b64 = base64.b64encode(img_bytes).decode("ascii")
+        # Resize to max 1024px + JPEG compression
+        b64 = _resize_image_b64(img_bytes)
+        page_images.append(b64)
         
         if page_callback:
             page_callback(1, 1)
         
         try:
             result = llm.invoke([
-                SystemMessage(content="You are a professional document translator. OCR and translate to English."),
+                SystemMessage(content="You are a professional document translator and layout analyst. OCR, translate to English, and describe the layout."),
                 HumanMessage(content=[
-                    {"type": "text", "text": f"OCR all text from this {source_lang} document image and translate fully to English. Keep structure intact. Output ONLY English."},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                    {"type": "text", "text": (
+                        f"OCR all text from this {source_lang} document image and translate fully to English. "
+                        "Keep structure intact.\n\n"
+                        "After the translation, on a NEW LINE write [LAYOUT] followed by a brief description "
+                        "of the page layout (header, body structure, tables, footer, signature blocks, etc).\n\n"
+                        "Format:\n[TRANSLATED TEXT]\n\n[LAYOUT] description..."
+                    )},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
                 ]),
             ])
-            pages_text.append((result.content or "").strip())
+            raw = (result.content or "").strip()
+            if "[LAYOUT]" in raw:
+                parts = raw.split("[LAYOUT]", 1)
+                pages_text.append(parts[0].strip())
+                layout_descriptions.append(parts[1].strip())
+            else:
+                pages_text.append(raw)
+                layout_descriptions.append("")
         except Exception as e:
             logging.warning("OCR image failed: %s", e)
     else:
@@ -173,10 +237,11 @@ def _ocr_and_translate_document(
                 HumanMessage(content=f"Translate this {source_lang} text to English. Keep formatting:\n\n{raw_text}"),
             ])
             pages_text.append((result.content or "").strip())
+            layout_descriptions.append("")
         except Exception as e:
             logging.warning("Text translate failed: %s", e)
     
-    return "\n\n".join(pages_text)
+    return "\n\n".join(pages_text), layout_descriptions, page_images
 
 
 def _build_translation_html(
@@ -193,6 +258,10 @@ def _build_translation_html(
         "- Keep the template's CSS and structure intact\n"
         "- Replace placeholder content with the translated text\n"
         "- Format paragraphs, headings, and lists properly\n"
+        "- PRINT-SAFE: Content MUST fit within each page when printed. NO overflow, NO clipping.\n"
+        "- If translated text is longer than original, REDUCE font-size slightly to fit the page\n"
+        "- Keep all @media print and @page CSS rules from the template\n"
+        "- DO NOT add <h1>Translated Document</h1> or any generic titles not in the template\n"
         "- Output ONLY the complete HTML (no markdown, no explanation)\n\n"
         f"=== TEMPLATE HTML ===\n{template_html}\n\n"
         f"=== TRANSLATED TEXT ===\n{translated_text}"
@@ -210,6 +279,172 @@ def _build_translation_html(
     except Exception as e:
         logging.error("Build HTML failed: %s", e)
         raise
+
+
+def _build_html_vision_clone(
+    llm,
+    translated_text: str,
+    page_images: list,
+    layout_descriptions: list = None,
+) -> str:
+    """Build HTML by cloning the original document layout using resized images.
+
+    Sends RESIZED page images (1024px JPEG from OCR step) + translated text.
+    The model sees the layout and recreates it in HTML with English content.
+    Images are already resized by _resize_image_b64, saving ~60% tokens vs full-res.
+    """
+    if not page_images:
+        # No images — fall back to simple HTML
+        return (
+            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<style>'
+            '@page{size:A4;margin:0;}'
+            'body{margin:0;background:#f3f4f6;font-family:"Times New Roman",serif;'
+            'display:flex;flex-direction:column;align-items:center;gap:20px;padding:20px;}'
+            '.a4-page{width:210mm;min-height:297mm;margin:0 auto;background:#fff;'
+            'padding:18mm;box-sizing:border-box;page-break-after:always;overflow:hidden;}'
+            '.a4-page:last-child{page-break-after:auto;}'
+            '@media print{body{background:#fff;padding:0;margin:0;gap:0;}'
+            '.a4-page{box-shadow:none;margin:0;width:100%;border:none;}}'
+            '</style></head><body>'
+            f'<div class="a4-page"><pre style="white-space:pre-wrap;">{translated_text}</pre></div>'
+            '</body></html>'
+        )
+
+    # Pre-load Vietnam emblem image as base64 if available
+    emblem_b64 = ""
+    emblem_path = os.path.join(str(_BASE_DIR), "dich", "HTML template", "Emblem_of_Vietnam.png")
+    if os.path.isfile(emblem_path):
+        try:
+            with open(emblem_path, "rb") as f:
+                emblem_b64 = base64.b64encode(f.read()).decode("ascii")
+        except Exception:
+            pass
+
+    emblem_instruction = ""
+    if emblem_b64:
+        emblem_instruction = (
+            "\n\nEMBLEM/COAT OF ARMS RULE:\n"
+            "If the original document contains a national emblem or coat of arms (quốc huy), "
+            "you MUST include it in the translated HTML using this exact img tag:\n"
+            f'<img src="data:image/png;base64,{emblem_b64}" alt="National Emblem" '
+            'style="width:60px;height:auto;display:block;margin:0 auto 8px;">\n'
+            "Place it in the same position as in the original (usually at the top center).\n"
+            "If the original does NOT have an emblem, do NOT add one.\n"
+        )
+
+    # Build vision prompt with resized page images
+    num_pages = len(page_images)
+    content_parts = [
+        {
+            "type": "text",
+            "text": (
+                "You are an expert HTML document formatter specializing in PRINT-READY documents.\n\n"
+                f"I'm showing you {num_pages} page(s) of an ORIGINAL document. Your job is to create an HTML document that:\n"
+                "1. CLONES THE EXACT LAYOUT of the original (headers, tables, columns, borders, spacing, alignment)\n"
+                "2. Uses the TRANSLATED ENGLISH TEXT below instead of the original Vietnamese text\n"
+                f"3. The output MUST have EXACTLY {num_pages} page(s), matching the original\n"
+                "4. Each page goes in a separate <div class=\"a4-page\">\n"
+                "5. DO NOT include <h1>Translated Document</h1> or any generic titles\n"
+                "6. Replicate borders, tables, grid layouts, headers, footers EXACTLY as in the original\n\n"
+                "CRITICAL PRINT-SAFE RULES:\n"
+                "- Content MUST FIT within each .a4-page when printed — NO OVERFLOW, NO CLIPPING\n"
+                "- If English text is longer than Vietnamese, REDUCE font-size slightly (e.g. 11pt→10pt) to fit\n"
+                "- Use 'position: relative' for page elements, avoid 'position: absolute' for main content\n"
+                "- Only use 'position: absolute' for signature blocks/footers that are fixed on the page\n"
+                "- Tables and content blocks must stay within the page height (297mm - 36mm padding = 261mm usable)\n"
+                f"- Total pages: {num_pages}. Each page = one .a4-page div\n\n"
+                "REQUIRED CSS (include exactly this):\n"
+                "@page { size: A4; margin: 0; }\n"
+                "body { margin:0; padding:20px; background:#f3f4f6; font-family:'Times New Roman',serif; "
+                "display:flex; flex-direction:column; align-items:center; gap:20px; }\n"
+                ".a4-page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; "
+                "padding:18mm; box-sizing:border-box; box-shadow:0 0 8px rgba(0,0,0,0.1); "
+                "position:relative; page-break-after:always; break-after:page; overflow:hidden; }\n"
+                ".a4-page:last-child { page-break-after:auto; break-after:auto; }\n"
+                "@media print { body{background:#fff;padding:0;margin:0;gap:0;} "
+                ".a4-page{box-shadow:none;margin:0;width:100%;border:none;} }\n"
+                f"{emblem_instruction}\n"
+                f"=== TRANSLATED ENGLISH TEXT ===\n{translated_text}\n\n"
+                "Output ONLY complete HTML. No markdown, no explanation."
+            ),
+        },
+    ]
+
+    # Add resized page images (already 1024px JPEG from OCR step)
+    for i, b64 in enumerate(page_images):
+        content_parts.append({
+            "type": "text",
+            "text": f"\n--- Original Page {i + 1} ---",
+        })
+        content_parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+        })
+
+    try:
+        result = llm.invoke([
+            SystemMessage(content=(
+                "You are an expert HTML/CSS developer. You clone document layouts pixel-perfectly. "
+                "Output ONLY valid, complete HTML documents."
+            )),
+            HumanMessage(content=content_parts),
+        ])
+        html = (result.content or "").strip()
+        # Strip markdown code fences if present
+        if html.startswith("```"):
+            html = html.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        return html
+    except Exception as e:
+        logging.error("Vision Layout Clone failed: %s", e)
+        raise
+
+
+def _embed_template_images(html: str) -> str:
+    """Replace local image references (e.g. Emblem_of_Vietnam.png) with base64 data URIs.
+
+    This makes the HTML self-contained so images display correctly in web preview
+    and when saved as PDF, without needing the original image files.
+    """
+    import re
+    import base64
+
+    template_dir = os.path.join(str(_BASE_DIR), "dich", "HTML template")
+
+    # Map of known image filenames in the template directory
+    MIME_MAP = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+    }
+
+    def replace_img_src(match):
+        full_match = match.group(0)
+        src = match.group(1)
+        # Skip already-embedded data URIs and external URLs
+        if src.startswith(('data:', 'http://', 'https://')):
+            return full_match
+        # Try to find the image file in the template directory
+        img_path = os.path.join(template_dir, src)
+        if not os.path.isfile(img_path):
+            # Also try just the basename
+            img_path = os.path.join(template_dir, os.path.basename(src))
+        if os.path.isfile(img_path):
+            ext = os.path.splitext(img_path)[1].lower()
+            mime = MIME_MAP.get(ext, 'image/png')
+            try:
+                with open(img_path, 'rb') as f:
+                    b64 = base64.b64encode(f.read()).decode('ascii')
+                return full_match.replace(src, f'data:{mime};base64,{b64}')
+            except Exception as e:
+                logging.warning("Failed to embed image %s: %s", src, e)
+        return full_match
+
+    # Match src="..." in <img> tags
+    return re.sub(r'<img\s[^>]*src=["\']([^"\']+)["\']', replace_img_src, html, flags=re.IGNORECASE)
 
 
 def _auto_detect_template(translated_text: str) -> str:
@@ -1339,7 +1574,7 @@ def run_translate_stream():
             def on_page(page_idx: int, total: int) -> None:
                 page_events.append(f"data: {json.dumps({'step': 1, 'msg': f'⏳ OCR+Dịch trang {page_idx}/{total}...'}, ensure_ascii=False)}\n\n")
 
-            translated_text = _ocr_and_translate_document(llm_ocr, source_path, source_lang=source_lang, page_callback=on_page)
+            translated_text, layout_descriptions, page_images = _ocr_and_translate_document(llm_ocr, source_path, source_lang=source_lang, page_callback=on_page)
             # Yield page progress events
             for pe in page_events:
                 yield pe
@@ -1369,43 +1604,55 @@ def run_translate_stream():
             yield from send_event(1, "✅ OCR + Dịch hoàn tất")
 
             # Auto-detect template from translated text if needed
+            use_vision_clone = False
             if is_auto_template:
                 template_name = _auto_detect_template(translated_text)
-                yield from send_event(1, f"🔍 Tự động chọn template: {template_name}")
-
-            # Load template HTML
-            tpl_path = os.path.abspath(os.path.join(TRANSLATE_TEMPLATE_DIR, template_name))
-            tpl_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
-            if not tpl_path.startswith(tpl_root) or not os.path.exists(tpl_path):
-                tpl_path = os.path.join(TRANSLATE_TEMPLATE_DIR, TRANSLATE_DEFAULT_TEMPLATE)
-            if os.path.isfile(tpl_path):
-                with open(tpl_path, "r", encoding="utf-8") as f:
-                    template_html = f.read()
-            else:
-                # Resilient fallback — generate simple HTML if no template
-                logging.warning("Template not found: %s, using inline fallback", tpl_path)
-                template_html = (
-                    '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-                    '<title>Translated Document</title>'
-                    '<style>body{font-family:"Times New Roman",serif;padding:20px;max-width:800px;margin:auto;}'
-                    'h1{text-align:center;font-size:20px;text-transform:uppercase;}'
-                    '.doc-content{white-space:pre-wrap;line-height:1.7;font-size:14px;}</style></head>'
-                    '<body><h1>Translated Document</h1>'
-                    '<div class="doc-content">{{CONTENT}}</div></body></html>'
-                )
+                # If auto-detect falls back to default template AND we have page images,
+                # use Vision Layout Clone with resized images (1024px JPEG = ~55% cheaper)
+                if template_name == TRANSLATE_DEFAULT_TEMPLATE and page_images:
+                    use_vision_clone = True
+                    yield from send_event(1, "🎨 Không tìm thấy template phù hợp → Dùng Vision Clone layout gốc")
+                else:
+                    yield from send_event(1, f"🔍 Tự động chọn template: {template_name}")
 
             # Step 2: Build HTML
-            yield from send_event(2, "⏳ Đang tạo HTML theo template...")
-            llm_translate = ChatOpenAI(model=translate_model, temperature=0)
-            html_result = _build_translation_html(
-                llm_translate,
-                translated_text,
-                template_html,
-                translated_text,
-            )
+            if use_vision_clone:
+                # Vision Layout Clone: send RESIZED page images + translated text
+                yield from send_event(2, "🎨 Đang clone layout từ ảnh gốc (ảnh đã nén 1024px)...")
+                llm_vision = ChatOpenAI(model=translate_model, temperature=0)
+                html_result = _build_html_vision_clone(llm_vision, translated_text, page_images)
+            else:
+                # Template-based: use the matched template
+                tpl_path = os.path.abspath(os.path.join(TRANSLATE_TEMPLATE_DIR, template_name))
+                tpl_root = os.path.abspath(TRANSLATE_TEMPLATE_DIR)
+                if not tpl_path.startswith(tpl_root) or not os.path.exists(tpl_path):
+                    tpl_path = os.path.join(TRANSLATE_TEMPLATE_DIR, TRANSLATE_DEFAULT_TEMPLATE)
+                if os.path.isfile(tpl_path):
+                    with open(tpl_path, "r", encoding="utf-8") as f:
+                        template_html = f.read()
+                else:
+                    logging.warning("Template not found: %s, using inline fallback", tpl_path)
+                    template_html = (
+                        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                        '<title>Translated Document</title>'
+                        '<style>body{font-family:"Times New Roman",serif;padding:20px;max-width:800px;margin:auto;}'
+                        '.doc-content{white-space:pre-wrap;line-height:1.7;font-size:14px;}</style></head>'
+                        '<body><div class="doc-content">{{CONTENT}}</div></body></html>'
+                    )
+                yield from send_event(2, "⏳ Đang tạo HTML theo template...")
+                llm_translate = ChatOpenAI(model=translate_model, temperature=0)
+                html_result = _build_translation_html(
+                    llm_translate,
+                    translated_text,
+                    template_html,
+                    translated_text,
+                )
+
             if not html_result.strip():
                 yield from send_event(-1, "❌ Không tạo được HTML")
                 return
+            # Embed local template images (e.g. Emblem_of_Vietnam.png) as base64
+            html_result = _embed_template_images(html_result)
             yield from send_event(2, "✅ Tạo HTML hoàn tất")
 
             file_stem = os.path.splitext(os.path.basename(source_path))[0]
@@ -1523,6 +1770,8 @@ def translate_rebuild_html():
     try:
         llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
         html_result = _build_translation_html(llm, translated_text, template_html, ocr_text or translated_text)
+        # Embed local template images as base64
+        html_result = _embed_template_images(html_result)
         return jsonify({"html": html_result})
     except QuotaExhaustedError as qe:
         return jsonify({"error": "quota_exceeded", "detail": str(qe)}), 429

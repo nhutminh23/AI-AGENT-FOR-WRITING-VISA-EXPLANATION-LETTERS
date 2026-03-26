@@ -877,6 +877,48 @@ def scan_splitter_progress():
     return jsonify(_scan_split_progress)
 
 
+@pipeline_bp.post("/api/scan-splitter/rename")
+def scan_splitter_rename():
+    """Rename a split output file."""
+    payload = request.get_json(force=True) or {}
+    old_name = payload.get("old_filename", "").strip()
+    new_name = payload.get("new_filename", "").strip()
+    
+    if not old_name or not new_name:
+        return jsonify({"error": "old_filename and new_filename are required"}), 400
+    
+    scan_output_dir = Config.SCAN_SPLITTER_OUTPUTS_DIR
+    old_path = os.path.join(scan_output_dir, old_name)
+    
+    if not os.path.isfile(old_path):
+        return jsonify({"error": f"File not found: {old_name}"}), 404
+    
+    # Sanitize new name
+    new_name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', ' ', new_name).strip()
+    if not new_name:
+        return jsonify({"error": "Invalid new filename"}), 400
+    
+    # Ensure .pdf extension
+    if not new_name.lower().endswith(".pdf"):
+        new_name += ".pdf"
+    
+    new_path = os.path.join(scan_output_dir, new_name)
+    
+    # Handle duplicate names
+    if os.path.exists(new_path) and not os.path.samefile(old_path, new_path):
+        base, ext = os.path.splitext(new_name)
+        idx = 1
+        while os.path.exists(new_path):
+            new_path = os.path.join(scan_output_dir, f"{base} ({idx}){ext}")
+            idx += 1
+        new_name = os.path.basename(new_path)
+    
+    if old_path != new_path:
+        os.rename(old_path, new_path)
+    
+    return jsonify({"status": "renamed", "old_filename": old_name, "new_filename": new_name})
+
+
 @pipeline_bp.get("/api/scan-splitter/download/<path:filename>")
 def scan_splitter_download(filename):
     """Download a single split file."""
