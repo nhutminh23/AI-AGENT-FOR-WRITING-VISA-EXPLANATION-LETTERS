@@ -3,9 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canada IMM5645E — Family Information Auto-Fill</title>
+    <title>Canada Visa Forms — Auto-Fill</title>
     <link rel="stylesheet" href="/canada/static/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Form type tabs */
+        .form-tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 2px solid #e5e7eb; }
+        .form-tab {
+            padding: 12px 24px; cursor: pointer; font-weight: 600; font-size: 15px;
+            color: #64748b; border-bottom: 3px solid transparent; transition: all 0.2s;
+            background: none; border: none; border-bottom: 3px solid transparent;
+            font-family: inherit;
+        }
+        .form-tab:hover { color: #1e293b; background: #f8fafc; }
+        .form-tab.active { color: #dc2626; border-bottom-color: #dc2626; }
+        .form-tab .tab-badge {
+            display: inline-block; font-size: 11px; padding: 2px 8px;
+            border-radius: 12px; margin-left: 6px; font-weight: 500;
+        }
+        .form-tab .tab-badge.ok { background: #dcfce7; color: #16a34a; }
+        .form-tab .tab-badge.missing { background: #fef2f2; color: #dc2626; }
+        .form-content { display: none; }
+        .form-content.active { display: block; }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -14,67 +34,84 @@
             <div class="header-left">
                 <a href="/" class="back-link">← Quay lại</a>
                 <div class="header-title">
-                    <h1>🇨🇦 IMM5645E — Family Information</h1>
-                    <p class="subtitle">Auto-fill Canada visa family form using JSON from Grok</p>
+                    <h1>🇨🇦 Canada Visa Forms — Auto-Fill</h1>
+                    <p class="subtitle">Auto-fill Canada visa forms using JSON from Grok</p>
                 </div>
             </div>
             <div class="header-right">
-                <span id="templateStatus" class="status-badge loading">Checking template...</span>
+                <span id="templateStatus" class="status-badge loading">Checking templates...</span>
             </div>
         </header>
 
-        <!-- Step indicators -->
-        <div class="steps-bar">
-            <div class="step active" data-step="1">
-                <span class="step-number">1</span>
-                <span class="step-label">Copy Prompt</span>
-            </div>
-            <div class="step-connector"></div>
-            <div class="step" data-step="2">
-                <span class="step-number">2</span>
-                <span class="step-label">Paste JSON</span>
-            </div>
-            <div class="step-connector"></div>
-            <div class="step" data-step="3">
-                <span class="step-number">3</span>
-                <span class="step-label">Review & Edit</span>
-            </div>
-            <div class="step-connector"></div>
-            <div class="step" data-step="4">
-                <span class="step-number">4</span>
-                <span class="step-label">Download PDF</span>
-            </div>
+        <!-- Form Type Tabs -->
+        <div class="form-tabs">
+            <button class="form-tab active" data-form="imm5645" onclick="switchForm('imm5645')">
+                📋 IMM5645E
+                <span class="tab-badge" id="badge5645">Family Info</span>
+            </button>
+            <button class="form-tab" data-form="imm5257" onclick="switchForm('imm5257')">
+                📄 IMM5257E
+                <span class="tab-badge" id="badge5257">Visitor Visa</span>
+            </button>
         </div>
 
-        <!-- Step 1: Copy Prompt -->
-        <section id="step1" class="step-content active">
-            <div class="card">
-                <h2>📋 Copy Prompt cho Grok</h2>
-                <p class="card-desc">Copy prompt bên dưới → Paste vào Grok cùng với các file hồ sơ (CCCD, hộ chiếu, khai sinh...) → Grok sẽ trả về JSON.</p>
+        <!-- ============================================================ -->
+        <!-- IMM5645E CONTENT (existing) -->
+        <!-- ============================================================ -->
+        <div id="form-imm5645" class="form-content active">
 
-                <div class="prompt-display" id="promptDisplay">
-                    <div class="prompt-loading">Đang tải prompt template...</div>
+            <!-- Step indicators -->
+            <div class="steps-bar">
+                <div class="step active" data-step="1">
+                    <span class="step-number">1</span>
+                    <span class="step-label">Copy Prompt</span>
                 </div>
-
-                <div class="action-row">
-                    <button id="copyPromptBtn" class="btn btn-primary" disabled>
-                        📋 Copy Prompt
-                    </button>
-                    <button id="goToStep2Btn" class="btn btn-secondary">
-                        Đã có JSON → Tiếp ➡️
-                    </button>
+                <div class="step-connector"></div>
+                <div class="step" data-step="2">
+                    <span class="step-number">2</span>
+                    <span class="step-label">Paste JSON</span>
                 </div>
-                <div id="copyStatus" class="status-msg"></div>
+                <div class="step-connector"></div>
+                <div class="step" data-step="3">
+                    <span class="step-number">3</span>
+                    <span class="step-label">Review & Edit</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" data-step="4">
+                    <span class="step-number">4</span>
+                    <span class="step-label">Download PDF</span>
+                </div>
             </div>
-        </section>
 
-        <!-- Step 2: Paste JSON -->
-        <section id="step2" class="step-content">
-            <div class="card">
-                <h2>📥 Paste JSON từ Grok</h2>
-                <p class="card-desc">Paste JSON mà Grok đã sinh ra vào ô bên dưới. Hỗ trợ cả JSON thuần và JSON trong code block <code>```json</code>.</p>
+            <!-- Step 1: Copy Prompt -->
+            <section id="step1" class="step-content active">
+                <div class="card">
+                    <h2>📋 Copy Prompt cho Grok</h2>
+                    <p class="card-desc">Copy prompt bên dưới → Paste vào Grok cùng với các file hồ sơ (CCCD, hộ chiếu, khai sinh...) → Grok sẽ trả về JSON.</p>
 
-                <textarea id="jsonInput" rows="16" placeholder='Paste JSON từ Grok vào đây...
+                    <div class="prompt-display" id="promptDisplay">
+                        <div class="prompt-loading">Đang tải prompt template...</div>
+                    </div>
+
+                    <div class="action-row">
+                        <button id="copyPromptBtn" class="btn btn-primary" disabled>
+                            📋 Copy Prompt
+                        </button>
+                        <button id="goToStep2Btn" class="btn btn-secondary">
+                            Đã có JSON → Tiếp ➡️
+                        </button>
+                    </div>
+                    <div id="copyStatus" class="status-msg"></div>
+                </div>
+            </section>
+
+            <!-- Step 2: Paste JSON -->
+            <section id="step2" class="step-content">
+                <div class="card">
+                    <h2>📥 Paste JSON từ Grok</h2>
+                    <p class="card-desc">Paste JSON mà Grok đã sinh ra vào ô bên dưới. Hỗ trợ cả JSON thuần và JSON trong code block <code>```json</code>.</p>
+
+                    <textarea id="jsonInput" rows="16" placeholder='Paste JSON từ Grok vào đây...
 
 Ví dụ:
 {
@@ -86,122 +123,258 @@ Ví dụ:
   }
 }'></textarea>
 
-                <div class="action-row">
-                    <button id="applyJsonBtn" class="btn btn-primary">
-                        ✅ Apply JSON
-                    </button>
-                    <button id="backToStep1Btn" class="btn btn-secondary">
-                        ← Quay lại
-                    </button>
+                    <div class="action-row">
+                        <button id="applyJsonBtn" class="btn btn-primary">
+                            ✅ Apply JSON
+                        </button>
+                        <button id="backToStep1Btn" class="btn btn-secondary">
+                            ← Quay lại
+                        </button>
+                    </div>
+                    <div id="jsonStatus" class="status-msg"></div>
                 </div>
-                <div id="jsonStatus" class="status-msg"></div>
+            </section>
+
+            <!-- Step 3: Review & Edit -->
+            <section id="step3" class="step-content">
+                <div class="card">
+                    <h2>📝 Review & Edit</h2>
+                    <p class="card-desc">Kiểm tra lại thông tin trước khi fill vào PDF. Chỉnh sửa nếu cần.</p>
+
+                    <!-- Application Type -->
+                    <div class="form-section">
+                        <h3>📝 Application Type</h3>
+                        <div class="radio-group">
+                            <label><input type="radio" name="appType" value="visitor" checked> Visitor</label>
+                            <label><input type="radio" name="appType" value="worker"> Worker</label>
+                            <label><input type="radio" name="appType" value="student"> Student</label>
+                            <label><input type="radio" name="appType" value="other"> Other</label>
+                        </div>
+                    </div>
+
+                    <!-- Section A: Applicant -->
+                    <div class="form-section">
+                        <h3>Section A — Applicant</h3>
+                        <div class="form-grid" id="applicantFields"></div>
+                    </div>
+
+                    <!-- Section A: Spouse -->
+                    <div class="form-section">
+                        <h3>Section A — Spouse / Common-law Partner</h3>
+                        <div class="form-grid" id="spouseFields"></div>
+                        <div class="accompanying-row">
+                            <label>Accompanying to Canada?</label>
+                            <select id="spouseAccompanying">
+                                <option value="">— Select —</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Section A: Mother -->
+                    <div class="form-section">
+                        <h3>Section A — Mother</h3>
+                        <div class="form-grid" id="motherFields"></div>
+                        <div class="accompanying-row">
+                            <label>Accompanying to Canada?</label>
+                            <select id="motherAccompanying">
+                                <option value="">— Select —</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Section A: Father -->
+                    <div class="form-section">
+                        <h3>Section A — Father</h3>
+                        <div class="form-grid" id="fatherFields"></div>
+                        <div class="accompanying-row">
+                            <label>Accompanying to Canada?</label>
+                            <select id="fatherAccompanying">
+                                <option value="">— Select —</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Section B: Children -->
+                    <div class="form-section">
+                        <h3>Section B — Children <button id="addChildBtn" class="btn btn-sm">+ Add Child</button></h3>
+                        <div id="childrenContainer"></div>
+                    </div>
+
+                    <!-- Section C: Siblings -->
+                    <div class="form-section">
+                        <h3>Section C — Brothers & Sisters <button id="addSiblingBtn" class="btn btn-sm">+ Add Sibling</button></h3>
+                        <div id="siblingsContainer"></div>
+                    </div>
+
+                    <div class="action-row">
+                        <button id="fillBtn" class="btn btn-primary btn-large">
+                            ✍️ Fill PDF & Download
+                        </button>
+                        <button id="backToStep2Btn" class="btn btn-secondary">
+                            ← Sửa JSON
+                        </button>
+                    </div>
+                    <div id="fillStatus" class="status-msg"></div>
+                </div>
+            </section>
+
+            <!-- Step 4: Download -->
+            <section id="step4" class="step-content">
+                <div class="card card-success">
+                    <h2>✅ PDF Filled Successfully!</h2>
+                    <p class="card-desc">Form IMM5645E đã được điền xong.</p>
+                    <div class="action-row">
+                        <a id="downloadLink" class="btn btn-primary btn-large" href="#" download>
+                            📥 Download Filled PDF
+                        </a>
+                        <button id="startOverBtn" class="btn btn-secondary">
+                            🔄 Làm lại từ đầu
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- IMM5257E CONTENT (new) -->
+        <!-- ============================================================ -->
+        <div id="form-imm5257" class="form-content">
+
+            <!-- Step indicators -->
+            <div class="steps-bar">
+                <div class="step active" data-step="s1">
+                    <span class="step-number">1</span>
+                    <span class="step-label">Copy Prompt</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" data-step="s2">
+                    <span class="step-number">2</span>
+                    <span class="step-label">Paste JSON</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" data-step="s3">
+                    <span class="step-number">3</span>
+                    <span class="step-label">Review & Edit</span>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" data-step="s4">
+                    <span class="step-number">4</span>
+                    <span class="step-label">Download PDF</span>
+                </div>
             </div>
-        </section>
 
-        <!-- Step 3: Review & Edit -->
-        <section id="step3" class="step-content">
-            <div class="card">
-                <h2>📝 Review & Edit</h2>
-                <p class="card-desc">Kiểm tra lại thông tin trước khi fill vào PDF. Chỉnh sửa nếu cần.</p>
+            <!-- Step S1: Copy Prompt -->
+            <section id="s1" class="step-content active">
+                <div class="card">
+                    <h2>📋 Copy Prompt cho Grok (IMM5257)</h2>
+                    <p class="card-desc">Copy prompt bên dưới → Paste vào Grok cùng với hồ sơ (CCCD, hộ chiếu, form khai...) → Grok trả JSON.</p>
+                    <div class="prompt-display" id="promptDisplay5257">
+                        <div class="prompt-loading">Đang tải prompt template...</div>
+                    </div>
+                    <div class="action-row">
+                        <button id="copyPromptBtn5257" class="btn btn-primary" disabled>
+                            📋 Copy Prompt
+                        </button>
+                        <button id="goToS2Btn" class="btn btn-secondary">
+                            Đã có JSON → Tiếp ➡️
+                        </button>
+                    </div>
+                    <div id="copyStatus5257" class="status-msg"></div>
+                </div>
+            </section>
 
-                <!-- Application Type -->
-                <div class="form-section">
-                    <h3>📝 Application Type</h3>
-                    <div class="radio-group">
-                        <label><input type="radio" name="appType" value="visitor" checked> Visitor</label>
-                        <label><input type="radio" name="appType" value="worker"> Worker</label>
-                        <label><input type="radio" name="appType" value="student"> Student</label>
-                        <label><input type="radio" name="appType" value="other"> Other</label>
+            <!-- Step S2: Paste JSON -->
+            <section id="s2" class="step-content">
+                <div class="card">
+                    <h2>📥 Paste JSON từ Grok (IMM5257)</h2>
+                    <p class="card-desc">Paste JSON mà Grok đã sinh ra vào ô bên dưới. Hỗ trợ cả JSON thuần và JSON trong code block <code>```json</code>.</p>
+
+                    <textarea id="jsonInput5257" rows="16" placeholder='Paste JSON từ Grok vào đây...
+
+Ví dụ:
+{
+  "family_name": "DINH",
+  "given_name": "THI LAN ANH",
+  "dob": "1977-10-19",
+  "passport_number": "E01370203",
+  ...
+}'></textarea>
+                    <div class="action-row">
+                        <button id="applyJsonBtn5257" class="btn btn-primary">✅ Apply JSON</button>
+                        <button id="backToS1Btn" class="btn btn-secondary">← Quay lại</button>
+                    </div>
+                    <div id="jsonStatus5257" class="status-msg"></div>
+                </div>
+            </section>
+
+            <!-- Step S3: Review & Edit -->
+            <section id="s3" class="step-content">
+                <div class="card">
+                    <h2>📝 Review & Edit (IMM5257)</h2>
+                    <p class="card-desc">Kiểm tra thông tin. Chỉnh sửa nếu cần trước khi fill PDF.</p>
+
+                    <!-- Personal Details -->
+                    <div class="form-section">
+                        <h3>👤 Personal Details (Page 1)</h3>
+                        <div class="form-grid" id="f5257_personal"></div>
+                    </div>
+
+                    <!-- Passport & ID -->
+                    <div class="form-section">
+                        <h3>🛂 Passport & ID (Page 2)</h3>
+                        <div class="form-grid" id="f5257_passport"></div>
+                    </div>
+
+                    <!-- Contact Information -->
+                    <div class="form-section">
+                        <h3>📍 Contact Information (Page 2)</h3>
+                        <div class="form-grid" id="f5257_contact"></div>
+                    </div>
+
+                    <!-- Visit Details & Employment -->
+                    <div class="form-section">
+                        <h3>✈️ Visit Details & Employment (Page 3)</h3>
+                        <div class="form-grid" id="f5257_visit"></div>
+                    </div>
+
+                    <!-- Background Questions -->
+                    <div class="form-section">
+                        <h3>❓ Background Questions (Page 4)</h3>
+                        <div class="form-grid" id="f5257_background"></div>
+                    </div>
+
+                    <div class="action-row">
+                        <button id="fillBtn5257" class="btn btn-primary btn-large">
+                            ✍️ Fill IMM5257 PDF & Download
+                        </button>
+                        <button id="backToS2Btn" class="btn btn-secondary">← Sửa JSON</button>
+                    </div>
+                    <div id="fillStatus5257" class="status-msg"></div>
+                </div>
+            </section>
+
+            <!-- Step S4: Download -->
+            <section id="s4" class="step-content">
+                <div class="card card-success">
+                    <h2>✅ IMM5257E Filled Successfully!</h2>
+                    <p class="card-desc">Form IMM5257E đã được điền xong.</p>
+                    <div class="action-row">
+                        <a id="downloadLink5257" class="btn btn-primary btn-large" href="#" download>
+                            📥 Download Filled PDF
+                        </a>
+                        <button id="startOverBtn5257" class="btn btn-secondary">
+                            🔄 Làm lại từ đầu
+                        </button>
                     </div>
                 </div>
-
-                <!-- Section A: Applicant -->
-                <div class="form-section">
-                    <h3>Section A — Applicant</h3>
-                    <div class="form-grid" id="applicantFields"></div>
-                </div>
-
-                <!-- Section A: Spouse -->
-                <div class="form-section">
-                    <h3>Section A — Spouse / Common-law Partner</h3>
-                    <div class="form-grid" id="spouseFields"></div>
-                    <div class="accompanying-row">
-                        <label>Accompanying to Canada?</label>
-                        <select id="spouseAccompanying">
-                            <option value="">— Select —</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Section A: Mother -->
-                <div class="form-section">
-                    <h3>Section A — Mother</h3>
-                    <div class="form-grid" id="motherFields"></div>
-                    <div class="accompanying-row">
-                        <label>Accompanying to Canada?</label>
-                        <select id="motherAccompanying">
-                            <option value="">— Select —</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Section A: Father -->
-                <div class="form-section">
-                    <h3>Section A — Father</h3>
-                    <div class="form-grid" id="fatherFields"></div>
-                    <div class="accompanying-row">
-                        <label>Accompanying to Canada?</label>
-                        <select id="fatherAccompanying">
-                            <option value="">— Select —</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Section B: Children -->
-                <div class="form-section">
-                    <h3>Section B — Children <button id="addChildBtn" class="btn btn-sm">+ Add Child</button></h3>
-                    <div id="childrenContainer"></div>
-                </div>
-
-                <!-- Section C: Siblings -->
-                <div class="form-section">
-                    <h3>Section C — Brothers & Sisters <button id="addSiblingBtn" class="btn btn-sm">+ Add Sibling</button></h3>
-                    <div id="siblingsContainer"></div>
-                </div>
-
-                <div class="action-row">
-                    <button id="fillBtn" class="btn btn-primary btn-large">
-                        ✍️ Fill PDF & Download
-                    </button>
-                    <button id="backToStep2Btn" class="btn btn-secondary">
-                        ← Sửa JSON
-                    </button>
-                </div>
-                <div id="fillStatus" class="status-msg"></div>
-            </div>
-        </section>
-
-        <!-- Step 4: Download -->
-        <section id="step4" class="step-content">
-            <div class="card card-success">
-                <h2>✅ PDF Filled Successfully!</h2>
-                <p class="card-desc">Form IMM5645E đã được điền xong.</p>
-                <div class="action-row">
-                    <a id="downloadLink" class="btn btn-primary btn-large" href="#" download>
-                        📥 Download Filled PDF
-                    </a>
-                    <button id="startOverBtn" class="btn btn-secondary">
-                        🔄 Làm lại từ đầu
-                    </button>
-                </div>
-            </div>
-        </section>
+            </section>
+        </div>
     </div>
 
     <!-- Modular JS -->
@@ -210,5 +383,15 @@ Ví dụ:
     <script src="/canada/static/json-paste.js"></script>
     <script src="/canada/static/pdf-filler.js"></script>
     <script src="/canada/static/app.js"></script>
+    <script src="/canada/static/app-5257.js"></script>
+    <script>
+        // Tab switcher
+        function switchForm(formType) {
+            document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.form-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.form-tab[data-form="${formType}"]`).classList.add('active');
+            document.getElementById(`form-${formType}`).classList.add('active');
+        }
+    </script>
 </body>
 </html>

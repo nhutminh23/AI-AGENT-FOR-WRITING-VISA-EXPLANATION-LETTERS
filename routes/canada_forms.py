@@ -117,6 +117,69 @@ def canada_fill():
 
 
 # ---------------------------------------------------------------------------
+# API: Get Grok prompt template for IMM5257
+# ---------------------------------------------------------------------------
+@canada_forms_bp.get("/canada/api/prompt-template-5257")
+def canada_prompt_template_5257():
+    """Return the Grok prompt template for IMM5257E."""
+    template_path = CANADA_BASE_DIR / "grok_prompt_imm5257.md"
+    if not template_path.exists():
+        return jsonify({"error": "Prompt template not found"}), 404
+
+    content = template_path.read_text(encoding="utf-8")
+    marker = "## PROMPT (Copy từ đây)"
+    idx = content.find(marker)
+    if idx != -1:
+        prompt_text = content[idx + len(marker):].strip()
+    else:
+        prompt_text = content
+
+    return jsonify({"prompt": prompt_text})
+
+
+# ---------------------------------------------------------------------------
+# API: Fill IMM5257E PDF
+# ---------------------------------------------------------------------------
+@canada_forms_bp.post("/canada/api/fill-5257")
+def canada_fill_5257():
+    """Fill IMM5257E PDF form with provided data."""
+    data = request.get_json(silent=True) or {}
+    form_fields = data.get("form_fields")
+
+    if not form_fields:
+        return jsonify({"error": "Missing form_fields"}), 400
+
+    logger.info("=== IMM5257 FILL: %d keys ===", len(form_fields))
+
+    template_path = CANADA_TEMPLATE_DIR / "imm5257e.pdf"
+    if not template_path.exists():
+        return jsonify({
+            "error": f"Template not found: {template_path}. "
+                     f"Please place imm5257e.pdf in {CANADA_TEMPLATE_DIR}"
+        }), 404
+
+    CANADA_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    import uuid
+    session_id = str(uuid.uuid4())[:8]
+    output_filename = f"IMM5257E_filled_{session_id}.pdf"
+    output_path = CANADA_OUTPUT_DIR / output_filename
+
+    try:
+        from canada_forms.fill_imm5257 import fill_imm5257
+        fill_imm5257(form_fields, template_path, output_path)
+
+        return jsonify({
+            "success": True,
+            "filename": output_filename,
+            "download_url": f"/canada/api/download/{output_filename}",
+        })
+    except Exception as exc:
+        logger.exception("IMM5257 PDF fill failed")
+        return jsonify({"error": f"PDF fill failed: {str(exc)}"}), 500
+
+
+# ---------------------------------------------------------------------------
 # API: Download filled PDF
 # ---------------------------------------------------------------------------
 @canada_forms_bp.get("/canada/api/download/<filename>")
@@ -139,9 +202,12 @@ def canada_download(filename: str):
 # ---------------------------------------------------------------------------
 @canada_forms_bp.get("/canada/api/check-template")
 def canada_check_template():
-    """Check if the IMM5645E template PDF is available."""
-    template_path = CANADA_TEMPLATE_DIR / "imm5645e.pdf"
+    """Check if PDF templates are available."""
+    t5645 = CANADA_TEMPLATE_DIR / "imm5645e.pdf"
+    t5257 = CANADA_TEMPLATE_DIR / "imm5257e.pdf"
     return jsonify({
-        "available": template_path.exists(),
-        "path": str(template_path),
+        "available": t5645.exists(),
+        "imm5645_available": t5645.exists(),
+        "imm5257_available": t5257.exists(),
+        "path": str(CANADA_TEMPLATE_DIR),
     })

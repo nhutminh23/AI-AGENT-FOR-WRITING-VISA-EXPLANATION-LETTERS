@@ -395,7 +395,7 @@ h1 { font-size: 22px; font-weight: 700; }
 .prompt-error { color: var(--error); }
 
 /* ---- JSON Textarea (Step 2) ---- */
-#jsonInput {
+#jsonInput, #jsonInput5257 {
     width: 100%;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
     font-size: 13px;
@@ -408,11 +408,11 @@ h1 { font-size: 22px; font-weight: 700; }
     resize: vertical;
     transition: border-color 0.2s;
 }
-#jsonInput:focus {
+#jsonInput:focus, #jsonInput5257:focus {
     outline: none;
     border-color: var(--accent);
 }
-#jsonInput::placeholder {
+#jsonInput::placeholder, #jsonInput5257::placeholder {
     color: var(--text-muted);
     opacity: 0.6;
 }

@@ -20,10 +20,13 @@ let parsedJsonData = null;
 // Step Navigation
 // -----------------------------------------------------------------------
 function goToStep(stepNum) {
-    $$(".step-content").forEach((el) => el.classList.remove("active"));
-    $(`#step${stepNum}`)?.classList.add("active");
+    // Scope to IMM5645 container only — don't affect IMM5257 sections
+    const container = document.getElementById("form-imm5645");
+    if (!container) return;
+    container.querySelectorAll(".step-content").forEach((el) => el.classList.remove("active"));
+    container.querySelector(`#step${stepNum}`)?.classList.add("active");
 
-    $$(".steps-bar .step").forEach((el) => {
+    container.querySelectorAll(".steps-bar .step").forEach((el) => {
         const s = parseInt(el.dataset.step);
         el.classList.toggle("active", s === stepNum);
         el.classList.toggle("completed", s < stepNum);
