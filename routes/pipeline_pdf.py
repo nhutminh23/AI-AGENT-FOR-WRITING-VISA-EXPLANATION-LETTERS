@@ -17,6 +17,7 @@ from pypdf import PdfReader, PdfWriter
 
 from core.helpers import get_text_model
 from config import Config
+import database as db
 
 from routes.pipeline_helpers import (
     _safe_join,
@@ -74,16 +75,95 @@ def merge_pdf_upload():
     except Exception as exc:
         return jsonify({"error": "write_failed", "detail": str(exc)}), 500
 
+    # Save to database
+    file_size = os.path.getsize(out_path)
+    final_filename = os.path.basename(out_path)
+    record = db.save_merged_pdf(
+        filename=final_filename,
+        file_path=os.path.abspath(out_path),
+        source_files=used_names,
+        total_pages=total_pages,
+        file_size=file_size,
+    )
+
     return jsonify(
         {
             "status": "done",
+            "id": record["id"],
             "output_dir": output_dir,
             "files": used_names,
             "file_count": len(used_names),
             "total_pages": total_pages,
-            "output_file": os.path.relpath(out_path, output_dir).replace("\\", "/"),
+            "file_size": file_size,
+            "output_file": final_filename,
         }
     )
+
+
+@pipeline_pdf_bp.route("/api/pdf/merged", methods=["GET"])
+def list_merged_pdfs():
+    """List all merged PDF records."""
+    records = db.list_merged_pdfs()
+    return jsonify({"merged_pdfs": records})
+
+
+@pipeline_pdf_bp.route("/api/pdf/merged/<int:record_id>/view", methods=["GET"])
+def view_merged_pdf(record_id):
+    """View a merged PDF inline in browser (new tab)."""
+    record = db.get_merged_pdf(record_id)
+    if not record:
+        return jsonify({"error": "not_found"}), 404
+    fpath = record["file_path"]
+    if not os.path.isfile(fpath):
+        return jsonify({"error": "file_missing"}), 404
+    return send_file(fpath, as_attachment=False, mimetype="application/pdf")
+
+
+@pipeline_pdf_bp.route("/api/pdf/merged/<int:record_id>/download", methods=["GET"])
+def download_merged_pdf(record_id):
+    """Download a merged PDF file."""
+    record = db.get_merged_pdf(record_id)
+    if not record:
+        return jsonify({"error": "not_found"}), 404
+    fpath = record["file_path"]
+    if not os.path.isfile(fpath):
+        return jsonify({"error": "file_missing"}), 404
+    return send_file(fpath, as_attachment=True, download_name=record["filename"])
+
+
+@pipeline_pdf_bp.route("/api/pdf/merged/<int:record_id>", methods=["DELETE"])
+def delete_merged_pdf(record_id):
+    """Delete a single merged PDF (DB + disk)."""
+    ok = db.delete_merged_pdf(record_id)
+    if not ok:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"status": "deleted"})
+
+
+@pipeline_pdf_bp.route("/api/pdf/merged", methods=["DELETE"])
+def delete_all_merged_pdfs():
+    """Delete all merged PDFs (DB + disk)."""
+    count = db.delete_all_merged_pdfs()
+    return jsonify({"status": "deleted", "deleted_count": count})
+
+
+@pipeline_pdf_bp.route("/api/pdf/merged/download-zip", methods=["GET"])
+def download_all_merged_zip():
+    """Download all merged PDFs as a single ZIP file."""
+    import zipfile
+    records = db.list_merged_pdfs()
+    if not records:
+        return jsonify({"error": "no_files"}), 404
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for r in records:
+            fpath = r["file_path"]
+            if os.path.isfile(fpath):
+                zf.write(fpath, r["filename"])
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name="merged_pdfs.zip",
+                     mimetype="application/zip")
 
 
 @pipeline_pdf_bp.route("/api/pdf/merge", methods=["POST"])

@@ -40,7 +40,7 @@ async function runPdfMerge() {
       return;
     }
     const lines = [];
-    lines.push("Nối PDF hoàn thành.");
+    lines.push("✅ Nối PDF hoàn thành!");
     lines.push(`- Số file nguồn: ${data.file_count}`);
     lines.push(`- Tổng số trang: ${data.total_pages}`);
     lines.push(`- File kết quả: ${data.output_file}`);
@@ -48,6 +48,7 @@ async function runPdfMerge() {
       pdfToolsResultEl.textContent = lines.join("\n");
     }
     await loadPdfFiles();
+    await loadMergedPdfs();
   } catch (error) {
     if (pdfToolsResultEl) {
       pdfToolsResultEl.textContent = `Lỗi nối PDF: ${error.message}`;
@@ -487,3 +488,112 @@ async function runClassifier() {
 }
 
 
+// ==================== MERGED PDF RESULTS ====================
+
+function _formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return "0 B";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+async function loadMergedPdfs() {
+  const card = document.getElementById("mergedPdfResultsCard");
+  const listEl = document.getElementById("mergedPdfResultsList");
+  if (!card || !listEl) return;
+
+  try {
+    const res = await fetch("/api/pdf/merged");
+    const data = await res.json();
+    const records = data.merged_pdfs || [];
+
+    if (records.length === 0) {
+      card.style.display = "none";
+      listEl.innerHTML = "";
+      return;
+    }
+
+    card.style.display = "block";
+    let html = `<div style="border:1px solid #334155; border-radius:8px; overflow:hidden;">`;
+    // Header row
+    html += `<div style="display:flex; align-items:center; padding:8px 12px; background:#1e293b; font-weight:600; font-size:0.85em; color:#94a3b8; border-bottom:1px solid #334155;">
+      <span style="flex:1; min-width:180px;">Tên file</span>
+      <span style="width:60px; text-align:center;">Trang</span>
+      <span style="width:80px; text-align:center;">Dung lượng</span>
+      <span style="width:60px; text-align:center;">Nguồn</span>
+      <span style="width:200px; text-align:center;">Thao tác</span>
+    </div>`;
+
+    records.forEach((r) => {
+      const sourceCount = (r.source_files || []).length;
+      const sourceTooltip = (r.source_files || []).join("\n");
+      html += `<div style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid #1e293b; font-size:0.9em;">
+        <span style="flex:1; min-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${r.filename}">📄 ${r.filename}</span>
+        <span style="width:60px; text-align:center; color:#94a3b8;">${r.total_pages}</span>
+        <span style="width:80px; text-align:center; color:#94a3b8;">${_formatFileSize(r.file_size)}</span>
+        <span style="width:60px; text-align:center; color:#94a3b8;" title="${sourceTooltip}">${sourceCount} file</span>
+        <div style="width:200px; display:flex; gap:4px; justify-content:center;">
+          <a href="/api/pdf/merged/${r.id}/view" target="_blank"
+             style="padding:4px 10px; background:#f59e0b; color:#fff; text-decoration:none; border-radius:4px; font-size:0.85em;">👁 Xem</a>
+          <a href="/api/pdf/merged/${r.id}/download"
+             style="padding:4px 10px; background:#4f46e5; color:#fff; text-decoration:none; border-radius:4px; font-size:0.85em;"
+             download="${r.filename}">⬇ Tải</a>
+          <button onclick="deleteMergedPdf(${r.id})"
+             style="padding:4px 10px; background:#dc2626; color:#fff; border:none; border-radius:4px; font-size:0.85em; cursor:pointer;">🗑️</button>
+        </div>
+      </div>`;
+    });
+
+    html += `</div>`;
+    listEl.innerHTML = html;
+  } catch (err) {
+    console.error("loadMergedPdfs error", err);
+  }
+}
+
+async function deleteMergedPdf(id) {
+  if (!confirm("Xóa file nối này?")) return;
+  try {
+    const res = await fetch(`/api/pdf/merged/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      alert("Lỗi: " + (data.error || "không xác định"));
+      return;
+    }
+    await loadMergedPdfs();
+  } catch (e) {
+    alert("Lỗi: " + e.message);
+  }
+}
+
+async function deleteAllMergedPdfs() {
+  if (!confirm("Xóa TẤT CẢ file đã nối? (Cả file trên ổ đĩa sẽ bị xóa)")) return;
+  try {
+    const res = await fetch("/api/pdf/merged", { method: "DELETE" });
+    const data = await res.json();
+    if (res.ok) {
+      await loadMergedPdfs();
+    } else {
+      alert("Lỗi: " + (data.error || "không xác định"));
+    }
+  } catch (e) {
+    alert("Lỗi: " + e.message);
+  }
+}
+
+// Wire up delete-all button
+const deleteAllMergedBtn = document.getElementById("deleteAllMergedBtn");
+if (deleteAllMergedBtn) {
+  deleteAllMergedBtn.addEventListener("click", deleteAllMergedPdfs);
+}
+
+// Wire up download-all-ZIP button
+const downloadAllMergedBtn = document.getElementById("downloadAllMergedBtn");
+if (downloadAllMergedBtn) {
+  downloadAllMergedBtn.addEventListener("click", () => {
+    window.location.href = "/api/pdf/merged/download-zip";
+  });
+}
+
+// Auto-load on page init
+loadMergedPdfs();

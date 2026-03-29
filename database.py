@@ -100,6 +100,19 @@ class LetterState(Base):
     project = relationship("Project", back_populates="letter_states")
 
 
+class MergedPdf(Base):
+    """Standalone merged PDF record — not linked to any project."""
+    __tablename__ = "merged_pdfs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    filename = Column(String(500), nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    source_files = Column(Text, default="[]")  # JSON array of source filenames
+    total_pages = Column(Integer, default=0)
+    file_size = Column(Integer, default=0)     # bytes
+    created_at = Column(DateTime, default=func.now())
+
+
 # ==================== INIT ====================
 
 def init_db():
@@ -473,6 +486,104 @@ def _letter_state_to_dict(state: LetterState) -> Dict[str, Any]:
         "step_summary": bool(state.step_summary),
         "step_writer": bool(state.step_writer),
         "created_at": state.created_at.isoformat() if state.created_at else None,
+    }
+
+
+# ==================== MERGED PDFS ====================
+
+def save_merged_pdf(filename: str, file_path: str, source_files: List[str],
+                    total_pages: int, file_size: int) -> Dict[str, Any]:
+    """Save a merged PDF record."""
+    session = get_session()
+    try:
+        record = MergedPdf(
+            filename=filename,
+            file_path=file_path,
+            source_files=json.dumps(source_files, ensure_ascii=False),
+            total_pages=total_pages,
+            file_size=file_size,
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+        return _merged_pdf_to_dict(record)
+    finally:
+        session.close()
+
+
+def list_merged_pdfs() -> List[Dict[str, Any]]:
+    """List all merged PDFs, newest first."""
+    session = get_session()
+    try:
+        records = session.query(MergedPdf).order_by(desc(MergedPdf.created_at)).all()
+        return [_merged_pdf_to_dict(r) for r in records]
+    finally:
+        session.close()
+
+
+def get_merged_pdf(record_id: int) -> Optional[Dict[str, Any]]:
+    """Get a single merged PDF record by ID."""
+    session = get_session()
+    try:
+        record = session.query(MergedPdf).filter_by(id=record_id).first()
+        return _merged_pdf_to_dict(record) if record else None
+    finally:
+        session.close()
+
+
+def delete_merged_pdf(record_id: int) -> bool:
+    """Delete a merged PDF record + file on disk."""
+    session = get_session()
+    try:
+        record = session.query(MergedPdf).filter_by(id=record_id).first()
+        if not record:
+            return False
+        # Delete file on disk
+        if record.file_path and os.path.isfile(record.file_path):
+            try:
+                os.remove(record.file_path)
+            except OSError:
+                pass
+        session.delete(record)
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
+def delete_all_merged_pdfs() -> int:
+    """Delete all merged PDF records + files on disk. Returns count deleted."""
+    session = get_session()
+    try:
+        records = session.query(MergedPdf).all()
+        count = len(records)
+        for r in records:
+            if r.file_path and os.path.isfile(r.file_path):
+                try:
+                    os.remove(r.file_path)
+                except OSError:
+                    pass
+        session.query(MergedPdf).delete()
+        session.commit()
+        return count
+    finally:
+        session.close()
+
+
+def _merged_pdf_to_dict(r: MergedPdf) -> Dict[str, Any]:
+    source = r.source_files or "[]"
+    try:
+        sources = json.loads(source)
+    except (json.JSONDecodeError, TypeError):
+        sources = []
+    return {
+        "id": r.id,
+        "filename": r.filename,
+        "file_path": r.file_path,
+        "source_files": sources,
+        "total_pages": r.total_pages,
+        "file_size": r.file_size,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
     }
 
 
