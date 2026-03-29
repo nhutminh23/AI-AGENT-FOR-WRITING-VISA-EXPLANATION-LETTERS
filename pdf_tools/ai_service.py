@@ -32,7 +32,8 @@ gemini_fallback_active = False
 def get_openai_client() -> OpenAI:
     global _openai_client
     if _openai_client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        from config import Config
+        api_key = Config.OPENAI_API_KEY
         if not api_key or api_key == "your_openai_api_key_here":
             raise ValueError("OPENAI_API_KEY not configured.")
         _openai_client = OpenAI(api_key=api_key)
@@ -41,10 +42,11 @@ def get_openai_client() -> OpenAI:
 def configure_gemini():
     global _gemini_configured, _gemini_model
     if not _gemini_configured:
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        from config import Config
+        gemini_api_key = Config.GEMINI_API_KEY
         if gemini_api_key and gemini_api_key != "your_gemini_api_key_here":
             genai.configure(api_key=gemini_api_key)
-            model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+            model_name = Config.GEMINI_MODEL.strip()
             _gemini_model = genai.GenerativeModel(model_name)
             _gemini_configured = True
     return _gemini_configured
@@ -55,7 +57,8 @@ def get_gemini_model():
 
 
 def get_openai_model() -> str:
-    return os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini").strip()
+    from config import Config
+    return Config.VISION_MODEL.strip()
 
 
 # ----- Prompts -----

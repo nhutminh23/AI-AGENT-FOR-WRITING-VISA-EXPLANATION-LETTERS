@@ -86,7 +86,7 @@ class TestConfigDirectories:
 
     def test_translation_default_template(self):
         assert isinstance(Config.TRANSLATION_DEFAULT_TEMPLATE, str)
-        assert Config.TRANSLATION_DEFAULT_TEMPLATE == "mau_dich.html"
+        assert Config.TRANSLATION_DEFAULT_TEMPLATE == "a4.html"
 
     def test_translation_output_dir(self):
         assert isinstance(Config.TRANSLATION_OUTPUT_DIR, str)

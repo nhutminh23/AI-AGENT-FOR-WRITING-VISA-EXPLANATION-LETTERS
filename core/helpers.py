@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List
 
+from config import Config
 from core.agents import detect_domain
 
 
@@ -15,14 +16,12 @@ from core.agents import detect_domain
 
 def get_text_model() -> str:
     """Model for text reasoning/writing tasks (gpt-5-mini default)."""
-    return os.getenv("TEXT_MODEL",
-                     os.getenv("OPENAI_MODEL", "gpt-5-mini"))
+    return Config.TEXT_MODEL
 
 
 def get_vision_model() -> str:
     """Model for image/OCR tasks (gpt-4o-mini default — cheaper, good at vision)."""
-    return os.getenv("VISION_MODEL",
-                     os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini"))
+    return Config.VISION_MODEL
 
 
 # ── File helpers ──

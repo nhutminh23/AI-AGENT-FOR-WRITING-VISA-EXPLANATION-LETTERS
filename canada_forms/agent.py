@@ -235,14 +235,14 @@ def extract_family_info(file_paths: list[str]) -> dict:
     )
 
     # 3. Choose model based on content type
-    text_model = os.getenv("TEXT_MODEL", "gpt-5-mini")
-    vision_model = os.getenv("VISION_MODEL", "gpt-4o-mini")
-    model_name = vision_model if has_images else text_model
+    from core.helpers import get_text_model, get_vision_model
+    from config import Config
+    model_name = get_vision_model() if has_images else get_text_model()
 
     llm = ChatOpenAI(
         model=model_name,
         temperature=0,
-        api_key=os.getenv("OPENAI_API_KEY"),
+        api_key=Config.OPENAI_API_KEY,
         timeout=120,       # 2 min timeout for large payloads
         max_retries=3,     # Retry on 500/429 errors
     )

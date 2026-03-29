@@ -47,6 +47,10 @@ class Config:
     CANADA_FORMS_OUTPUT_DIR = os.path.join("canada_forms", "output")
     CANADA_FORMS_TEMPLATE_DIR = os.path.join("canada_forms", "templates")
 
+    # --- Gemini (fallback AI) ---
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
     # --- OCR ---
     OCR_DPI = 250
     OCR_MAX_WORKERS = 4

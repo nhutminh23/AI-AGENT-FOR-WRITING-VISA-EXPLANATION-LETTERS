@@ -19,11 +19,11 @@ class AgentState(TypedDict):
 
 def parse_and_generate(state: AgentState) -> AgentState:
     """Node chính: gọi OpenAI để sinh config objects."""
-    model_name = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    from config import Config
     llm = ChatOpenAI(
-        model=model_name,
+        model=Config.TEXT_MODEL,
         temperature=0,
-        api_key=os.getenv("OPENAI_API_KEY"),
+        api_key=Config.OPENAI_API_KEY,
     )
 
     user_prompt = USER_PROMPT_TEMPLATE.format(
