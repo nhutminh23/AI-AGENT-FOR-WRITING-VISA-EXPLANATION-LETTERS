@@ -54,6 +54,14 @@ function initSerpFlightUI() {
   if (serpSearchBtn) serpSearchBtn.addEventListener("click", serpSearchFlights);
   if (serpGenerateBtn) serpGenerateBtn.addEventListener("click", serpGenerateTicket);
 
+  // Auto-calculation cho tổng số người
+  if (tripGuestNamesEl) tripGuestNamesEl.addEventListener("input", (e) => {
+    if (typeof window.calcPassengerCounts === 'function') window.calcPassengerCounts(e.target.value);
+  });
+  if (serpPassengerNamesEl) serpPassengerNamesEl.addEventListener("input", (e) => {
+    if (typeof window.calcPassengerCounts === 'function') window.calcPassengerCounts(e.target.value);
+  });
+
   prefillSerpPassengerInfo();
 }
 
@@ -398,6 +406,30 @@ async function serpSearchNextLeg(departureToken, originalPayload) {
   }
 }
 
+window.calcPassengerCounts = function(text) {
+  if (!text || !text.trim()) {
+    if (typeof serpAdultsEl !== 'undefined' && serpAdultsEl) serpAdultsEl.value = 1;
+    if (typeof serpChildrenEl !== 'undefined' && serpChildrenEl) serpChildrenEl.value = 0;
+    if (typeof serpHotelAdultsEl !== 'undefined' && serpHotelAdultsEl) serpHotelAdultsEl.value = 1;
+    if (typeof serpHotelChildrenEl !== 'undefined' && serpHotelChildrenEl) serpHotelChildrenEl.value = 0;
+    return;
+  }
+  const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+  let childrenCount = 0;
+  let adultsCount = 0;
+  lines.forEach(line => {
+    if (/\[child\]/i.test(line)) {
+      childrenCount++;
+    } else {
+      adultsCount++;
+    }
+  });
+  if (typeof serpAdultsEl !== 'undefined' && serpAdultsEl) serpAdultsEl.value = adultsCount;
+  if (typeof serpChildrenEl !== 'undefined' && serpChildrenEl) serpChildrenEl.value = childrenCount;
+  if (typeof serpHotelAdultsEl !== 'undefined' && serpHotelAdultsEl) serpHotelAdultsEl.value = adultsCount;
+  if (typeof serpHotelChildrenEl !== 'undefined' && serpHotelChildrenEl) serpHotelChildrenEl.value = childrenCount;
+};
+
 function prefillSerpPassengerInfo() {
   const tripGuestNames = tripGuestNamesEl?.value?.trim();
   if (tripGuestNames && serpPassengerNamesEl) {
@@ -406,6 +438,9 @@ function prefillSerpPassengerInfo() {
   const contactName = tripGuestNamesEl?.value?.trim().split("\n")[0] || "";
   if (contactName && serpContactNameEl) {
     serpContactNameEl.value = contactName.replace(/\s*\[child\]\s*/gi, "").toUpperCase();
+  }
+  if (tripGuestNames) {
+    window.calcPassengerCounts(tripGuestNames);
   }
 }
 
