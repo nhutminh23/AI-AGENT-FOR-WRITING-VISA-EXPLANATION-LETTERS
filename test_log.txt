@@ -1,0 +1,68 @@
+============================= test session starts =============================
+platform win32 -- Python 3.7.1, pytest-7.4.4, pluggy-1.2.0
+rootdir: D:\Study\n8n\AI-AGENT-FOR-WRITING-VISA-EXPLANATION-LETTERS
+plugins: anyio-3.7.1, arraydiff-0.3, doctestplus-0.2.0, openfiles-0.3.1, remotedata-0.3.1
+collected 39 items / 4 errors
+
+=================================== ERRORS ====================================
+____________________ ERROR collecting tests/test_agents.py ____________________
+ImportError while importing test module 'D:\Study\n8n\AI-AGENT-FOR-WRITING-VISA-EXPLANATION-LETTERS\tests\test_agents.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\TIEN NGUYEN\Anaconda3\lib\importlib\__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_agents.py:7: in <module>
+    from core.agents import detect_domain, _safe_json_loads, _trim_text_for_summary
+core\agents.py:10: in <module>
+    from langchain_core.messages import HumanMessage, SystemMessage
+E   ModuleNotFoundError: No module named 'langchain_core'
+___________________ ERROR collecting tests/test_database.py ___________________
+ImportError while importing test module 'D:\Study\n8n\AI-AGENT-FOR-WRITING-VISA-EXPLANATION-LETTERS\tests\test_database.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\TIEN NGUYEN\Anaconda3\lib\importlib\__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_database.py:13: in <module>
+    import database as db
+database.py:16: in <module>
+    from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+E   ImportError: cannot import name 'declarative_base' from 'sqlalchemy.orm' (C:\Users\TIEN NGUYEN\Anaconda3\lib\site-packages\sqlalchemy\orm\__init__.py)
+___________________ ERROR collecting tests/test_helpers.py ____________________
+ImportError while importing test module 'D:\Study\n8n\AI-AGENT-FOR-WRITING-VISA-EXPLANATION-LETTERS\tests\test_helpers.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\TIEN NGUYEN\Anaconda3\lib\importlib\__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_helpers.py:8: in <module>
+    from core.helpers import get_text_model, get_vision_model, list_input_files, cache_dir
+core\helpers.py:12: in <module>
+    from core.agents import detect_domain
+core\agents.py:10: in <module>
+    from langchain_core.messages import HumanMessage, SystemMessage
+E   ModuleNotFoundError: No module named 'langchain_core'
+____________________ ERROR collecting tests/test_routes.py ____________________
+ImportError while importing test module 'D:\Study\n8n\AI-AGENT-FOR-WRITING-VISA-EXPLANATION-LETTERS\tests\test_routes.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\TIEN NGUYEN\Anaconda3\lib\importlib\__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_routes.py:19: in <module>
+    from flask import Flask
+C:\Users\TIEN NGUYEN\Anaconda3\lib\site-packages\flask\__init__.py:19: in <module>
+    from jinja2 import Markup, escape
+E   ImportError: cannot import name 'Markup' from 'jinja2' (C:\Users\TIEN NGUYEN\Anaconda3\lib\site-packages\jinja2\__init__.py)
+============================== warnings summary ===============================
+C:\Users\TIEN NGUYEN\Anaconda3\lib\site-packages\werkzeug\datastructures.py:16
+C:\Users\TIEN NGUYEN\Anaconda3\lib\site-packages\werkzeug\datastructures.py:16
+C:\Users\TIEN NGUYEN\Anaconda3\lib\site-packages\werkzeug\datastructures.py:16
+  C:\Users\TIEN NGUYEN\Anaconda3\lib\site-packages\werkzeug\datastructures.py:16: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated, and in 3.8 it will stop working
+    from collections import Container, Iterable, MutableSet
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR tests/test_agents.py
+ERROR tests/test_database.py
+ERROR tests/test_helpers.py
+ERROR tests/test_routes.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!
+======================== 3 warnings, 4 errors in 0.42s ========================

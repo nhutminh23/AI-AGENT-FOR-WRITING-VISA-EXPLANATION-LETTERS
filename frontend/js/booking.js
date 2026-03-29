@@ -391,6 +391,7 @@ async function extractTripInfo() {
     }
 
     setTripInfoForm(data.trip_info);
+    prefillSerpPassengerInfo(); // Update Flight tab immediately
     tripInfoPanelEl.innerHTML = `<div style="padding:12px; color:#34d399; font-weight:600;">
       ✅ Trích xuất thành công! Kiểm tra và bổ sung thông tin bên dưới → 💾 Lưu.
     </div>`;
@@ -403,11 +404,47 @@ async function extractTripInfo() {
   }
 }
 
+/* Map IATA codes to popular Countries */
+const IATA_TO_COUNTRY = {
+  "YYZ": "Canada", "YVR": "Canada", "YUL": "Canada", "YYC": "Canada", "YOW": "Canada",
+  "CDG": "France", "ORY": "France", "NCE": "France", "LYS": "France",
+  "SYD": "Australia", "MEL": "Australia", "BNE": "Australia", "PER": "Australia", "ADL": "Australia",
+  "LHR": "United Kingdom", "LGW": "United Kingdom", "MAN": "United Kingdom", "EDI": "United Kingdom",
+  "JFK": "USA", "LAX": "USA", "ORD": "USA", "SFO": "USA", "MIA": "USA", "EWR": "USA", "SEA": "USA",
+  "FRA": "Germany", "MUC": "Germany", "BER": "Germany", "DUS": "Germany",
+  "FCO": "Italy", "MXP": "Italy", "VCE": "Italy", "NAP": "Italy",
+  "HND": "Japan", "NRT": "Japan", "KIX": "Japan", "NGO": "Japan",
+  "ICN": "South Korea", "GMP": "South Korea", "CJU": "South Korea",
+  "PEK": "China", "PVG": "China", "CAN": "China", "SZX": "China",
+  "MAD": "Spain", "BCN": "Spain", "AGP": "Spain", "PMI": "Spain",
+  "AKL": "New Zealand", "WLG": "New Zealand", "CHC": "New Zealand",
+  "DEL": "India", "BOM": "India", "BLR": "India"
+};
+
 async function saveTripInfo() {
   const originalBtnText = saveTripInfoBtn.textContent;
   saveTripInfoBtn.textContent = "⏳ Đang lưu...";
   saveTripInfoBtn.disabled = true;
   try {
+    // Đồng bộ ngược: Lấy dữ liệu tên từ ô 'Danh sách hành khách' (Tab Máy Bay) đè lại vào Form Ẩn
+    // Để nếu User có tự tay sửa tên ở Tab Máy Bay thì bấm Lưu vẫn nhận được.
+    const serpPassengerNamesEl = document.getElementById("serpPassengerNames");
+    const tripGuestNamesEl = document.getElementById("tripGuestNames");
+    if (serpPassengerNamesEl && tripGuestNamesEl) {
+      if (serpPassengerNamesEl.value.trim() !== "") {
+          tripGuestNamesEl.value = serpPassengerNamesEl.value;
+      }
+    }
+
+    // Lắng nghe IATA sân bay khứ hồi từ form chuyến bay
+    const serpArrivalIdEl = document.getElementById("serpArrivalId");
+    if (serpArrivalIdEl && serpArrivalIdEl.value.trim() !== "") {
+      const arrCode = serpArrivalIdEl.value.trim().toUpperCase();
+      if (IATA_TO_COUNTRY[arrCode]) {
+        document.getElementById("tripDestinationCountry").value = IATA_TO_COUNTRY[arrCode];
+      }
+    }
+
     const tripInfo = getTripInfoFromForm();
     const res = await fetch("/api/booking/trip/save", {
       method: "POST",
@@ -628,3 +665,110 @@ async function runAIBooking(target = "both") {
   }
 }
 
+// ==================== CITY WIZARD & DATE LOGIC ====================
+
+const CITY_DB = {
+  "France": ["Paris", "Lyon", "Marseille", "Nice", "Bordeaux"],
+  "Canada": ["Toronto", "Vancouver", "Montreal", "Ottawa", "Calgary"],
+  "Australia": ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide"],
+  "United Kingdom": ["London", "Edinburgh", "Manchester", "Birmingham", "Glasgow"],
+  "USA": ["New York", "Los Angeles", "Chicago", "Houston", "Miami"],
+  "Germany": ["Berlin", "Munich", "Frankfurt", "Hamburg", "Cologne"],
+  "Italy": ["Rome", "Milan", "Venice", "Florence", "Naples"],
+  "Japan": ["Tokyo", "Osaka", "Kyoto", "Nagoya", "Sapporo"],
+  "South Korea": ["Seoul", "Busan", "Incheon", "Jeju", "Daegu"],
+  "China": ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu"],
+  "Spain": ["Madrid", "Barcelona", "Valencia", "Seville", "Bilbao"],
+  "New Zealand": ["Auckland", "Wellington", "Christchurch", "Queenstown", "Hamilton"]
+};
+
+// Auto-calculate nights
+function calcTripNights() {
+  if (typeof tripTravelStartDateEl !== 'undefined' && typeof tripTravelEndDateEl !== 'undefined' && typeof tripNumNightsEl !== 'undefined') {
+    const start = new Date(tripTravelStartDateEl.value);
+    const end = new Date(tripTravelEndDateEl.value);
+    if (!isNaN(start) && !isNaN(end) && end >= start) {
+      const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      tripNumNightsEl.value = nights;
+    }
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  if (typeof tripTravelStartDateEl !== 'undefined') tripTravelStartDateEl.addEventListener("change", calcTripNights);
+  if (typeof tripTravelEndDateEl !== 'undefined') tripTravelEndDateEl.addEventListener("change", calcTripNights);
+
+  // City Wizard Modal Logic
+  const btnOpenCityWizard = document.getElementById("btnOpenCityWizard");
+  const cityWizardModal = document.getElementById("cityWizardModal");
+  const cityWizardList = document.getElementById("cityWizardList");
+  const btnAddCustomCity = document.getElementById("btnAddCustomCity");
+  const btnCityWizardConfirm = document.getElementById("btnCityWizardConfirm");
+
+  if (btnOpenCityWizard && cityWizardModal) {
+    btnOpenCityWizard.addEventListener("click", () => {
+      const country = typeof tripDestinationCountryEl !== 'undefined' ? tripDestinationCountryEl.value.trim() : "";
+      cityWizardList.innerHTML = "";
+      
+      let cities = [];
+      if (country && CITY_DB[country] && CITY_DB[country].length > 0) {
+        cities = [...CITY_DB[country]];
+      } else if (country) {
+        // Find partial match for convenience
+        for (const [key, value] of Object.entries(CITY_DB)) {
+          if (key.toLowerCase().includes(country.toLowerCase())) {
+            cities = [...value];
+            break;
+          }
+        }
+      }
+      
+      // Always show at least 3 rows
+      if (cities.length < 3) {
+        const toAdd = 3 - cities.length;
+        for (let i = 0; i < toAdd; i++) {
+          cities.push("");
+        }
+      }
+      
+      cities.forEach(city => addCityRow(city));
+      cityWizardModal.showModal();
+    });
+  }
+
+  function addCityRow(cityName = "") {
+    const row = document.createElement("div");
+    row.className = "city-row";
+    row.innerHTML = `
+      <input type="text" class="cw-city-name" placeholder="Tên thành phố" value="${cityName}" />
+      <input type="number" class="cw-city-nights" placeholder="Đêm" min="0" value="" />
+      <button type="button" onclick="this.parentElement.remove()" title="Xóa">🗑️</button>
+    `;
+    if (cityWizardList) {
+      cityWizardList.appendChild(row);
+    }
+  }
+
+  if (btnAddCustomCity) {
+    btnAddCustomCity.addEventListener("click", () => addCityRow(""));
+  }
+
+  if (btnCityWizardConfirm) {
+    btnCityWizardConfirm.addEventListener("click", () => {
+      const rows = cityWizardList.querySelectorAll(".city-row");
+      const lines = [];
+      rows.forEach(row => {
+        const name = row.querySelector(".cw-city-name").value.trim();
+        const nights = parseInt(row.querySelector(".cw-city-nights").value);
+        if (name && !isNaN(nights) && nights > 0) {
+          lines.push(`${name} (${nights})`);
+        }
+      });
+      
+      if (lines.length > 0 && typeof tripCitiesPlanEl !== 'undefined') {
+        tripCitiesPlanEl.value = lines.join("\n");
+      }
+      cityWizardModal.close();
+    });
+  }
+});

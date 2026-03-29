@@ -53,11 +53,15 @@ Mở trình duyệt: **http://127.0.0.1:8000**
 | ② PDF Tools | Ghép/tách/đổi tên PDF | Merge nhiều file, rename theo chuẩn, chỉnh sửa nội dung |
 | ③ Tách tự động | AI Splitter | Upload scan nhiều trang → AI tự nhận diện + tách từng tài liệu |
 | ④ Phân loại | AI Classifier | Phân loại tài liệu theo người + loại (Passport, CCCD, Bank Statement...) |
-| ⑤ Booking | Tạo booking | AI đọc hồ sơ → chọn khách sạn & vé máy bay THẬT từ SerpAPI |
+| ⑤ Booking | Tạo booking | Ưu tiên chuyến bay → Auto-check-in KHÁCH SẠN, Multi-city (Datalist Thành phố) |
 | ⑥ Lịch trình | Itinerary Generator | Tạo lịch trình chi tiết từ booking |
 | ⑦ Dịch thuật | Translation | Dịch tài liệu + clone layout HTML gốc |
 | ⑧ Precheck | Pre-check hồ sơ | Kiểm tra thiếu sót trước khi nộp |
 | ⑨ Tách thủ công | Manual Split | Tách PDF thủ công theo range trang |
+
+> **🌟 Tính năng mới (Workflow Booking Tối ưu):**
+> - **Flight-First:** Chuyến bay ưu tiên chọn trước. Ngày đáp (`window.flightArrivalDate`) tự động đồng bộ làm ngày *Check-in* khách sạn để tránh lệch múi giờ.
+> - **City Wizard:** Hỗ trợ nhập danh sách thành phố tự động thông qua giao diện Pop-up, tự tính toán "Tổng số đêm" dựa trên khoảng cách "Ngày đi" & "Ngày về".
 
 ---
 

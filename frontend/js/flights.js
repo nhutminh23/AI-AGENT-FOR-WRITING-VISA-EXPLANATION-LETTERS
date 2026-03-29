@@ -485,6 +485,15 @@ async function serpGenerateTicket() {
   } else {
     totalPrice = serpSelectedOutbound.price || 0;
   }
+
+  // Lấy ngày đáp chuyến bay đi để gán làm Check-in mặc định cho khách sạn
+  const lastOutboundLeg = outboundFlights[outboundFlights.length - 1];
+  if (lastOutboundLeg?.arrival_airport?.time) {
+    window.flightArrivalDate = lastOutboundLeg.arrival_airport.time.split(" ")[0];
+    console.log("[FLIGHTS] Ngày đáp chuyến bay:", window.flightArrivalDate);
+  } else if (serpOutboundDateEl?.value) {
+    window.flightArrivalDate = serpOutboundDateEl.value;
+  }
   const numAdults = parseInt(serpAdultsEl?.value) || 1;
   const numChildren = parseInt(serpChildrenEl?.value) || 0;
   const totalPax = numAdults + numChildren;

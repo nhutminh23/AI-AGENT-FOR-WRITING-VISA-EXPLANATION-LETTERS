@@ -38,7 +38,7 @@ function parseCitiesPlan(text) {
 async function serpSearchHotels() {
   if (!serpHotelSearchBtn) return;
   const citiesText = tripCitiesPlanEl?.value?.trim();
-  const startDate = tripTravelStartDateEl?.value?.trim();
+  const startDate = window.flightArrivalDate || tripTravelStartDateEl?.value?.trim();
 
   if (!citiesText) {
     serpHotelSearchStatusEl.innerHTML = `<span style='color:#dc2626;'>❌ Vui lòng nhập thành phố & số đêm ở Bước 1.</span>`;

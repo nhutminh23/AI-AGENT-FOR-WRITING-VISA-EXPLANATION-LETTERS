@@ -22,7 +22,7 @@ function setActiveTab(tab) {
     loadItineraryContext();
   } else if (tab === "booking") {
     bookingSection.classList.remove("hidden");
-    setBookingPart("hotel");
+    setBookingPart("flight");
     loadLatestBooking();
     loadLatestTripInfo();
     loadFilteredFiles();

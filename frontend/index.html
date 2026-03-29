@@ -76,6 +76,38 @@
 
       <!-- NEW: AI Booking Section -->
       <div id="bookingSection" class="section">
+
+        <!-- STYLES FOR CITY WIZARD -->
+        <style>
+          dialog#cityWizardModal { padding: 0; border: none; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-width: 500px; width: 90%; }
+          dialog#cityWizardModal::backdrop { background: rgba(0,0,0,0.5); }
+          .modal-header { background: #f8fafc; padding: 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; }
+          .modal-header h3 { margin: 0; font-size: 1.2em; color: #1e293b; }
+          .modal-close { background: none; border: none; font-size: 1.5em; cursor: pointer; color: #94a3b8; }
+          .modal-body { padding: 16px; max-height: 400px; overflow-y: auto; }
+          .modal-footer { padding: 16px; border-top: 1px solid #e2e8f0; background: #fff; text-align: right; border-radius: 0 0 8px 8px; }
+          .city-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+          .city-row input[type="text"] { flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+          .city-row input[type="number"] { width: 80px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; text-align:center; }
+          .city-row button { background: #ef4444; color: white; border: none; border-radius: 4px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        </style>
+
+        <!-- CITY WIZARD MODAL -->
+        <dialog id="cityWizardModal">
+          <div class="modal-header">
+            <h3 id="cityWizardTitle">🪄 Gợi ý Thành Phố</h3>
+            <button class="modal-close" onclick="document.getElementById('cityWizardModal').close()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size: 0.9em; color: #64748b; margin-top: 0;">Hãy điền số đêm cho các thành phố bạn dự định đến. Các thành phố để trống (0 đêm) sẽ tự động bị bỏ qua.</p>
+            <div id="cityWizardList"></div>
+            <button type="button" id="btnAddCustomCity" style="background:#e2e8f0; color:#475569; border:none; border-radius:4px; padding:6px 12px; font-size:0.9em; cursor:pointer; margin-top:10px; width:100%;">+ Thêm thành phố khác</button>
+          </div>
+          <div class="modal-footer">
+            <button type="button" onclick="document.getElementById('cityWizardModal').close()" style="background:#f1f5f9; color:#475569; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; margin-right:8px;">Hủy</button>
+            <button type="button" id="btnCityWizardConfirm" style="background:#2563eb; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:600;">✅ Vận dụng vào Form</button>
+          </div>
+        </dialog>
         <section class="card">
           <h2>🤖 Booking</h2>
           <div class="hint">
@@ -86,78 +118,84 @@
         <section class="card">
           <h2>🧭 Chọn trang booking</h2>
           <div class="row">
-            <button id="bookingModeHotelBtn" style="background:#2563eb;">🏨 Booking Hotel</button>
-            <button id="bookingModeFlightBtn" style="background:#64748b;">✈️ Booking Máy bay</button>
+            <button id="bookingModeFlightBtn" style="background:#2563eb;">✈️ Booking Máy bay</button>
+            <button id="bookingModeHotelBtn" style="background:#64748b;">🏨 Booking Hotel</button>
           </div>
         </section>
 
         <div id="bookingHotelPage">
 
+        <!-- Phần Trích Xuất Được Trả Về Tab Khách Sạn từ Tab Máy bay (vẫn liên kết logic) -->
         <section class="card">
-          <h2 style="display:flex; align-items:center; gap:8px;">
-            📂 File sẽ dùng để trích xuất
-            <span id="filteredFilesStatus" style="color:#6b7280; font-size:0.7em; font-weight:normal;"></span>
-          </h2>
-          <div id="filteredFilesTable"></div>
-        </section>
-
-        <!-- Step 1: Extract Trip Info -->
-        <section class="card">
-          <h2>📋 Bước 1: Trích xuất thông tin chuyến đi</h2>
-          <div class="row">
-            <button id="extractTripBtn">Trích xuất từ input</button>
-            <button id="saveTripInfoBtn">💾 Lưu thông tin đã chỉnh</button>
-          </div>
+          <h2>📋 Bước 1: Trùy chỉnh thông tin trích xuất (Chỉnh sửa Form)</h2>
+          <p class="hint">Thông tin này được AI tự động trích xuất. Tùy chỉnh Khách sạn/Thành phố ở đây trước khi <b>Lưu thông tin</b> bên Máy bay.</p>
           <div class="row" style="margin-top:10px;">
-            <div>
+            <div style="flex: 1">
               <label for="tripGuestNames">Hành khách (mỗi dòng 1 người — thêm <code>[child]</code> sau tên nếu là trẻ em)</label>
-              <textarea id="tripGuestNames" rows="4" placeholder="VD:&#10;NGUYEN LE KIM NGAN&#10;THACH NGUYEN PHONG&#10;THACH THI THU THUY [child]"></textarea>
+              <textarea id="tripGuestNames" rows="4" placeholder="VD:&#10;NGUYEN LE KIM NGAN&#10;THACH NGUYEN PHONG"></textarea>
             </div>
           </div>
           <div class="row" style="margin-top:10px;">
-            <div>
+            <div style="flex: 1">
               <label for="tripDestinationCountry">Nước đến du lịch</label>
-              <input id="tripDestinationCountry" type="text" />
+              <div style="display:flex; gap:8px;">
+                <input id="tripDestinationCountry" type="text" list="countryList" style="flex:1;" />
+                <button type="button" id="btnOpenCityWizard" style="background:#0ea5e9; color:#fff; border:none; border-radius:4px; padding:0 12px; font-weight:bold; cursor:pointer;" title="Mở bảng tính số lượng đêm cho từng điểm đến">🪄 Chọn Thành Phố</button>
+              </div>
+              <datalist id="countryList">
+                <option value="France">Pháp</option>
+                <option value="Canada">Canada</option>
+                <option value="Australia">Úc</option>
+                <option value="United Kingdom">Anh</option>
+                <option value="USA">Mỹ</option>
+                <option value="Germany">Đức</option>
+                <option value="Italy">Ý</option>
+                <option value="Japan">Nhật Bản</option>
+                <option value="South Korea">Hàn Quốc</option>
+                <option value="China">Trung Quốc</option>
+                <option value="Spain">Tây Ban Nha</option>
+                <option value="New Zealand">New Zealand</option>
+              </datalist>
             </div>
-            <div>
+            <div style="flex: 1">
               <label for="tripTravelPurpose">Mục đích chuyến đi</label>
               <input id="tripTravelPurpose" type="text" />
             </div>
           </div>
           <div class="row" style="margin-top:10px;">
-            <div>
-              <label for="tripCitiesPlan">Thành phố du lịch & số đêm (mỗi dòng 1 mục)</label>
-              <textarea id="tripCitiesPlan" rows="4"></textarea>
+            <div style="width:100%;">
+              <details>
+                <summary style="cursor:pointer; color:#6b7280; font-size:0.9em; margin-bottom:4px;">Thành phố du lịch & số đêm (Đã tích hợp dữ liệu đêm và đến từ form Wizard)</summary>
+                <textarea id="tripCitiesPlan" rows="4"></textarea>
+              </details>
             </div>
           </div>
           <div class="row" style="margin-top:10px;">
             <div>
               <label for="tripTravelStartDate">Ngày đi (YYYY-MM-DD)</label>
-              <input id="tripTravelStartDate" type="text" />
+              <input id="tripTravelStartDate" type="date" />
             </div>
             <div>
               <label for="tripTravelEndDate">Ngày về (YYYY-MM-DD)</label>
-              <input id="tripTravelEndDate" type="text" />
+              <input id="tripTravelEndDate" type="date" />
             </div>
             <div>
               <label for="tripNumNights">Tổng số đêm</label>
-              <input id="tripNumNights" type="number" min="0" />
+              <input id="tripNumNights" type="number" min="0" placeholder="Tự tính..." readonly style="background:#f1f5f9; color:#475569;" />
             </div>
             <div>
               <label for="tripNumRooms">Số phòng (0 = tự tính)</label>
               <input id="tripNumRooms" type="number" min="0" value="0" />
             </div>
           </div>
-
           <div class="row" style="margin-top:10px;">
-            <div>
-              <label for="tripAdditionalInfo">Thông tin bổ sung (tên khách sạn, địa chỉ, khu vực ưu tiên, yêu cầu phòng...)</label>
-              <textarea id="tripAdditionalInfo" rows="4" placeholder="VD: Ưu tiên khách sạn khu trung tâm Paris gần Champs-Élysées; nếu có thể chọn Rochester Champs Elysees Hotel, 92 Rue la Boétie..."></textarea>
+            <div style="flex: 1">
+              <label for="tripAdditionalInfo">Thông tin bổ sung</label>
+              <textarea id="tripAdditionalInfo" rows="2" placeholder="VD: Ưu tiên khách sạn khu trung tâm..."></textarea>
             </div>
           </div>
-          <div id="tripInfoPanel" class="hint" style="white-space:pre-wrap; margin-top:8px;">Chưa trích xuất.</div>
         </section>
-        <!-- Step 2: AI Generate Booking -->
+
         <!-- Step 2a: Real Hotel Search (SerpAPI Google Hotels) — PRIMARY -->
         <section class="card" id="serpHotelSearchSection">
           <h2>🔍 Tìm khách sạn thật (Google Hotels) <span style="background:#16a34a; color:#fff; font-size:0.6em; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⭐ Khuyến nghị</span></h2>
@@ -230,6 +268,28 @@
         </div>
 
         <div id="bookingFlightPage" class="hidden">
+
+
+
+        <!-- MANG TỪ BÊN HOTEL SANG -->
+        <section class="card">
+          <h2 style="display:flex; align-items:center; gap:8px;">
+            📂 File sẽ dùng để trích xuất
+            <span id="filteredFilesStatus" style="color:#6b7280; font-size:0.7em; font-weight:normal;"></span>
+          </h2>
+          <div id="filteredFilesTable"></div>
+        </section>
+
+        <!-- Step 1: Extract Trip Info -->
+        <section class="card">
+          <h2>📋 Bước 1: Trích xuất và Lưu trữ</h2>
+          <div class="row">
+            <button id="extractTripBtn" style="background:#0ea5e9;">🪄 Trích xuất thông tin</button>
+            <button id="saveTripInfoBtn" style="background:#16a34a;">💾 Lưu thông tin chuyến đi</button>
+          </div>
+          <div id="tripInfoPanel" class="hint" style="white-space:pre-wrap; margin-top:8px;">Chưa lưu thông tin.</div>
+        </section>
+        <!-- HẾT PHẦN MANG TỪ KHÁCH SẠN SANG -->
 
         <!-- SerpAPI Flight Search -->
         <section class="card" id="serpFlightSearchSection">
