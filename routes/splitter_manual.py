@@ -8,12 +8,16 @@ import os
 import shutil
 import tempfile
 import uuid
+import re
+import logging
+from typing import Any
 from pathlib import Path as SplitterPath
 
 from pypdf import PdfReader, PdfWriter
 from flask import Blueprint, jsonify, request
 
 from config import Config
+from pdf_tools.pdf_service import get_page_count
 
 splitter_manual_bp = Blueprint("splitter_manual", __name__)
 

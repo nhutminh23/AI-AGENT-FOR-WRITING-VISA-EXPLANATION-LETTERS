@@ -24,15 +24,16 @@
       </header>
 
       <div class="tabs">
-        <button class="tab-btn active" data-tab="precheck">⓪ Xử lý hồ sơ</button>
-        <button class="tab-btn" data-tab="aisplitter">① Tách PDF (AI)</button>
-        <button class="tab-btn" data-tab="pdf">② Tách/Nối PDF</button>
-        <button class="tab-btn" data-tab="booking">③ Booking</button>
-        <button class="tab-btn" data-tab="itinerary">④ Lịch trình</button>
-        <button class="tab-btn" data-tab="letter">⑤ Thư giải trình</button>
-        <button class="tab-btn" data-tab="outputs">⑥ Kết quả</button>
-        <button class="tab-btn" data-tab="translate">⑦ Dịch thuật</button>
-        <button class="tab-btn" data-tab="editpdf">⑧ Sửa PDF</button>
+        <button class="tab-btn active" data-tab="precheck"> Xử lý hồ sơ</button>
+        <button class="tab-btn" data-tab="aisplitter"> Tách PDF (AI)</button>
+        <button class="tab-btn" data-tab="pdf"> Tách/Nối PDF</button>
+        <button class="tab-btn" data-tab="booking"> Booking</button>
+        <button class="tab-btn" data-tab="itinerary"> Lịch trình</button>
+        <button class="tab-btn" data-tab="insurance"> Bảo Hiểm</button>
+        <button class="tab-btn" data-tab="letter"> Thư giải trình</button>
+        <button class="tab-btn" data-tab="outputs"> Kết quả</button>
+        <button class="tab-btn" data-tab="translate"> Dịch thuật</button>
+        <button class="tab-btn" data-tab="editpdf"> Sửa PDF</button>
       </div>
 
       <!-- ⓪ Xử lý hồ sơ Section -->
@@ -1009,6 +1010,128 @@
         </section>
       </div>
 
+      <!-- ⑩ Insurance Section -->
+      <div id="insuranceSection" class="section hidden">
+        <section class="card">
+          <h2>🛡️ Bảo Hiểm Du Lịch — Chỉnh sửa thông tin</h2>
+          <div class="hint">
+            Chọn mẫu → Nhập ngày đi/về → Trích xuất & lấy giá → Copy prompt Grok → Paste JSON → Xuất PDF.
+          </div>
+
+          <!-- Step 1: Choose template -->
+          <div id="insStep1" style="margin-top:20px;">
+            <h3 style="margin-bottom:12px; color:#a78bfa;">📋 Bước 1 — Chọn Mẫu Bảo Hiểm</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div class="ins-template-card" data-template="chubb" style="border:2px solid #334155; border-radius:12px; padding:20px; cursor:pointer; transition:all 0.2s;">
+                <div style="font-size:18px; font-weight:700; margin-bottom:8px;">📋 Liberty TravelCare</div>
+                <div style="font-size:13px; color:#94a3b8; margin-bottom:12px;">Bảo hiểm Liberty (3 trang, Certificate + xác nhận)</div>
+                <div style="font-size:12px; color:#64748b;">📄 PHAM HOANG VINH - BAO HIEM.pdf</div>
+                <button class="btn" style="margin-top:12px; background:#16a34a; color:white; border:none; padding:8px 20px; border-radius:8px; cursor:pointer;">✅ Chọn</button>
+              </div>
+              <div class="ins-template-card" data-template="standard" style="border:2px solid #334155; border-radius:12px; padding:20px; cursor:pointer; transition:all 0.2s;">
+                <div style="font-size:18px; font-weight:700; margin-bottom:8px;">📋 Chubb Travel Insurance</div>
+                <div style="font-size:13px; color:#94a3b8; margin-bottom:12px;">Bảo hiểm Chubb tiêu chuẩn (1 trang)</div>
+                <div style="font-size:12px; color:#64748b;">📄 Bảo hiểm.pdf</div>
+                <button class="btn" style="margin-top:12px; background:#16a34a; color:white; border:none; padding:8px 20px; border-radius:8px; cursor:pointer;">✅ Chọn</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 1.5: Date & Destination Form -->
+          <div id="insDateForm" style="margin-top:24px; display:none; background:#0f172a; border:1px solid #334155; border-radius:12px; padding:20px;">
+            <h3 style="margin-bottom:16px; color:#f59e0b;">📅 Bước 1.5 — Nhập Thông Tin Chuyến Đi</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div>
+                <label style="display:block; font-size:13px; color:#94a3b8; margin-bottom:6px;">🛫 Ngày đi (From)</label>
+                <input type="date" id="insPeriodFrom" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; font-size:14px;" />
+              </div>
+              <div>
+                <label style="display:block; font-size:13px; color:#94a3b8; margin-bottom:6px;">🛬 Ngày về (To)</label>
+                <input type="date" id="insPeriodTo" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; font-size:14px;" />
+              </div>
+              <div>
+                <label style="display:block; font-size:13px; color:#94a3b8; margin-bottom:6px;">🌍 Điểm đến</label>
+                <select id="insDestination" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; font-size:14px;">
+                  <option value="Worldwide">🌐 Worldwide</option>
+                  <option value="Singapore">🇸🇬 Singapore</option>
+                  <option value="Thailand">🇹🇭 Thailand</option>
+                  <option value="Japan">🇯🇵 Japan</option>
+                  <option value="Korea">🇰🇷 Korea</option>
+                  <option value="Australia">🇦🇺 Australia</option>
+                  <option value="USA">🇺🇸 USA</option>
+                  <option value="France">🇫🇷 France</option>
+                  <option value="UK">🇬🇧 UK</option>
+                  <option value="Canada">🇨🇦 Canada</option>
+                </select>
+              </div>
+              <div style="display:flex; align-items:flex-end; gap:12px;">
+                <span id="insTripDays" style="font-size:16px; font-weight:600;"></span>
+              </div>
+            </div>
+            <div style="margin-top:16px; display:flex; gap:12px; align-items:center;">
+              <button id="insExtractBtn" class="btn" style="background:#7c3aed; color:white; border:none; padding:12px 28px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600;">🔍 Trích Xuất & Lấy Giá</button>
+              <span id="insExtractStatus" style="font-size:13px;"></span>
+            </div>
+          </div>
+
+          <!-- Step 2: Extracted data + auto fields -->
+          <div id="insStep2" style="margin-top:24px; display:none;">
+            <h3 style="margin-bottom:12px; color:#a78bfa;">🔍 Bước 2 — Dữ Liệu Trích Xuất</h3>
+            <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
+              <span id="insTemplateName" style="font-size:13px; color:#a78bfa; background:#1e1b4b; padding:4px 12px; border-radius:20px;"></span>
+              <button id="insBackBtn" class="btn btn-sm" style="background:#334155; color:#e2e8f0; border:none; border-radius:6px; padding:4px 12px; cursor:pointer;">← Chọn lại</button>
+            </div>
+
+            <!-- Auto-generated fields display -->
+            <div id="insAutoFieldsDisplay" style="display:none; margin-bottom:16px; background:#0d1117; border:1px solid #22c55e22; border-radius:10px; padding:16px;">
+              <div style="font-size:13px; color:#f59e0b; margin-bottom:8px; font-weight:600;">⚡ Trường tự động tạo (Random + Giá Liberty)</div>
+            </div>
+
+            <!-- Original PDF summary -->
+            <div style="font-size:13px; color:#94a3b8; margin-bottom:6px;">📄 Dữ liệu gốc từ PDF (sẽ bị thay thế):</div>
+            <div style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:16px; overflow:auto; max-height:300px;">
+              <pre id="insJsonDisplay" style="margin:0; font-family:'Fira Code','Cascadia Code',monospace; font-size:13px; color:#4ade80; white-space:pre-wrap;"></pre>
+            </div>
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="insCopyPromptBtn" class="btn" style="background:#7c3aed; color:white; border:none; padding:10px 24px; border-radius:8px; cursor:pointer; font-size:14px;">📋 Copy Prompt cho Grok</button>
+              <span id="insCopyStatus" style="font-size:13px; color:#4ade80; align-self:center;"></span>
+            </div>
+          </div>
+
+          <!-- Step 3: Paste Grok JSON + Apply -->
+          <div id="insStep3" style="margin-top:24px; display:none;">
+            <h3 style="margin-bottom:12px; color:#a78bfa;">🤖 Bước 3 — Paste JSON từ Grok</h3>
+            <div class="hint" style="margin-bottom:12px; font-size:12px;">
+              ⚠️ Chỉ paste phần thông tin cá nhân (tên, DOB, passport, quốc tịch). Các trường Policy Number, Premium, ngày đi/về đã được tự động tạo ở Bước 2.
+            </div>
+            <textarea id="insGrokInput" rows="10" style="width:100%; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:10px; padding:14px; font-family:'Fira Code','Cascadia Code',monospace; font-size:13px; resize:vertical;" placeholder='Paste JSON kết quả từ Grok vào đây...
+
+Ví dụ:
+{
+  "insured_name": "NGUYEN VAN A",
+  "dob": "01/01/1990",
+  "passport_no": "B12345678",
+  "nationality": "Vietnamese",
+  "address": "123 Nguyen Van Cu, Q5, HCM"
+}'></textarea>
+            <div style="margin-top:12px; display:flex; gap:10px; align-items:center;">
+              <button id="insApplyBtn" class="btn" style="background:#16a34a; color:white; border:none; padding:12px 32px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600;">✅ Áp dụng & Xuất PDF</button>
+              <div id="insApplyStatus" style="font-size:13px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Result section -->
+        <section class="card" id="insResultSection" style="display:none; margin-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <h2>📄 Kết Quả PDF Đã Sửa</h2>
+            <!-- Nút Tải và Xem đã bị xóa theo yêu cầu -->
+          </div>
+          <div id="insResultDetails" style="margin-top:12px; font-size:13px;"></div>
+          <iframe id="insPreview" style="width:100%; height:80vh; border:1px solid #334155; border-radius:8px; margin-top:12px; display:none;" title="Insurance PDF Preview"></iframe>
+        </section>
+      </div>
+
     </div>
 
     <style>
@@ -1042,6 +1165,7 @@
     <script src="js/hotels.js"></script>
     <script src="js/output.js"></script>
     <script src="js/pdf-editor.js"></script>
+    <script src="js/insurance.js"></script>
     <script src="js/events.js"></script>
   </body>
 </html>

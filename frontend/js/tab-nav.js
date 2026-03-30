@@ -10,8 +10,10 @@ function setActiveTab(tab) {
     outputsSection, translateSection, classifierSection, pdfSection, editpdfSection];
   const aisplitterSection = document.getElementById("aisplitterSection");
   const precheckSection = document.getElementById("precheckSection");
+  const insSection = document.getElementById("insuranceSection");
   if (aisplitterSection) allSections.push(aisplitterSection);
   if (precheckSection) allSections.push(precheckSection);
+  if (insSection) allSections.push(insSection);
   allSections.forEach((s) => { if (s) s.classList.add("hidden"); });
 
   if (tab === "letter") {
@@ -48,6 +50,8 @@ function setActiveTab(tab) {
   } else if (tab === "editpdf") {
     if (editpdfSection) editpdfSection.classList.remove("hidden");
     initEditPdfUI();
+  } else if (tab === "insurance") {
+    if (insSection) insSection.classList.remove("hidden");
   }
 }
 
