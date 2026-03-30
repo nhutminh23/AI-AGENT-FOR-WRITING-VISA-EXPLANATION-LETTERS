@@ -8,6 +8,7 @@ import os
 import re
 
 from flask import Blueprint, jsonify, request, send_file
+import threading
 
 from config import Config
 
@@ -303,3 +304,127 @@ def scan_splitter_download_zip():
     return send_file(buf, mimetype="application/zip", as_attachment=True, download_name="scan_split_results.zip")
 
 
+@pipeline_scan_bp.post("/api/scan-splitter/rename-all")
+def scan_splitter_rename_all():
+    """Rename multiple split files at once."""
+    payload = request.get_json(force=True) or {}
+    renames = payload.get("renames", [])
+
+    if not renames:
+        return jsonify({"error": "No renames provided"}), 400
+
+    scan_output_dir = Config.SCAN_SPLITTER_OUTPUTS_DIR
+    results = []
+    for item in renames:
+        old_name = (item.get("old_filename") or "").strip()
+        new_name = (item.get("new_filename") or "").strip()
+        if not old_name or not new_name:
+            results.append({"old": old_name, "new": new_name, "error": "Missing name"})
+            continue
+        new_name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', ' ', new_name).strip()
+        if not new_name.lower().endswith(".pdf"):
+            new_name += ".pdf"
+
+        old_path = os.path.join(scan_output_dir, old_name)
+        if not os.path.isfile(old_path):
+            results.append({"old": old_name, "new": new_name, "error": "File not found"})
+            continue
+
+        new_path = os.path.join(scan_output_dir, new_name)
+        if os.path.exists(new_path) and not os.path.samefile(old_path, new_path):
+            base, ext = os.path.splitext(new_name)
+            idx = 1
+            while os.path.exists(new_path):
+                new_path = os.path.join(scan_output_dir, f"{base} ({idx}){ext}")
+                idx += 1
+            new_name = os.path.basename(new_path)
+
+        if old_path != new_path:
+            os.rename(old_path, new_path)
+        results.append({"old": old_name, "new": new_name, "ok": True})
+
+    ok_count = sum(1 for r in results if r.get("ok"))
+    return jsonify({"status": "done", "renamed_count": ok_count, "total": len(renames), "results": results})
+
+
+@pipeline_scan_bp.post("/api/scan-splitter/auto-name")
+def scan_splitter_auto_name():
+    """AI reads first page of each split file and suggests a descriptive name."""
+    import fitz
+    import base64
+    import json as _json
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    scan_output_dir = Config.SCAN_SPLITTER_OUTPUTS_DIR
+    if not os.path.isdir(scan_output_dir):
+        return jsonify({"error": "No split files found"}), 404
+
+    files = sorted([
+        f for f in os.listdir(scan_output_dir)
+        if f.endswith(".pdf") and not f.startswith("_src_")
+    ])
+    if not files:
+        return jsonify({"error": "No split files found"}), 404
+
+    file_images = []
+    for fname in files:
+        fpath = os.path.join(scan_output_dir, fname)
+        try:
+            doc = fitz.open(fpath)
+            page = doc[0]
+            pix = page.get_pixmap(dpi=120)
+            img_bytes = pix.tobytes("png")
+            b64 = base64.b64encode(img_bytes).decode()
+            doc.close()
+            file_images.append({"filename": fname, "b64": b64})
+        except Exception as e:
+            file_images.append({"filename": fname, "b64": None, "error": str(e)})
+
+    llm = _get_or_create_llm()
+    prompt_text = (
+        f"You are analyzing {len(file_images)} scanned Vietnamese documents (first page of each).\n\n"
+        "For EACH document, identify what type of document it is and who it belongs to.\n\n"
+        "Common Vietnamese documents:\n"
+        "- Giay Khai Sinh = Birth_Certificate\n"
+        "- Giay Chung Nhan Ket Hon = Marriage_Certificate\n"
+        "- Ho Chieu = Passport\n"
+        "- CMND / CCCD = National_ID_Card\n"
+        "- So Ho Khau = Household_Registration\n"
+        "- Giay Chung Nhan Quyen Su Dung Dat = Land_Use_Right_Certificate\n"
+        "- Hop Dong Thue Nha = House_Rental_Contract\n"
+        "- Giay Phep Kinh Doanh = Business_License\n"
+        "- Bang Tot Nghiep = Graduation_Certificate\n"
+        "- Giay Xac Nhan Cong Tac = Employment_Confirmation\n"
+        "- Sao Ke Ngan Hang = Bank_Statement\n"
+        "- Giay Dang Ky Xe = Vehicle_Registration\n"
+        "- Quyet Dinh Bo Nhiem = Appointment_Decision\n"
+        "- Hop Dong Lao Dong = Labor_Contract\n"
+        "- Giay Chung Nhan QSDD = Land_Use_Right_Certificate\n\n"
+        "Return ONLY a JSON array:\n"
+        '[{"file": "original_filename.pdf", "suggested_name": "Document_Type_Person_Name"}]\n\n'
+        "Rules for suggested_name:\n"
+        "- Use ENGLISH document type name with underscores\n"
+        "- Include person name if visible (Vietnamese name, replace spaces with _)\n"
+        "- Keep concise but descriptive\n"
+        "- Example: Birth_Certificate_Nguyen_Van_A\n"
+    )
+
+    content_parts = [{"type": "text", "text": prompt_text}]
+    for i, item in enumerate(file_images):
+        if item.get("b64"):
+            content_parts.append({"type": "text", "text": f"Document {i+1} (file: {item['filename']}):"})
+            content_parts.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{item['b64']}"}})
+
+    try:
+        result = llm.invoke([
+            SystemMessage(content="You are an expert Vietnamese document classifier. Answer ONLY with JSON."),
+            HumanMessage(content=content_parts),
+        ])
+        text = result.content if hasattr(result, 'content') else str(result)
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        suggestions = _json.loads(text)
+        return jsonify({"suggestions": suggestions})
+    except Exception as e:
+        return jsonify({"error": f"AI naming failed: {str(e)}"}), 500

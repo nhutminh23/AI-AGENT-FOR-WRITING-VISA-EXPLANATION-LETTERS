@@ -128,6 +128,28 @@
     resultTitle.textContent = `✅ Kết quả: Tìm thấy ${certCount} xác nhận dịch → ${results.length} file`;
     resultArea.style.display = "block";
 
+    // Build action bar with AI Auto-Name + Rename All buttons
+    let actionBar = document.getElementById("scanSplitActionBar");
+    if (!actionBar) {
+      actionBar = document.createElement("div");
+      actionBar.id = "scanSplitActionBar";
+      actionBar.style.cssText = "display:flex; gap:8px; margin:8px 0; flex-wrap:wrap; align-items:center;";
+      resultTitle.parentNode.insertBefore(actionBar, resultTitle.nextSibling);
+    }
+    actionBar.innerHTML = `
+      <button id="scanAutoNameBtn" style="padding:6px 14px; background:#8b5cf6; color:#fff; border:none; border-radius:6px; font-size:0.9em; cursor:pointer; font-weight:600;">
+        🤖 AI Đặt tên tự động
+      </button>
+      <button id="scanRenameAllBtn" style="padding:6px 14px; background:#10b981; color:#fff; border:none; border-radius:6px; font-size:0.9em; cursor:pointer; font-weight:600;">
+        ✏️ Đổi tên tất cả
+      </button>
+      <span id="scanBatchStatus" style="font-size:0.85em; color:#94a3b8;"></span>
+    `;
+
+    // Wire up buttons
+    document.getElementById("scanAutoNameBtn").addEventListener("click", _scanAutoName);
+    document.getElementById("scanRenameAllBtn").addEventListener("click", _scanRenameAll);
+
     let html = "";
     results.forEach((r, i) => {
       const noCertTag = r.no_cert ? ' <span style="color:#f59e0b; font-size:0.85em;">⚠️ Không có xác nhận dịch</span>' : '';
@@ -161,6 +183,123 @@
         cells[endIdx].textContent = "✓";
       }
     });
+  }
+
+  // ── AI Auto-Name: call backend to read first page of each file → suggest names ──
+  async function _scanAutoName() {
+    const btn = document.getElementById("scanAutoNameBtn");
+    const status = document.getElementById("scanBatchStatus");
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.textContent = "⏳ AI đang đọc...";
+    if (status) status.textContent = "Đang gửi ảnh trang đầu cho AI phân tích...";
+
+    try {
+      const resp = await fetch("/api/scan-splitter/auto-name", { method: "POST" });
+      const data = await resp.json();
+      if (data.error) {
+        if (status) status.textContent = "❌ " + data.error;
+        return;
+      }
+
+      const suggestions = data.suggestions || [];
+      let filled = 0;
+      // Find all input fields and match by filename
+      suggestions.forEach(s => {
+        const inputs = document.querySelectorAll('[id^="scanRename-"]');
+        inputs.forEach(input => {
+          if (input.dataset.original === s.file && s.suggested_name) {
+            input.value = s.suggested_name;
+            input.style.borderColor = "#8b5cf6";
+            setTimeout(() => { input.style.borderColor = "#cbd5e1"; }, 3000);
+            filled++;
+          }
+        });
+      });
+
+      if (status) status.textContent = `✅ AI đã gợi ý tên cho ${filled}/${suggestions.length} file. Kiểm tra rồi ấn "Đổi tên tất cả"!`;
+    } catch (e) {
+      if (status) status.textContent = "❌ Lỗi: " + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🤖 AI Đặt tên tự động";
+    }
+  }
+
+  // ── Rename All: gather all inputs → call batch rename API ──
+  async function _scanRenameAll() {
+    const btn = document.getElementById("scanRenameAllBtn");
+    const status = document.getElementById("scanBatchStatus");
+    if (!btn) return;
+
+    const inputs = document.querySelectorAll('[id^="scanRename-"]');
+    const renames = [];
+    inputs.forEach(input => {
+      const oldName = input.dataset.original;
+      let newName = input.value.trim();
+      if (!newName) return;
+      if (!newName.toLowerCase().endsWith(".pdf")) newName += ".pdf";
+      if (newName !== oldName) {
+        renames.push({ old_filename: oldName, new_filename: newName });
+      }
+    });
+
+    if (renames.length === 0) {
+      if (status) status.textContent = "ℹ️ Không có file nào cần đổi tên (tên chưa thay đổi).";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = `⏳ Đang đổi ${renames.length} file...`;
+    if (status) status.textContent = `Đang đổi tên ${renames.length} file...`;
+
+    try {
+      const resp = await fetch("/api/scan-splitter/rename-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ renames }),
+      });
+      const data = await resp.json();
+
+      if (data.error) {
+        if (status) status.textContent = "❌ " + data.error;
+        return;
+      }
+
+      // Update UI with new filenames
+      let okCount = 0;
+      (data.results || []).forEach(r => {
+        if (!r.ok) return;
+        okCount++;
+        // Find the input with matching old filename and update
+        const inputs = document.querySelectorAll('[id^="scanRename-"]');
+        inputs.forEach(input => {
+          if (input.dataset.original === r.old) {
+            const idx = input.id.replace("scanRename-", "");
+            input.dataset.original = r.new;
+            input.value = r.new.replace(/\.pdf$/i, "");
+            input.style.borderColor = "#10b981";
+            setTimeout(() => { input.style.borderColor = "#cbd5e1"; }, 2000);
+            // Update view/download links
+            const viewLink = document.getElementById(`scanView-${idx}`);
+            const dlLink = document.getElementById(`scanDl-${idx}`);
+            if (viewLink) viewLink.href = `/api/scan-splitter/view/${encodeURIComponent(r.new)}`;
+            if (dlLink) {
+              dlLink.href = `/api/scan-splitter/download/${encodeURIComponent(r.new)}`;
+              dlLink.download = r.new;
+            }
+          }
+        });
+      });
+
+      if (status) status.textContent = `✅ Đã đổi tên ${okCount}/${renames.length} file thành công!`;
+    } catch (e) {
+      if (status) status.textContent = "❌ Lỗi: " + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "✏️ Đổi tên tất cả";
+    }
   }
 
   function showError(msg) {
