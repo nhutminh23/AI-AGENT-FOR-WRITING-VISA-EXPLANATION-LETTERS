@@ -24,7 +24,11 @@ const hotelFilePreviewEl = document.getElementById("hotelFilePreview");
 const itineraryResultEl = document.getElementById("itineraryResult");
 const bookingSourceDbEl = document.getElementById("bookingSourceDb");
 const bookingSourceFileEl = document.getElementById("bookingSourceFile");
+const bookingSourcePdfEl = document.getElementById("bookingSourcePdf");
 const fileSelectRowEl = document.getElementById("fileSelectRow");
+const pdfUploadRowEl = document.getElementById("pdfUploadRow");
+const fullPdfInputEl = document.getElementById("fullPdfInput");
+const pdfExtractStatusEl = document.getElementById("pdfExtractStatus");
 const dbBookingStatusEl = document.getElementById("dbBookingStatus");
 
 // File preview updates
@@ -51,26 +55,30 @@ function readFileAsText(file) {
   });
 }
 
-// Toggle file selection visibility based on booking source
+// Toggle file selection visibility based on booking source (3 modes: db, file, pdf)
 function updateBookingSourceUI() {
-  const isDb = bookingSourceDbEl.checked;
-  fileSelectRowEl.style.display = isDb ? "none" : "block";
-  if (isDb) {
-    // Switching to DB mode: show DB status
+  const mode = document.querySelector('input[name="bookingSource"]:checked')?.value || "db";
+  fileSelectRowEl.style.display = mode === "file" ? "block" : "none";
+  pdfUploadRowEl.style.display = mode === "pdf" ? "block" : "none";
+
+  if (mode === "db") {
     dbBookingStatusEl.style.display = "";
     checkDbBookingStatus();
   } else {
-    // Switching to File Upload mode: hide DB status + clear form (no DB data)
     dbBookingStatusEl.style.display = "none";
-    if (itParticipantsEl) itParticipantsEl.value = "";
-    if (itTravelStartDateEl) itTravelStartDateEl.value = "";
-    if (itTravelEndDateEl) itTravelEndDateEl.value = "";
-    if (itTravelPurposeEl) itTravelPurposeEl.value = "";
+    if (mode === "file") {
+      // Switching to HTML File mode: clear form
+      if (itParticipantsEl) itParticipantsEl.value = "";
+      if (itTravelStartDateEl) itTravelStartDateEl.value = "";
+      if (itTravelEndDateEl) itTravelEndDateEl.value = "";
+      if (itTravelPurposeEl) itTravelPurposeEl.value = "";
+    }
     if (extractStatusEl) extractStatusEl.textContent = "";
   }
 }
 bookingSourceDbEl.addEventListener("change", updateBookingSourceUI);
 bookingSourceFileEl.addEventListener("change", updateBookingSourceUI);
+if (bookingSourcePdfEl) bookingSourcePdfEl.addEventListener("change", updateBookingSourceUI);
 
 async function checkDbBookingStatus() {
   const pid = getProjectId();
@@ -102,18 +110,44 @@ extractItineraryBtn.addEventListener("click", async () => {
   extractStatusEl.textContent = "";
 
   try {
-    const useDb = bookingSourceDbEl.checked;
+    const mode = document.querySelector('input[name="bookingSource"]:checked')?.value || "db";
     let ti = {};
 
-    if (useDb) {
+    if (mode === "db") {
       // Mode DB: fetch from database
       const pid = getProjectId();
       const url = "/api/booking/trip/latest" + (pid ? `?project_id=${pid}` : "");
       const res = await fetch(url);
       const data = await res.json();
       ti = data.trip_info || {};
+    } else if (mode === "pdf") {
+      // Mode PDF: upload PDF → extract text → send to extraction
+      const pdfFiles = fullPdfInputEl?.files || [];
+      if (pdfFiles.length === 0) {
+        extractStatusEl.innerHTML = '<span style="color:#d97706;">⚠️ Vui lòng chọn file PDF lịch trình trước.</span>';
+        return;
+      }
+      extractStatusEl.innerHTML = '<span style="color:#d97706;">⏳ Đang đọc PDF...</span>';
+      const fd = new FormData();
+      fd.append("pdf_file", pdfFiles[0]);
+      const pdfRes = await fetch("/api/itinerary/extract-pdf", { method: "POST", body: fd });
+      const pdfData = await pdfRes.json();
+      if (!pdfRes.ok) {
+        extractStatusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi đọc PDF: ${pdfData.error || "unknown"}</span>`;
+        return;
+      }
+      if (pdfExtractStatusEl) pdfExtractStatusEl.textContent = `✅ Đã đọc ${pdfData.pages || 0} trang`;
+      // Send extracted text to extraction endpoint
+      extractStatusEl.innerHTML = '<span style="color:#d97706;">⏳ AI đang phân tích nội dung...</span>';
+      const res = await fetch("/api/itinerary/extract_from_text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: pdfData.text }),
+      });
+      const data = await res.json();
+      ti = data.trip_info || {};
     } else {
-      // Mode File Upload: read uploaded files and send HTML content to server
+      // Mode File Upload: read uploaded HTML files
       const flightFiles = flightFileInputEl?.files || [];
       const hotelFiles = hotelFileInputEl?.files || [];
       if (flightFiles.length === 0 || hotelFiles.length === 0) {

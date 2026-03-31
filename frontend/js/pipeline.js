@@ -319,14 +319,17 @@ async function runItinerary() {
   const outputPath = itineraryOutputEl.value.trim() || "output/itinerary.html";
   const formData = collectItineraryFormData();
   const summaryProfile = buildItinerarySummaryFromForm(formData);
-  const useDb = bookingSourceDbEl.checked;
+  const mode = document.querySelector('input[name="bookingSource"]:checked')?.value || "db";
   const runBtn = document.getElementById("runItineraryBtn");
   const originalBtnText = runBtn.textContent;
 
   // For file upload mode: read HTML content from uploaded files
   let uploadedFlightHtml = null;
   let uploadedHotelHtmls = null;
-  if (!useDb) {
+  let pdfExtractedText = null;
+
+  if (mode === "file") {
+    // HTML file mode
     const flightFiles = flightFileInputEl?.files || [];
     const hotelFiles = hotelFileInputEl?.files || [];
     if (flightFiles.length === 0 || hotelFiles.length === 0) {
@@ -343,6 +346,34 @@ async function runItinerary() {
       }
     } catch (e) {
       itineraryResultEl.srcdoc = `<p>Lỗi đọc file: ${e.message}</p>`;
+      syncCombinedPreviews();
+      return;
+    }
+  } else if (mode === "pdf") {
+    // PDF upload mode — extract text from PDF via backend
+    const pdfFiles = fullPdfInputEl?.files || [];
+    if (pdfFiles.length === 0) {
+      itineraryResultEl.srcdoc = "<p>Vui lòng chọn file PDF lịch trình.</p>";
+      syncCombinedPreviews();
+      return;
+    }
+    try {
+      if (pdfExtractStatusEl) pdfExtractStatusEl.textContent = "⏳ Đang đọc PDF...";
+      const fd = new FormData();
+      fd.append("pdf_file", pdfFiles[0]);
+      const extractRes = await fetch("/api/itinerary/extract-pdf", { method: "POST", body: fd });
+      const extractData = await extractRes.json();
+      if (!extractRes.ok) {
+        if (pdfExtractStatusEl) pdfExtractStatusEl.textContent = `❌ ${extractData.error || "Lỗi đọc PDF"}`;
+        itineraryResultEl.srcdoc = `<p>❌ Lỗi đọc PDF: ${extractData.error || "unknown"}</p>`;
+        syncCombinedPreviews();
+        return;
+      }
+      pdfExtractedText = extractData.text || "";
+      if (pdfExtractStatusEl) pdfExtractStatusEl.textContent = `✅ Đã đọc ${extractData.pages || 0} trang (${pdfExtractedText.length} ký tự)`;
+    } catch (e) {
+      if (pdfExtractStatusEl) pdfExtractStatusEl.textContent = `❌ ${e.message}`;
+      itineraryResultEl.srcdoc = `<p>❌ Lỗi: ${e.message}</p>`;
       syncCombinedPreviews();
       return;
     }
@@ -417,8 +448,11 @@ async function runItinerary() {
       summary_profile: summaryProfile,
       project_id: getProjectId(),
     };
-    if (useDb) {
+    if (mode === "db") {
       payload.from_db = true;
+    } else if (mode === "pdf") {
+      // Send extracted PDF text as combined booking text
+      payload.pdf_extracted_text = pdfExtractedText;
     } else {
       // Send uploaded HTML content directly
       payload.flight_html = uploadedFlightHtml;

@@ -17,6 +17,7 @@
           <button id="btnCreateProject" class="btn btn-sm" style="white-space:nowrap; background:#16a34a; color:white; border:none;" title="Tạo hồ sơ mới">➕ Tạo thêm hồ sơ</button>
           <a id="btnDs160Autofill" class="btn btn-sm" href="/ds160/" style="white-space:nowrap; background:#0f766e; color:white; border:none; text-decoration:none;" title="Mở công cụ Autofill DS-160">🧾 Autofill DS-160</a>
           <a id="btnCanadaForms" class="btn btn-sm" href="/canada/" style="white-space:nowrap; background:#e03c31; color:white; border:none; text-decoration:none;" title="Mở công cụ điền form Canada IMM5645E">🇨🇦 Canada Forms</a>
+          <a id="btnAustraliaForms" class="btn btn-sm" href="/australia/" style="white-space:nowrap; background:#f59e0b; color:#000; border:none; text-decoration:none; font-weight:600;" title="Mở công cụ điền Form 54 Australia">🇦🇺 Australia</a>
           <button id="btnNewProject" class="btn btn-sm" style="white-space:nowrap;" title="Xóa dữ liệu hồ sơ hiện tại để làm người mới">🔄 Làm mới (người mới)</button>
           <button id="btnRenameProject" class="btn btn-sm btn-outline" style="white-space:nowrap;display:none;" title="Đổi tên hồ sơ">✏️</button>
           <button id="btnDeleteProject" class="btn btn-sm btn-outline btn-danger" style="white-space:nowrap;display:none;" title="Xóa hồ sơ">🗑️</button>
@@ -458,14 +459,18 @@
         <section class="card">
           <h2>Bước 1: Chọn nguồn booking & trích xuất</h2>
           <div style="margin-bottom: 10px;">
-            <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
               <label style="display:flex; align-items:center; gap:4px; cursor:pointer; padding:8px 14px; border:2px solid #e2e8f0; border-radius:8px; font-size:0.9em; transition:all 0.2s;" id="srcDbLabel">
                 <input type="radio" name="bookingSource" value="db" id="bookingSourceDb" checked />
                 📦 Từ AI Booking (Database)
               </label>
               <label style="display:flex; align-items:center; gap:4px; cursor:pointer; padding:8px 14px; border:2px solid #e2e8f0; border-radius:8px; font-size:0.9em; transition:all 0.2s;" id="srcFileLabel">
                 <input type="radio" name="bookingSource" value="file" id="bookingSourceFile" />
-                📁 Chọn file thủ công
+                📁 Chọn file thủ công (HTML)
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; cursor:pointer; padding:8px 14px; border:2px solid #e2e8f0; border-radius:8px; font-size:0.9em; transition:all 0.2s;" id="srcPdfLabel">
+                <input type="radio" name="bookingSource" value="pdf" id="bookingSourcePdf" />
+                📄 Upload lịch trình cũ (PDF)
               </label>
             </div>
             <div id="dbBookingStatus" style="margin-top:6px; font-size:0.85em; color:#64748b;"></div>
@@ -482,6 +487,14 @@
                 <input type="file" id="hotelFileInput" accept=".html,.htm" multiple style="margin-top:4px;" />
                 <div id="hotelFilePreview" style="font-size:0.8em; color:#64748b; margin-top:2px;"></div>
               </div>
+            </div>
+          </div>
+          <div id="pdfUploadRow" style="display:none; margin-top:10px;">
+            <div style="background:#1e1b4b; border:2px dashed #7c3aed; border-radius:10px; padding:16px; text-align:center;">
+              <div style="font-size:1.1em; margin-bottom:8px;">📄 Upload file PDF lịch trình cũ</div>
+              <div style="font-size:0.8em; color:#94a3b8; margin-bottom:10px;">Chọn 1 file PDF chứa lịch trình + vé bay + khách sạn. AI sẽ tự tách thông tin.</div>
+              <input type="file" id="fullPdfInput" accept=".pdf" style="margin-top:4px;" />
+              <div id="pdfExtractStatus" style="font-size:0.85em; color:#64748b; margin-top:8px;"></div>
             </div>
           </div>
           <div class="row" style="margin-top: 10px;">

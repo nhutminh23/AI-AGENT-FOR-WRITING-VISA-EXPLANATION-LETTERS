@@ -1,0 +1,81 @@
+======================================================================
+PHASE 1: STRUCTURAL ANALYSIS - DATE FIELDS
+======================================================================
+
+  ap.dob: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  ap.dec 1: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  ap.dec 2: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  as.dob: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  as.dob def: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  fm.par dob 1: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  fm.par dob 2: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  fm.sib dob 1: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  fm.sib dob 2: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  fm.sib dob 3: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  m.dob 1: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  m.dob 2: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+  m.dob 3: MaxLen=11, Comb=False, JS=True, Rect=None
+    /F: AFDate_FormatEx("dd-mmm-yyyy");
+    /K: AFDate_KeystrokeEx("dd-mmm-yyyy");
+    /V: if (event.value != "") {event.target.fillColor = color.white ;} else {event.target.fillColor = color.transparent ;}
+
+======================================================================
+PHASE 2: SLASH POSITIONS vs FIELD RECTS (date fields only)
+======================================================================
+
+Total '/' on page: 54
+Total widgets: 0
+Date-related widgets: 0
+
+Slashes INSIDE date field rects:
+
+Total slashes inside date fields: 0
+Slashes outside date fields (labels etc): 54

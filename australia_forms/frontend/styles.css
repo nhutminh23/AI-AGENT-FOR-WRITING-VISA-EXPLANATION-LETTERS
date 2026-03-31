@@ -1,0 +1,204 @@
+/* ================================================
+   Australia Form 54 — Styles
+   Dark theme matching main app + Canada forms
+   ================================================ */
+
+:root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-alt: #273549;
+    --border: #334155;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --accent: #f59e0b;       /* Gold/yellow for Australia */
+    --accent-hover: #d97706;
+    --success: #22c55e;
+    --error: #ef4444;
+    --radius: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+.app-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+/* Header */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.header-left { display: flex; align-items: center; gap: 16px; }
+
+.back-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+.back-link:hover { background: var(--accent); color: #000; }
+
+.header-title h1 { font-size: 22px; font-weight: 700; }
+.subtitle { font-size: 13px; color: var(--text-muted); }
+
+.status-badge {
+    font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600;
+}
+.status-badge.ok { background: #16a34a33; color: #22c55e; }
+.status-badge.error { background: #dc262633; color: #ef4444; }
+.status-badge.loading { background: #64748b33; color: #94a3b8; }
+
+/* Steps Bar */
+.steps-bar {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; margin-bottom: 32px; padding: 16px 24px;
+    background: var(--surface); border-radius: var(--radius);
+}
+
+.step {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 8px;
+    cursor: default; transition: all 0.2s;
+}
+.step .step-number {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px;
+    background: var(--border); color: var(--text-muted);
+}
+.step .step-label { font-size: 14px; color: var(--text-muted); font-weight: 500; }
+
+.step.active .step-number { background: var(--accent); color: #000; }
+.step.active .step-label { color: var(--text); }
+.step.completed .step-number { background: var(--success); color: white; }
+.step.completed .step-label { color: var(--success); }
+
+.step-connector { width: 40px; height: 2px; background: var(--border); }
+
+/* Cards */
+.card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px;
+}
+.card h2 { font-size: 20px; margin-bottom: 8px; }
+.card-desc { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; }
+
+.card-success {
+    background: linear-gradient(135deg, #16a34a22, #064e3b44);
+    border-color: #16a34a66;
+    text-align: center;
+}
+
+/* Prompt Display */
+.prompt-display {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+    max-height: 400px; overflow-y: auto; font-size: 13px;
+    line-height: 1.7; white-space: pre-wrap;
+}
+.prompt-loading { color: var(--text-muted); text-align: center; padding: 20px; }
+
+/* Textarea */
+textarea {
+    width: 100%; padding: 16px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: 'Fira Code', monospace, 'Inter';
+    font-size: 13px; resize: vertical; margin-bottom: 16px;
+}
+textarea:focus { outline: none; border-color: var(--accent); }
+
+/* Form Sections */
+.form-section {
+    margin-bottom: 24px; padding: 20px;
+    background: var(--surface-alt); border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+.form-section h3 {
+    font-size: 16px; margin-bottom: 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+
+.form-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+
+.form-field label {
+    display: block; font-size: 12px; color: var(--text-muted);
+    margin-bottom: 4px; font-weight: 500;
+}
+.form-field input, .form-field select {
+    width: 100%; padding: 8px 12px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 14px;
+}
+.form-field input:focus, .form-field select:focus {
+    outline: none; border-color: var(--accent);
+}
+
+/* Person card (parent/sibling/child) */
+.person-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 12px;
+}
+.person-card h4 {
+    font-size: 14px; margin-bottom: 12px; color: var(--accent);
+}
+
+/* Buttons */
+.action-row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+
+.btn {
+    padding: 10px 20px; border: none; border-radius: 8px;
+    font-weight: 600; font-size: 14px; cursor: pointer;
+    transition: all 0.2s; font-family: inherit;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.btn-secondary { background: var(--border); color: var(--text); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-alt); }
+
+.btn-large { padding: 14px 28px; font-size: 16px; }
+
+.btn-sm {
+    padding: 4px 12px; font-size: 12px; border-radius: 6px;
+    background: var(--accent); color: #000;
+}
+
+/* Status Messages */
+.status-msg { font-size: 13px; margin-top: 8px; }
+.status-msg.success { color: var(--success); }
+.status-msg.error { color: var(--error); }
+
+/* Step content visibility */
+.step-content { display: none; }
+.step-content.active { display: block; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .steps-bar { flex-wrap: wrap; gap: 8px; }
+    .step-connector { display: none; }
+}

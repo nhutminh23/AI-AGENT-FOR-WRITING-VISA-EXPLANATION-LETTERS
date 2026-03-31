@@ -380,6 +380,116 @@ def extract_trip_from_html():
         }
     })
 
+
+@booking_bp.post("/api/itinerary/extract_from_text")
+def extract_trip_from_text():
+    """Extract trip info (guests, dates, purpose) from plain text (e.g. PDF-extracted text).
+    Uses line-by-line parsing to avoid multi-line regex issues."""
+    payload = request.get_json(force=True) or {}
+    all_text = payload.get("text", "")
+
+    if not all_text.strip():
+        return jsonify({"trip_info": {"guest_names": [], "travel_start_date": "", "travel_end_date": "", "travel_purpose": "Tourism"}}), 200
+
+    import re as _re
+    from datetime import datetime as _dt
+
+    lines = all_text.split("\n")
+
+    # ── 1. Extract dates ──
+    MONTH_MAP = {
+        'january': '01', 'february': '02', 'march': '03', 'april': '04',
+        'may': '05', 'june': '06', 'july': '07', 'august': '08',
+        'september': '09', 'october': '10', 'november': '11', 'december': '12',
+    }
+    dates = []
+
+    for line in lines:
+        # YYYY-MM-DD
+        for m in _re.finditer(r'(\d{4})-(\d{2})-(\d{2})', line):
+            dates.append(m.group(0))
+        # DD/MM/YYYY
+        for m in _re.finditer(r'(\d{2})/(\d{2})/(\d{4})', line):
+            d, mo, y = m.group(1), m.group(2), m.group(3)
+            dates.append(f"{y}-{mo}-{d}")
+        # "Month DD, YYYY" or "DD Month YYYY"
+        for m in _re.finditer(r'(\b(?:' + '|'.join(MONTH_MAP.keys()) + r')\b)\s+(\d{1,2}),?\s+(\d{4})', line, _re.IGNORECASE):
+            mo_str = MONTH_MAP.get(m.group(1).lower(), "01")
+            dates.append(f"{m.group(3)}-{mo_str}-{int(m.group(2)):02d}")
+        for m in _re.finditer(r'(\d{1,2})\s+(\b(?:' + '|'.join(MONTH_MAP.keys()) + r')\b)\s+(\d{4})', line, _re.IGNORECASE):
+            mo_str = MONTH_MAP.get(m.group(2).lower(), "01")
+            dates.append(f"{m.group(3)}-{mo_str}-{int(m.group(1)):02d}")
+
+    travel_start = min(dates) if dates else ""
+    travel_end = max(dates) if dates else ""
+
+    # ── 2. Extract names (line-by-line, no multi-line capture) ──
+    # Comprehensive skip set: headings, labels, section titles from itineraries
+    SKIP_HEADINGS = {
+        'CHECK IN', 'CHECK OUT', 'HOTEL NAME', 'ROOM TYPE', 'BOOKING ID',
+        'MEMBER ID', 'CONFIRMATION', 'TOTAL PRICE', 'FLIGHT NUMBER',
+        'DEPARTURE TIME', 'ARRIVAL TIME', 'BOOKING CONFIRMATION',
+        'ECONOMY CLASS', 'BUSINESS CLASS', 'FIRST CLASS', 'ONE WAY',
+        'ROUND TRIP', 'GUEST NAME', 'HOTEL BOOKING', 'FLIGHT BOOKING',
+        'IATA CODE', 'MEMBER NUMBER', 'BOOKING REFERENCE',
+        'TRAVEL ITINERARY', 'VISA APPLICATION', 'DAY NAME', 'HOTEL ADDRESS',
+        'TRANSPORTATION', 'DETAILED PROGRAM', 'PURPOSE OF VISIT',
+        'MAIN DESTINATION', 'TRAVEL DATES', 'TRAVEL PERIOD', 'FILE OUTPUT',
+        'ADDITIONAL INFORMATION', 'TRAVEL PURPOSE', 'APPLICANT NAME',
+        'APPLICANTS', 'PARTICIPANTS', 'PAGE', 'TABLE OF CONTENTS',
+        'DETAILED ITINERARY', 'ACCOMMODATION', 'FLIGHT DETAILS',
+        'HOTEL DETAILS', 'DAY ACTIVITIES', 'MORNING ACTIVITIES',
+        'AFTERNOON ACTIVITIES', 'EVENING ACTIVITIES', 'CONTACT INFORMATION',
+        'EMERGENCY CONTACT', 'VISA INFORMATION', 'INSURANCE INFORMATION',
+        'IMPORTANT NOTES', 'GENERAL NOTES', 'BOOKING DETAILS',
+        'HO CHI MINH', 'HO CHI MINH CITY', 'HA NOI', 'DA NANG',
+        'ESTIMATED COST', 'TOTAL COST', 'EMAIL ADDRESS',
+    }
+
+    names = set()
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Pattern 1: After label "Applicant:", "Name:", "Guest:", "Passenger:", "MRS/MR"
+        # Use [^\n] to stay on same line
+        m = _re.match(r'(?:Applicant|Passenger|Guest|Name|Họ tên|Tên)\s*[:\-]\s*(.+)', stripped, _re.IGNORECASE)
+        if m:
+            candidate = m.group(1).strip()
+            if 2 < len(candidate) < 40 and candidate.upper() not in SKIP_HEADINGS:
+                names.add(candidate.upper())
+            continue
+
+        # Pattern 2: "MR/MRS/MS NAME" on single line
+        m = _re.match(r'(?:Mr|Mrs|Ms|MR|MRS|MS)\.?\s+([A-ZÀ-Ỹ][A-ZÀ-Ỹa-zà-ỹ ]{2,35})$', stripped)
+        if m:
+            candidate = m.group(1).strip()
+            if 2 < len(candidate) < 40 and candidate.upper() not in SKIP_HEADINGS:
+                names.add(candidate.upper())
+            continue
+
+        # Pattern 3: Line right after "APPLICANTS" or "PARTICIPANTS" label
+        if i > 0:
+            prev = lines[i-1].strip().upper()
+            if prev in ('APPLICANTS', 'PARTICIPANTS', 'APPLICANT', 'PARTICIPANT', 'MRS', 'MR', 'MS'):
+                # This line might be a name
+                if _re.match(r'^[A-ZÀ-Ỹa-zà-ỹ ]{3,35}$', stripped) and stripped.upper() not in SKIP_HEADINGS:
+                    names.add(stripped.upper())
+                    continue
+
+    # Deduplicate and clean
+    guest_names = sorted(set(n.strip() for n in names if len(n.strip()) > 2))
+
+    return jsonify({
+        "trip_info": {
+            "guest_names": guest_names,
+            "travel_start_date": travel_start,
+            "travel_end_date": travel_end,
+            "travel_purpose": "Tourism",
+        }
+    })
+
 @booking_bp.post("/api/booking/trip/save")
 def save_booking_trip():
     """Save edited trip info from frontend."""

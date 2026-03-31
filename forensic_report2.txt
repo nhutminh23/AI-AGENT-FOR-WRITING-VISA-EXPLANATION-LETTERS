@@ -1,0 +1,228 @@
+======================================================================
+PDF RENDERING LAYERS - WHY TEXT IS DOUBLED
+======================================================================
+
+PDF renders in this order:
+  1. Page Content (static background, borders, our painted rect+text)
+  2. Annotations  (form field widgets = pypdf's filled text)
+
+Our white rect + text goes into Layer 1
+pypdf's form field text goes into Layer 2 (ON TOP)
+RESULT: Both layers visible = double/ghost text!
+
+FIX: After painting, DELETE the widget annotation so only our text remains
+
+======================================================================
+PAGE 1
+======================================================================
+
+Standalone '/' characters: 50
+  Date widget: ap.dob
+    rect: (354.3, 216.4) -> (439.4, 230.1)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: ap.prev
+    rect: (726.7, 216.4) -> (811.8, 230.3)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: as.dob
+    rect: (354.3, 240.9) -> (439.4, 254.6)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: as.prev
+    rect: (726.7, 240.4) -> (811.8, 254.2)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: as.dob def
+    rect: (354.3, 264.6) -> (439.4, 278.2)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: as.defacto prev
+    rect: (726.7, 265.0) -> (811.8, 278.8)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.par dob 1
+    rect: (354.3, 288.2) -> (439.4, 301.9)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.par prev 1
+    rect: (726.7, 288.8) -> (811.8, 302.6)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.par dob 2
+    rect: (354.3, 311.8) -> (439.4, 325.4)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.par prev 2
+    rect: (726.7, 312.2) -> (811.8, 326.1)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.sib dob 1
+    rect: (354.3, 335.5) -> (439.4, 349.1)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.sib prev 1
+    rect: (726.7, 336.7) -> (811.8, 350.5)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.sib dob 2
+    rect: (354.3, 359.7) -> (439.4, 373.3)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.sib prev 2
+    rect: (726.7, 359.2) -> (811.8, 373.0)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.sib dob 3
+    rect: (354.3, 382.7) -> (439.4, 396.4)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.sib prev 3
+    rect: (726.7, 383.8) -> (811.8, 397.6)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: m.dob 1
+    rect: (354.3, 406.7) -> (439.4, 420.3)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: m.prev 1
+    rect: (726.7, 407.1) -> (811.8, 420.9)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: m.dob 2
+    rect: (354.3, 430.9) -> (439.4, 444.6)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: m.prev 2
+    rect: (726.7, 431.2) -> (811.8, 445.0)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: m.dob 3
+    rect: (354.3, 455.0) -> (439.4, 468.6)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: m.prev 3
+    rect: (726.7, 456.9) -> (811.8, 470.7)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: ap.dec 1
+    rect: (425.0, 546.5) -> (510.1, 559.9)
+    size: 85.1 x 13.5
+    type: 7, flags: 8388608
+  Date widget: ap.dec 2
+    rect: (623.2, 546.5) -> (707.3, 559.9)
+    size: 84.0 x 13.5
+    type: 7, flags: 8388608
+
+  Total widgets on this page: 81
+  Date widgets: 24
+
+  Slashes INSIDE date fields: 44 (these cause the problem)
+  Slashes OUTSIDE (labels/headers): 6 (these are fine)
+======================================================================
+PAGE 2
+======================================================================
+
+Standalone '/' characters: 44
+  Date widget: ap.dob
+    rect: (355.0, 213.3) -> (440.1, 227.0)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: ap.prev
+    rect: (727.7, 212.6) -> (812.8, 226.5)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: as.dob
+    rect: (355.0, 237.7) -> (440.1, 251.4)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: as.prev
+    rect: (727.7, 236.6) -> (812.8, 250.4)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: as.dob def
+    rect: (355.0, 261.4) -> (440.1, 275.1)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: as.defacto prev
+    rect: (727.7, 261.2) -> (812.8, 275.0)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.par dob 1
+    rect: (355.0, 285.1) -> (440.1, 298.8)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.par prev 1
+    rect: (727.7, 285.0) -> (812.8, 298.8)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.par dob 2
+    rect: (355.0, 308.6) -> (440.1, 322.3)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.par prev 2
+    rect: (727.7, 308.4) -> (812.8, 322.3)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.sib dob 1
+    rect: (355.0, 332.3) -> (440.1, 346.0)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.sib prev 1
+    rect: (727.7, 332.9) -> (812.8, 346.7)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.sib dob 2
+    rect: (355.0, 356.5) -> (440.1, 370.2)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.sib prev 2
+    rect: (727.7, 355.4) -> (812.8, 369.2)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: fm.sib dob 3
+    rect: (355.0, 379.6) -> (440.1, 393.2)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: fm.sib prev 3
+    rect: (727.7, 380.0) -> (812.8, 393.8)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: m.dob 1
+    rect: (355.0, 403.5) -> (440.1, 417.2)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: m.prev 1
+    rect: (727.7, 403.3) -> (812.8, 417.1)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: m.dob 2
+    rect: (355.0, 427.7) -> (440.1, 441.4)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: m.prev 2
+    rect: (727.7, 427.4) -> (812.8, 441.2)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: m.dob 3
+    rect: (355.0, 451.8) -> (440.1, 465.5)
+    size: 85.1 x 13.7
+    type: 7, flags: 8388608
+  Date widget: m.prev 3
+    rect: (727.7, 453.1) -> (812.8, 466.9)
+    size: 85.1 x 13.8
+    type: 7, flags: 8388608
+  Date widget: ap.dec 1
+    rect: (425.0, 543.3) -> (510.1, 556.8)
+    size: 85.1 x 13.5
+    type: 7, flags: 8388608
+  Date widget: ap.dec 2
+    rect: (623.3, 543.3) -> (707.3, 556.8)
+    size: 84.0 x 13.5
+    type: 7, flags: 8388608
+
+  Total widgets on this page: 81
+  Date widgets: 24
+
+  Slashes INSIDE date fields: 44 (these cause the problem)
+  Slashes OUTSIDE (labels/headers): 0 (these are fine)

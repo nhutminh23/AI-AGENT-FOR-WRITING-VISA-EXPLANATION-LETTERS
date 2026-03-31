@@ -4,7 +4,9 @@ Itinerary routes: latest, context, run, stream.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import tempfile
 from typing import Any, Dict, List
 
 from flask import Blueprint, Response, jsonify, request
@@ -145,6 +147,56 @@ def save_itinerary_context():
     )
 
 
+@pipeline_itinerary_bp.post("/api/itinerary/extract-pdf")
+def extract_pdf_for_itinerary():
+    """Extract text from uploaded PDF (itinerary/booking) using PyMuPDF."""
+    if "pdf_file" not in request.files:
+        return jsonify({"error": "no_file", "message": "Không tìm thấy file PDF"}), 400
+
+    pdf_file = request.files["pdf_file"]
+    if not pdf_file.filename or not pdf_file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "invalid_file", "message": "File phải là PDF"}), 400
+
+    try:
+        import fitz  # PyMuPDF
+
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            pdf_file.save(tmp)
+            tmp_path = tmp.name
+
+        try:
+            doc = fitz.open(tmp_path)
+            pages_text = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text("text").strip()
+                if text:
+                    pages_text.append(f"--- Page {page_num + 1} ---\n{text}")
+            doc.close()
+
+            full_text = "\n\n".join(pages_text)
+
+            # If no text extracted (scanned PDF), try OCR fallback
+            if not full_text.strip():
+                logging.info("[EXTRACT-PDF] No text found, attempting OCR fallback...")
+                from core.helpers import get_text_model
+                from core.agents import _extract_pdf_with_openai
+                from langchain_openai import ChatOpenAI
+                llm = ChatOpenAI(model=get_text_model(), temperature=0)
+                full_text = _extract_pdf_with_openai(llm, tmp_path)
+
+            return jsonify({
+                "text": full_text,
+                "pages": len(pages_text) if pages_text else 0,
+                "chars": len(full_text),
+            })
+        finally:
+            os.unlink(tmp_path)
+
+    except Exception as e:
+        logging.error(f"[EXTRACT-PDF] Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @pipeline_itinerary_bp.post("/api/itinerary/run")
@@ -206,12 +258,19 @@ def run_itinerary():
         hotel_htmls = booking.get("hotel_htmls", [])
         hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in hotel_htmls)
     else:
-        # New: accept HTML content directly from browser file upload
-        uploaded_flight_html = payload.get("flight_html")
-        uploaded_hotel_htmls = payload.get("hotel_htmls")  # list of HTML strings
-        if uploaded_flight_html and uploaded_hotel_htmls:
+        # Option C: PDF extracted text (single combined document)
+        pdf_extracted_text = payload.get("pdf_extracted_text")
+        if pdf_extracted_text:
+            # Use the same text as both flight and hotel — AI will sort it out
+            flight_text = pdf_extracted_text
+            hotel_text = pdf_extracted_text
+        # Option A: HTML content uploaded directly from browser
+        elif payload.get("flight_html") and payload.get("hotel_htmls"):
+            uploaded_flight_html = payload.get("flight_html")
+            uploaded_hotel_htmls = payload.get("hotel_htmls")
             flight_text = _html_to_text(uploaded_flight_html)
             hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in uploaded_hotel_htmls)
+        # Option B: Legacy file path approach
         elif flight_file and hotel_file:
             flight_path = _resolve_input_file_path(input_dir, str(flight_file))
             hotel_path = _resolve_input_file_path(input_dir, str(hotel_file))
@@ -318,8 +377,16 @@ def run_itinerary_stream():
                 hotel_text = "\n\n---\n\n".join(_html_to_text(h) for h in hotel_htmls)
                 yield from send_event(2, "✅ Trích xuất nội dung hoàn tất")
             else:
+                # Option C: PDF extracted text (single combined document)
+                pdf_extracted_text = payload.get("pdf_extracted_text")
+                if pdf_extracted_text:
+                    yield from send_event(1, "✅ Đã nhận nội dung từ PDF")
+                    yield from send_event(2, "⏳ Đang xử lý nội dung PDF...")
+                    flight_text = pdf_extracted_text
+                    hotel_text = pdf_extracted_text
+                    yield from send_event(2, "✅ Nội dung PDF đã sẵn sàng")
                 # Option A: HTML content uploaded directly from browser
-                if uploaded_flight_html and uploaded_hotel_htmls:
+                elif uploaded_flight_html and uploaded_hotel_htmls:
                     yield from send_event(1, "✅ Đã nhận file từ trình duyệt")
                     yield from send_event(2, "⏳ Đang trích xuất nội dung booking...")
                     flight_text = _html_to_text(uploaded_flight_html)
