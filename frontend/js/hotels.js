@@ -16,21 +16,19 @@ function parseCitiesPlan(text) {
   const stops = [];
   for (const line of lines) {
     const trimmed = line.trim();
-    // Match pattern: anything (number) optionally followed by more text
-    // But the format from the screenshot is: "Paris Ibis Paris Tour Eiffel Cambronne 15ème (3)"
-    // So everything before (N) could be city+hotel mixed, we need a smarter parse.
-    // Strategy: extract (N) for nights, then split remaining by first word as city
+    let nights = 1; // Default
+    let rest = trimmed;
     const nightsMatch = trimmed.match(/\((\d+)\)/);
-    if (!nightsMatch) continue;
-    const nights = parseInt(nightsMatch[1]);
-    // Remove the (N) part to get the rest
-    const rest = trimmed.replace(/\(\d+\)/, "").trim();
-    // First word (or first word before known hotel keywords) is the city
-    // Simple heuristic: first word is city, rest is hotel hint
+    if (nightsMatch) {
+      nights = parseInt(nightsMatch[1]);
+      rest = trimmed.replace(/\(\d+\)/, "").trim();
+    }
     const words = rest.split(/\s+/);
     const city = words[0] || "";
     const hotelHint = words.length > 1 ? rest : "";
-    stops.push({ city, nights, hotel_hint: hotelHint });
+    if (city) {
+      stops.push({ city, nights, hotel_hint: hotelHint });
+    }
   }
   return stops;
 }
@@ -39,9 +37,10 @@ async function serpSearchHotels() {
   if (!serpHotelSearchBtn) return;
   const citiesText = tripCitiesPlanEl?.value?.trim();
   const startDate = window.flightArrivalDate || tripTravelStartDateEl?.value?.trim();
+  const returnDate = window.flightReturnDate || tripTravelEndDateEl?.value?.trim();
 
   if (!citiesText) {
-    serpHotelSearchStatusEl.innerHTML = `<span style='color:#dc2626;'>❌ Vui lòng nhập thành phố & số đêm ở Bước 1.</span>`;
+    serpHotelSearchStatusEl.innerHTML = `<span style='color:#dc2626;'>❌ Vui lòng nhập thành phố ở Bước 1.</span>`;
     return;
   }
   if (!startDate) {
@@ -51,8 +50,21 @@ async function serpSearchHotels() {
 
   const stops = parseCitiesPlan(citiesText);
   if (stops.length === 0) {
-    serpHotelSearchStatusEl.innerHTML = `<span style='color:#dc2626;'>❌ Không parse được thành phố. Định dạng: "Paris (3)" hoặc "Lyon Novotel (2)"</span>`;
+    serpHotelSearchStatusEl.innerHTML = `<span style='color:#dc2626;'>❌ Không parse được thành phố. Định dạng: "Paris (3)" hoặc "Lyon Novotel"</span>`;
     return;
+  }
+
+  // Tự động điều chỉnh số đêm cho phù hợp với ngày về thực tế của máy bay (nếu chỉ có 1 thành phố)
+  if (stops.length === 1 && startDate && returnDate) {
+    const sDate = new Date(startDate);
+    const rDate = new Date(returnDate);
+    if (!isNaN(sDate) && !isNaN(rDate) && rDate > sDate) {
+      const calculatedNights = Math.ceil((rDate - sDate) / (1000 * 60 * 60 * 24));
+      stops[0].nights = calculatedNights;
+      console.log(`[HOTEL] Auto-adjusting nights for 1 city based on flight dates: ${calculatedNights} nights`);
+    } else if (tripNumNightsEl?.value && parseInt(tripNumNightsEl.value) > 0) {
+      stops[0].nights = parseInt(tripNumNightsEl.value);
+    }
   }
 
   serpHotelSearchBtn.disabled = true;

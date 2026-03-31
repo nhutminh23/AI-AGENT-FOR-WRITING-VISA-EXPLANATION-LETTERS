@@ -444,6 +444,23 @@ async function saveTripInfo() {
         document.getElementById("tripDestinationCountry").value = IATA_TO_COUNTRY[arrCode];
       }
     }
+    // Đồng bộ ngược: Lấy ngày đi/về từ form máy bay đè lại Form Ẩn
+    const serpOutboundDateEl = document.getElementById("serpOutboundDate");
+    const tripTravelStartDateEl = document.getElementById("tripTravelStartDate");
+    if (serpOutboundDateEl && tripTravelStartDateEl && serpOutboundDateEl.value) {
+      tripTravelStartDateEl.value = serpOutboundDateEl.value;
+    }
+
+    const serpReturnDateEl = document.getElementById("serpReturnDate");
+    const tripTravelEndDateEl = document.getElementById("tripTravelEndDate");
+    if (serpReturnDateEl && tripTravelEndDateEl && serpReturnDateEl.value) {
+      tripTravelEndDateEl.value = serpReturnDateEl.value;
+    }
+
+    // Cập nhật lại tổng số đêm nếu có thay đổi ngày
+    if (typeof calcTripNights === 'function') {
+      calcTripNights();
+    }
 
     const tripInfo = getTripInfoFromForm();
     const res = await fetch("/api/booking/trip/save", {

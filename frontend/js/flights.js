@@ -529,6 +529,22 @@ async function serpGenerateTicket() {
   } else if (serpOutboundDateEl?.value) {
     window.flightArrivalDate = serpOutboundDateEl.value;
   }
+
+  // Lấy ngày khởi hành chuyến về để làm Check-out mặc định cho khách sạn
+  if ((isRoundTrip || isMultiCity) && serpSelectedReturn) {
+    const retFlights = serpSelectedReturn.flights || [];
+    const firstReturnLeg = retFlights[0];
+    if (firstReturnLeg?.departure_airport?.time) {
+      window.flightReturnDate = firstReturnLeg.departure_airport.time.split(" ")[0];
+      console.log("[FLIGHTS] Ngày khởi hành chuyến về:", window.flightReturnDate);
+    } else if (serpReturnDateEl?.value) {
+      window.flightReturnDate = serpReturnDateEl.value;
+    }
+  } else if (serpReturnDateEl?.value) {
+    window.flightReturnDate = serpReturnDateEl.value;
+  } else if (tripTravelEndDateEl?.value) {
+    window.flightReturnDate = tripTravelEndDateEl.value;
+  }
   const numAdults = parseInt(serpAdultsEl?.value) || 1;
   const numChildren = parseInt(serpChildrenEl?.value) || 0;
   const totalPax = numAdults + numChildren;
