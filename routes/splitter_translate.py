@@ -384,6 +384,7 @@ def _build_html_vision_clone(
                         html,
                     )
                 except Exception:
+                    import logging, sys; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", sys.exc_info()[1])
                     pass  # If emblem file can't be read, leave placeholder as-is
 
         return html
@@ -534,6 +535,7 @@ def _check_single_file_bilingual(filepath: str, filename: str, llm) -> dict:
             return {"filename": filename, "needs_translation": False, 
                     "reason": f"Unsupported format: {ext}", "is_bilingual": False}
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
         return {"filename": filename, "needs_translation": False, 
                 "reason": f"Cannot read file: {str(e)}", "is_bilingual": False}
     
@@ -674,6 +676,7 @@ def check_bilingual():
                 result["file_ref"] = file_entries[idx]["file_ref"]
                 results[idx] = result
             except Exception as e:
+                import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
                 results[idx] = {
                     "filename": file_entries[idx]["filename"],
                     "needs_translation": True,
@@ -732,6 +735,7 @@ def translate_upload_file():
     try:
         f.save(out_path)
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
         return jsonify({"error": "save_failed", "detail": str(e)}), 500
 
     translation_upload_cache[token] = {"temp_path": out_path, "filename": safe_name}
@@ -762,6 +766,7 @@ def translate_original_pages():
     try:
         f.save(tmp_path)
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
         return jsonify({"error": "save_failed", "detail": str(e)}), 500
 
     pages = []
@@ -784,6 +789,7 @@ def translate_original_pages():
         else:
             return jsonify({"error": "unsupported_format", "detail": f"Cannot render {ext} as images"}), 400
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
         return jsonify({"error": "render_failed", "detail": str(e)}), 500
     finally:
         # Cleanup temp file
@@ -887,6 +893,7 @@ def run_translate_stream():
                     if fixed:
                         translated_text = fixed
                 except Exception as e:
+                    import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
                     logging.debug("Ignored: %s", e)  # Keep original if fix fails
 
             yield from send_event(1, "✅ OCR + Dịch hoàn tất")
@@ -970,6 +977,7 @@ def run_translate_stream():
         except QuotaExhaustedError as qe:
             yield from send_event(-1, f"⚠️ HẾT QUOTA OpenAI! {str(qe)}")
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
             # Check if it's a quota error in disguise
             if _is_quota_error(e):
                 yield from send_event(-1, "⚠️ HẾT QUOTA OpenAI! Vui lòng kiểm tra billing tại https://platform.openai.com/account/billing")
@@ -984,6 +992,7 @@ def run_translate_stream():
                     try:
                         os.remove(temp_path)
                     except Exception as e:
+                        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
                         logging.debug("Ignored: %s", e)
 
     return Response(
@@ -1023,6 +1032,7 @@ def translate_save_html():
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(html_content)
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
         return jsonify({"error": "save_failed", "detail": str(e)}), 500
 
     return jsonify(
@@ -1064,6 +1074,7 @@ def translate_rebuild_html():
     except QuotaExhaustedError as qe:
         return jsonify({"error": "quota_exceeded", "detail": str(qe)}), 429
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
         if _is_quota_error(e):
             return jsonify({"error": "quota_exceeded", "detail": "⚠️ Đã hết quota OpenAI API! Vui lòng kiểm tra billing."}), 429
         return jsonify({"error": str(e)}), 500

@@ -224,6 +224,7 @@ If this is ONE single document or package: {{"documents": [{{"doc_type_en": "REN
             HumanMessage(content=content_parts),
         ])
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", exc)
         _check_and_raise_quota(exc)
         raise
 
@@ -236,11 +237,13 @@ If this is ONE single document or package: {{"documents": [{{"doc_type_en": "REN
     try:
         parsed = json.loads(text)
     except Exception:
+        import logging, sys; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", sys.exc_info()[1])
         match = re.search(r"\{[\s\S]*\}", text)
         if match:
             try:
                 parsed = json.loads(match.group())
             except Exception:
+                import logging, sys; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", sys.exc_info()[1])
                 return []
         else:
             return []
@@ -442,6 +445,7 @@ def classify_one(file_info: dict, person_name: str, llm, quota_stop) -> dict:
                     from pypdf import PdfReader as _PdfR
                     page_count = len(_PdfR(fpath).pages)
                 except Exception as e:
+                    import logging; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", e)
                     logging.debug("Ignored: %s", e)
             if page_count <= 2:
                 doc_type = quick_type
@@ -492,6 +496,7 @@ def classify_one(file_info: dict, person_name: str, llm, quota_stop) -> dict:
                 has_scanned_pages = any(tl < 30 for tl in page_texts_len)
                 all_scanned = all(tl < 30 for tl in page_texts_len)
             except Exception:
+                import logging, sys; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", sys.exc_info()[1])
                 total_pages = 1
                 has_scanned_pages = True
                 all_scanned = True
@@ -545,6 +550,7 @@ def classify_one(file_info: dict, person_name: str, llm, quota_stop) -> dict:
                 except QuotaExhaustedError:
                     raise
                 except Exception as e:
+                    import logging; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", e)
                     logging.debug("Ignored: %s", e)
 
         # POST-PROCESSING
@@ -584,6 +590,7 @@ def classify_one(file_info: dict, person_name: str, llm, quota_stop) -> dict:
             "is_translate": _is_translate_file,
         }
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", e)
         err_str = str(e).lower()
         is_quota = 'insufficient_quota' in err_str or '429' in err_str or 'rate limit' in err_str
         if is_quota:

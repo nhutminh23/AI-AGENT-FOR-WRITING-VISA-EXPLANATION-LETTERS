@@ -112,6 +112,7 @@ def canada_fill():
             "download_url": f"/canada/api/download/{output_filename}",
         })
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in canada_forms.py: %s", exc)
         logger.exception("PDF fill failed")
         return jsonify({"error": f"PDF fill failed: {str(exc)}"}), 500
 
@@ -175,6 +176,7 @@ def canada_fill_5257():
             "download_url": f"/canada/api/download/{output_filename}",
         })
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in canada_forms.py: %s", exc)
         logger.exception("IMM5257 PDF fill failed")
         return jsonify({"error": f"PDF fill failed: {str(exc)}"}), 500
 

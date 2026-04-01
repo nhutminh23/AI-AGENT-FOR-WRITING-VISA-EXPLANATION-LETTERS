@@ -114,6 +114,7 @@ async def _process_splitter_job(file_id: str):
                 if orig_path:
                     source_meta["source_path"] = orig_path
             except Exception as e:
+                import logging; logging.exception("[Safe Log] Unhandled exception in splitter.py: %s", e)
                 logging.debug("Ignored: %s", e)
         with open(os.path.join(job_output_dir, "_source.json"), "w", encoding="utf-8") as mf:
             json.dump(source_meta, mf, ensure_ascii=False)
@@ -127,9 +128,10 @@ async def _process_splitter_job(file_id: str):
         job["status"] = "completed"
 
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter.py: %s", e)
         job["status"] = "error"
         job["error"] = str(e)
-        print(f"[AI Splitter] Error processing {file_id}: {e}")
+        logging.error(f"[AI Splitter] Error processing {file_id}: {e}")
 
 
 @splitter_bp.get("/api/ai-splitter/list")
@@ -441,6 +443,7 @@ def splitter_list_outputs():
                     source_name = meta.get("source_filename", "")
                     source_project_id = meta.get("project_id")
                 except Exception as e:
+                    import logging; logging.exception("[Safe Log] Unhandled exception in splitter.py: %s", e)
                     logging.debug("Ignored: %s", e)
             # Fallback to in-memory splitter_jobs
             if not source_name and not is_manual and folder_name in splitter_jobs:
@@ -500,6 +503,7 @@ def splitter_merge_outputs():
             for page in reader.pages:
                 writer.add_page(page)
         except Exception as exc:
+            import logging; logging.exception("[Safe Log] Unhandled exception in splitter.py: %s", exc)
             return jsonify({"error": f"read_failed: {fpath}", "detail": str(exc)}), 500
 
     # Save to first file's folder
@@ -517,6 +521,7 @@ def splitter_merge_outputs():
         with open(out_path, "wb") as f:
             writer.write(f)
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in splitter.py: %s", exc)
         return jsonify({"error": "write_failed", "detail": str(exc)}), 500
 
     # Delete originals
@@ -526,6 +531,7 @@ def splitter_merge_outputs():
             os.remove(fpath)
             deleted.append(f"{fid}/{fname}")
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in splitter.py: %s", e)
             logging.debug("Ignored: %s", e)
 
     return jsonify({

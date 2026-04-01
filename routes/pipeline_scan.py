@@ -68,7 +68,7 @@ def scan_splitter_split():
                 else:
                     needs_vision.append(i)
 
-            print(f"[SCAN-SPLITTER] Text scan done: {len(cert_pages)} cert pages found by text, {len(needs_vision)} pages need vision check")
+            logging.info(f"[SCAN-SPLITTER] Text scan done: {len(cert_pages)} cert pages found by text, {len(needs_vision)} pages need vision check")
             _scan_split_progress["current_page"] = f"Text scan xong. {len(cert_pages)} trang xác nhận tìm thấy. Đang quét ảnh {len(needs_vision)} trang còn lại..."
             _scan_split_progress["done"] = len(cert_pages)
 
@@ -91,7 +91,7 @@ def scan_splitter_split():
                         b64 = base64.b64encode(img_bytes).decode()
                         all_images[idx] = (b64, idx + 1)
                     except Exception as e:
-                        print(f"[SCAN-SPLITTER] ❌ Error rendering page {idx}: {e}")
+                        logging.error(f"[SCAN-SPLITTER] ❌ Error rendering page {idx}: {e}")
 
                 # Phase B: Build batches and send ALL to vision API concurrently
                 batches = []
@@ -109,12 +109,12 @@ def scan_splitter_split():
 
                 total_batches = len(batches)
                 _scan_split_progress["current_page"] = f"🔍 Đang gửi {total_batches} batch song song đến AI..."
-                print(f"[SCAN-SPLITTER] 🚀 Sending {total_batches} batches in PARALLEL ({len(all_images)} pages total)")
+                logging.info(f"[SCAN-SPLITTER] 🚀 Sending {total_batches} batches in PARALLEL ({len(all_images)} pages total)")
 
                 def _process_batch(batch_idx, images, page_nums):
                     """Worker: send one batch to vision API."""
                     found = _batch_detect_cert_pages_vision(llm, images, page_nums)
-                    print(f"[SCAN-SPLITTER] ✅ Batch {batch_idx+1}/{total_batches} done: cert_pages={found}")
+                    logging.info(f"[SCAN-SPLITTER] ✅ Batch {batch_idx+1}/{total_batches} done: cert_pages={found}")
                     return found
 
                 # Fire all batches concurrently (max 4 parallel to avoid rate limits)
@@ -133,7 +133,7 @@ def scan_splitter_split():
                             for pnum in found_pages:
                                 cert_pages.add(pnum - 1)  # Convert back to 0-indexed
                         except Exception as e:
-                            print(f"[SCAN-SPLITTER] ❌ Batch error: {e}")
+                            logging.error(f"[SCAN-SPLITTER] ❌ Batch error: {e}")
 
             cert_pages = sorted(cert_pages)
 
@@ -204,6 +204,7 @@ def scan_splitter_split():
             _scan_split_progress["running"] = False
 
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
             _scan_split_progress["error"] = str(e)
             _scan_split_progress["running"] = False
 
@@ -378,6 +379,7 @@ def scan_splitter_auto_name():
             doc.close()
             file_images.append({"filename": fname, "b64": b64})
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
             file_images.append({"filename": fname, "b64": None, "error": str(e)})
 
     llm = _get_or_create_llm()
@@ -427,4 +429,5 @@ def scan_splitter_auto_name():
         suggestions = _json.loads(text)
         return jsonify({"suggestions": suggestions})
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
         return jsonify({"error": f"AI naming failed: {str(e)}"}), 500

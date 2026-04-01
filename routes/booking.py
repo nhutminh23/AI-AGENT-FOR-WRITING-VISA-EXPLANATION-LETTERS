@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import traceback
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
@@ -270,6 +271,7 @@ def extract_trip():
     try:
         trip_info = extract_trip_info(llm, input_dir, guest_names=saved_guest_names)
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
         return jsonify({"error": str(e)}), 500
 
     if not isinstance(trip_info, dict):
@@ -321,173 +323,25 @@ def extract_trip_from_html():
     flight_html = payload.get("flight_html", "")
     hotel_htmls = payload.get("hotel_htmls", [])
 
-    import re as _re
-
-    def _strip_tags(html_str):
-        text = _re.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=_re.DOTALL)
-        text = _re.sub(r'<script[^>]*>.*?</script>', '', text, flags=_re.DOTALL)
-        text = _re.sub(r'<[^>]+>', ' ', text)
-        text = _re.sub(r'\s+', ' ', text).strip()
-        return text
-
-    all_text = _strip_tags(flight_html)
-    for h in hotel_htmls:
-        all_text += "\n" + _strip_tags(h)
-
-    # Extract dates (YYYY-MM-DD or DD/MM/YYYY patterns)
-    dates = []
-    for m in _re.finditer(r'(\d{4}-\d{2}-\d{2})', all_text):
-        dates.append(m.group(1))
-    for m in _re.finditer(r'(\d{2}/\d{2}/\d{4})', all_text):
-        parts = m.group(1).split("/")
-        dates.append(f"{parts[2]}-{parts[1]}-{parts[0]}")
-
-    travel_start = min(dates) if dates else ""
-    travel_end = max(dates) if dates else ""
-
-    # Extract passenger/guest names from common patterns
-    names = set()
-    # Pattern: "Passenger: NAME" or "Guest: NAME" or "Name: NAME"
-    for m in _re.finditer(r'(?:Passenger|Guest|Họ tên|Name|Tên)\s*[:\-]\s*([A-ZÀ-Ỹ][A-ZÀ-Ỹa-zà-ỹ\s]{2,40})', all_text):
-        name = m.group(1).strip()
-        if len(name) > 2 and not any(w in name.lower() for w in ['hotel', 'airline', 'booking', 'check', 'room']):
-            names.add(name)
-    # Pattern: "Mr/Mrs/Ms NAME" 
-    for m in _re.finditer(r'(?:Mr|Mrs|Ms|MR|MRS|MS)\.?\s+([A-ZÀ-Ỹ][A-ZÀ-Ỹa-zà-ỹ\s]{2,40})', all_text):
-        name = m.group(1).strip()
-        if len(name) > 2:
-            names.add(name)
-    # Pattern: ALL CAPS names (common in booking) — look for 2+ word uppercase sequences
-    for m in _re.finditer(r'\b([A-ZÀ-Ỹ]{2,}\s+[A-ZÀ-Ỹ]{2,}(?:\s+[A-ZÀ-Ỹ]{2,})*)\b', all_text):
-        candidate = m.group(1).strip()
-        skip_words = {'CHECK IN', 'CHECK OUT', 'HOTEL NAME', 'ROOM TYPE', 'BOOKING ID',
-                       'MEMBER ID', 'CONFIRMATION', 'TOTAL PRICE', 'FLIGHT NUMBER',
-                       'DEPARTURE TIME', 'ARRIVAL TIME', 'BOOKING CONFIRMATION',
-                       'ECONOMY CLASS', 'BUSINESS CLASS', 'FIRST CLASS', 'ONE WAY',
-                       'ROUND TRIP', 'GUEST NAME', 'HOTEL BOOKING', 'FLIGHT BOOKING',
-                       'IATA CODE', 'MEMBER NUMBER', 'BOOKING REFERENCE'}
-        if candidate not in skip_words and 4 < len(candidate) < 40:
-            names.add(candidate)
-
-    guest_names = sorted(list(names))
-
+    from routes.booking_itinerary_parser import parse_trip_from_html
+    trip_info = parse_trip_from_html(flight_html, hotel_htmls)
+    
     return jsonify({
-        "trip_info": {
-            "guest_names": guest_names,
-            "travel_start_date": travel_start,
-            "travel_end_date": travel_end,
-            "travel_purpose": "Tourism",
-        }
+        "trip_info": trip_info
     })
 
 
 @booking_bp.post("/api/itinerary/extract_from_text")
 def extract_trip_from_text():
-    """Extract trip info (guests, dates, purpose) from plain text (e.g. PDF-extracted text).
-    Uses line-by-line parsing to avoid multi-line regex issues."""
+    """Extract trip info (guests, dates, purpose) from plain text (e.g. PDF-extracted text)."""
     payload = request.get_json(force=True) or {}
     all_text = payload.get("text", "")
 
-    if not all_text.strip():
-        return jsonify({"trip_info": {"guest_names": [], "travel_start_date": "", "travel_end_date": "", "travel_purpose": "Tourism"}}), 200
-
-    import re as _re
-    from datetime import datetime as _dt
-
-    lines = all_text.split("\n")
-
-    # ── 1. Extract dates ──
-    MONTH_MAP = {
-        'january': '01', 'february': '02', 'march': '03', 'april': '04',
-        'may': '05', 'june': '06', 'july': '07', 'august': '08',
-        'september': '09', 'october': '10', 'november': '11', 'december': '12',
-    }
-    dates = []
-
-    for line in lines:
-        # YYYY-MM-DD
-        for m in _re.finditer(r'(\d{4})-(\d{2})-(\d{2})', line):
-            dates.append(m.group(0))
-        # DD/MM/YYYY
-        for m in _re.finditer(r'(\d{2})/(\d{2})/(\d{4})', line):
-            d, mo, y = m.group(1), m.group(2), m.group(3)
-            dates.append(f"{y}-{mo}-{d}")
-        # "Month DD, YYYY" or "DD Month YYYY"
-        for m in _re.finditer(r'(\b(?:' + '|'.join(MONTH_MAP.keys()) + r')\b)\s+(\d{1,2}),?\s+(\d{4})', line, _re.IGNORECASE):
-            mo_str = MONTH_MAP.get(m.group(1).lower(), "01")
-            dates.append(f"{m.group(3)}-{mo_str}-{int(m.group(2)):02d}")
-        for m in _re.finditer(r'(\d{1,2})\s+(\b(?:' + '|'.join(MONTH_MAP.keys()) + r')\b)\s+(\d{4})', line, _re.IGNORECASE):
-            mo_str = MONTH_MAP.get(m.group(2).lower(), "01")
-            dates.append(f"{m.group(3)}-{mo_str}-{int(m.group(1)):02d}")
-
-    travel_start = min(dates) if dates else ""
-    travel_end = max(dates) if dates else ""
-
-    # ── 2. Extract names (line-by-line, no multi-line capture) ──
-    # Comprehensive skip set: headings, labels, section titles from itineraries
-    SKIP_HEADINGS = {
-        'CHECK IN', 'CHECK OUT', 'HOTEL NAME', 'ROOM TYPE', 'BOOKING ID',
-        'MEMBER ID', 'CONFIRMATION', 'TOTAL PRICE', 'FLIGHT NUMBER',
-        'DEPARTURE TIME', 'ARRIVAL TIME', 'BOOKING CONFIRMATION',
-        'ECONOMY CLASS', 'BUSINESS CLASS', 'FIRST CLASS', 'ONE WAY',
-        'ROUND TRIP', 'GUEST NAME', 'HOTEL BOOKING', 'FLIGHT BOOKING',
-        'IATA CODE', 'MEMBER NUMBER', 'BOOKING REFERENCE',
-        'TRAVEL ITINERARY', 'VISA APPLICATION', 'DAY NAME', 'HOTEL ADDRESS',
-        'TRANSPORTATION', 'DETAILED PROGRAM', 'PURPOSE OF VISIT',
-        'MAIN DESTINATION', 'TRAVEL DATES', 'TRAVEL PERIOD', 'FILE OUTPUT',
-        'ADDITIONAL INFORMATION', 'TRAVEL PURPOSE', 'APPLICANT NAME',
-        'APPLICANTS', 'PARTICIPANTS', 'PAGE', 'TABLE OF CONTENTS',
-        'DETAILED ITINERARY', 'ACCOMMODATION', 'FLIGHT DETAILS',
-        'HOTEL DETAILS', 'DAY ACTIVITIES', 'MORNING ACTIVITIES',
-        'AFTERNOON ACTIVITIES', 'EVENING ACTIVITIES', 'CONTACT INFORMATION',
-        'EMERGENCY CONTACT', 'VISA INFORMATION', 'INSURANCE INFORMATION',
-        'IMPORTANT NOTES', 'GENERAL NOTES', 'BOOKING DETAILS',
-        'HO CHI MINH', 'HO CHI MINH CITY', 'HA NOI', 'DA NANG',
-        'ESTIMATED COST', 'TOTAL COST', 'EMAIL ADDRESS',
-    }
-
-    names = set()
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped:
-            continue
-
-        # Pattern 1: After label "Applicant:", "Name:", "Guest:", "Passenger:", "MRS/MR"
-        # Use [^\n] to stay on same line
-        m = _re.match(r'(?:Applicant|Passenger|Guest|Name|Họ tên|Tên)\s*[:\-]\s*(.+)', stripped, _re.IGNORECASE)
-        if m:
-            candidate = m.group(1).strip()
-            if 2 < len(candidate) < 40 and candidate.upper() not in SKIP_HEADINGS:
-                names.add(candidate.upper())
-            continue
-
-        # Pattern 2: "MR/MRS/MS NAME" on single line
-        m = _re.match(r'(?:Mr|Mrs|Ms|MR|MRS|MS)\.?\s+([A-ZÀ-Ỹ][A-ZÀ-Ỹa-zà-ỹ ]{2,35})$', stripped)
-        if m:
-            candidate = m.group(1).strip()
-            if 2 < len(candidate) < 40 and candidate.upper() not in SKIP_HEADINGS:
-                names.add(candidate.upper())
-            continue
-
-        # Pattern 3: Line right after "APPLICANTS" or "PARTICIPANTS" label
-        if i > 0:
-            prev = lines[i-1].strip().upper()
-            if prev in ('APPLICANTS', 'PARTICIPANTS', 'APPLICANT', 'PARTICIPANT', 'MRS', 'MR', 'MS'):
-                # This line might be a name
-                if _re.match(r'^[A-ZÀ-Ỹa-zà-ỹ ]{3,35}$', stripped) and stripped.upper() not in SKIP_HEADINGS:
-                    names.add(stripped.upper())
-                    continue
-
-    # Deduplicate and clean
-    guest_names = sorted(set(n.strip() for n in names if len(n.strip()) > 2))
+    from routes.booking_itinerary_parser import parse_trip_from_text
+    trip_info = parse_trip_from_text(all_text)
 
     return jsonify({
-        "trip_info": {
-            "guest_names": guest_names,
-            "travel_start_date": travel_start,
-            "travel_end_date": travel_end,
-            "travel_purpose": "Tourism",
-        }
+        "trip_info": trip_info
     })
 
 @booking_bp.post("/api/booking/trip/save")
@@ -573,6 +427,7 @@ def ai_generate_booking():
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
             return jsonify({"error": f"Lỗi AI: {str(e)}"}), 500
 
         # Cache booking data for next time
@@ -634,7 +489,7 @@ def ai_generate_booking():
             "flight_path": result["flight_path"],
         })
     except Exception as e:
-        import traceback
+        import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
         return jsonify({"error": "Lỗi khi tạo HTML: " + str(e), "traceback": traceback.format_exc()}), 500
 
 
@@ -753,6 +608,7 @@ def ai_generate_booking_stream():
                     json.dump(booking_data, f, ensure_ascii=False, indent=2)
 
             except Exception as e:
+                import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
                 yield from send_event(-1, f"❌ Lỗi AI: {str(e)}")
                 return
 
@@ -817,7 +673,7 @@ def ai_generate_booking_stream():
             yield from send_event(4, "✅ Hoàn tất!", final)
 
         except Exception as e:
-            import traceback
+            import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
             yield from send_event(-1, f"❌ Lỗi tạo HTML: {str(e)}")
 
     return Response(generate(), mimetype="text/event-stream", headers={

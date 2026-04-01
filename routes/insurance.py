@@ -126,6 +126,7 @@ def insurance_extract():
         })
 
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in insurance.py: %s", e)
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
@@ -209,6 +210,7 @@ def insurance_apply():
         })
 
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in insurance.py: %s", e)
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 

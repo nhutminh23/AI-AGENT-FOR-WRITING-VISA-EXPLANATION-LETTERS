@@ -57,6 +57,7 @@ def merge_pdf_upload():
         try:
             reader = PdfReader(f.stream)
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         for page in reader.pages:
@@ -73,6 +74,7 @@ def merge_pdf_upload():
         with open(out_path, "wb") as fp:
             writer.write(fp)
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": "write_failed", "detail": str(exc)}), 500
 
     # Save to database
@@ -199,6 +201,7 @@ def merge_pdf():
         try:
             reader = PdfReader(src_path)
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         for page in reader.pages:
@@ -215,6 +218,7 @@ def merge_pdf():
         with open(out_path, "wb") as f:
             writer.write(f)
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": "write_failed", "detail": str(exc)}), 500
 
     return jsonify(
@@ -281,6 +285,7 @@ def rename_pdf():
     try:
         os.rename(src_path, dest_path)
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": "rename_failed", "detail": str(exc)}), 500
 
     return jsonify(
@@ -321,6 +326,7 @@ def pdf_rename_suggest_name():
     try:
         result = llm.invoke([system, human])
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         if _is_quota_error(exc):
             return jsonify({"error": "quota_exceeded", "detail": "⚠️ Đã hết quota OpenAI API! Vui lòng kiểm tra billing."}), 429
         return jsonify({"error": "llm_error", "detail": str(exc)}), 500
@@ -387,6 +393,7 @@ def extract_pdf_objects():
         doc.close()
         return jsonify({"pages": pages})
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 
@@ -466,6 +473,7 @@ def edit_pdf():
     try:
         replacements = _json.loads(raw_replacements)
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
         return jsonify({"error": "invalid_replacements_json"}), 400
 
     if not replacements or not isinstance(replacements, list):
@@ -521,34 +529,34 @@ def edit_pdf():
                 # Try to extract & register the actual embedded font from the PDF
                 use_fontname = None
                 use_fontfile = None
-                print(f"[PDF-EDIT] Detected font='{span_font}', size={span_size}, color={span_color}")
+                logging.info(f"[PDF-EDIT] Detected font='{span_font}', size={span_size}, color={span_color}")
                 try:
                     page_fonts = page.get_fonts(full=True)
-                    print(f"[PDF-EDIT] Page fonts: {[(name, basefont) for xref, ext, ftype, basefont, name, enc in page_fonts]}")
+                    logging.info(f"[PDF-EDIT] Page fonts: {[(name, basefont) for xref, ext, ftype, basefont, name, enc in page_fonts]}")
                     for xref, ext, ftype, basefont, name, enc in page_fonts:
                         if name == span_font or basefont == span_font:
                             font_data = doc.extract_font(xref)
                             # font_data = (basename, ext, subtype, buffer)
                             if font_data and len(font_data) >= 4 and font_data[3]:
                                 buf = font_data[3]
-                                print(f"[PDF-EDIT] ✅ Extracted font '{name}' ({len(buf)} bytes), re-registering...")
+                                logging.info(f"[PDF-EDIT] ✅ Extracted font '{name}' ({len(buf)} bytes), re-registering...")
                                 # Register extracted font on the page
                                 registered = page.insert_font(
                                     fontname=name or basefont,
                                     fontbuffer=buf,
                                 )
                                 use_fontname = registered
-                                print(f"[PDF-EDIT] OK: Registered as '{use_fontname}'")
+                                logging.info(f"[PDF-EDIT] OK: Registered as '{use_fontname}'")
                             else:
-                                print(f"[PDF-EDIT] WARN: Font '{name}' found but no buffer data")
+                                logging.warning(f"[PDF-EDIT] WARN: Font '{name}' found but no buffer data")
                             break
                 except Exception as font_err:
-                    print(f"[PDF-EDIT] ERROR: Font extraction failed: {font_err}")
+                    logging.error(f"[PDF-EDIT] ERROR: Font extraction failed: {font_err}")
 
                 # Fallback to built-in font mapping
                 if not use_fontname:
                     use_fontname = _resolve_font(span_font, is_bold=span_bold, is_italic=span_italic)
-                    print(f"[PDF-EDIT] WARN: Fallback to built-in font: '{span_font}' (bold={span_bold}, italic={span_italic}) -> '{use_fontname}'")
+                    logging.warning(f"[PDF-EDIT] WARN: Fallback to built-in font: '{span_font}' (bold={span_bold}, italic={span_italic}) -> '{use_fontname}'")
 
                 # Collect rects for redaction + text insertion
                 insert_jobs = []
@@ -586,6 +594,7 @@ def edit_pdf():
             download_name=f.filename.replace(".pdf", "_edited.pdf"),
         )
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 

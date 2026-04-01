@@ -106,6 +106,7 @@ def australia_fill_54():
             "download_url": f"/australia/api/download/{output_filename}",
         })
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in australia_forms.py: %s", exc)
         logger.exception("Form 54 PDF fill failed")
         return jsonify({"error": f"PDF fill failed: {str(exc)}"}), 500
 

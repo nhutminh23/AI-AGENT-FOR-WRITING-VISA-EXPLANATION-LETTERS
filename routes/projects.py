@@ -107,6 +107,7 @@ def clear_project(project_id: int):
                             except OSError:
                                 pass
                 except Exception as e:
+                    import logging; logging.exception("[Safe Log] Unhandled exception in projects.py: %s", e)
                     logging.debug("Error reading meta %s: %s", meta_path, e)
     return jsonify({
         "status": "cleared",

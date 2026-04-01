@@ -171,6 +171,7 @@ def classifier_save_output():
     try:
         shutil.rmtree(temp_output)
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_classifier.py: %s", e)
         logging.debug("Ignored: %s", e)
 
     # Optional: clean input files too
@@ -181,6 +182,7 @@ def classifier_save_output():
             shutil.rmtree(input_dir)
             os.makedirs(input_dir, exist_ok=True)
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_classifier.py: %s", e)
             logging.debug("Ignored: %s", e)
 
     return jsonify({"status": "saved", "output_dir": final_output, "file_count": count})
@@ -296,6 +298,7 @@ def split_manual():
     try:
         reader = PdfReader(src_path)
     except Exception as exc:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_classifier.py: %s", exc)
         return jsonify({"error": "read_pdf_failed", "detail": str(exc)}), 500
 
     total_pages = len(reader.pages)
@@ -329,6 +332,7 @@ def split_manual():
             s = int(seg.get("start_page"))
             e = int(seg.get("end_page"))
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_classifier.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         if s < 1 or e < 1 or s > total_pages or e > total_pages:
@@ -343,6 +347,7 @@ def split_manual():
             with open(out_path, "wb") as f:
                 writer.write(f)
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_classifier.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         created.append(

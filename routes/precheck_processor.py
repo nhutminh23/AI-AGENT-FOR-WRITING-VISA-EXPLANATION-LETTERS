@@ -72,6 +72,7 @@ def processor_apply_rename():
                 "converted": needs_convert,
             })
         except Exception as e:
+            import logging; logging.exception("[Safe Log] Unhandled exception in precheck_processor.py: %s", e)
             errors.append({"path": old_path, "error": str(e)})
 
     return jsonify({
@@ -151,7 +152,7 @@ def processor_merge_files():
                 os.remove(fpath)
                 deleted_files.append(os.path.basename(fpath))
             except Exception as del_err:
-                print(f"[merge] Warning: could not delete {fpath}: {del_err}")
+                logging.warning(f"[merge] Warning: could not delete {fpath}: {del_err}")
 
         return jsonify({
             "status": "done",
@@ -162,10 +163,12 @@ def processor_merge_files():
             "deleted_files": deleted_files,
         })
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in precheck_processor.py: %s", e)
         return jsonify({"error": str(e)}), 500
     finally:
         for tf in tmp_files:
             try:
                 os.remove(tf)
             except Exception as e:
+                import logging; logging.exception("[Safe Log] Unhandled exception in precheck_processor.py: %s", e)
                 logging.debug("Ignored error: %s", e)

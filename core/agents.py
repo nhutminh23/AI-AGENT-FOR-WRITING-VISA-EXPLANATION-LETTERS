@@ -350,6 +350,20 @@ def _domain_prompt(domain: str, content: str) -> str:
     return IDENTITY_EXTRACT_PROMPT.format(text=content)
 
 
+def _stringify_list(values: Any) -> List[str]:
+    if not isinstance(values, list):
+        return []
+    result: List[str] = []
+    for item in values:
+        if item is None:
+            continue
+        if isinstance(item, str):
+            result.append(item)
+        else:
+            result.append(json.dumps(item, ensure_ascii=False))
+    return result
+
+
 def _build_summary_profile(extracted: Dict[str, Any]) -> str:
     personal = extracted.get("personal", {})
     travel = extracted.get("travel_history", {})
@@ -358,18 +372,6 @@ def _build_summary_profile(extracted: Dict[str, Any]) -> str:
     purpose = extracted.get("purpose", {})
 
     lines: List[str] = []
-    def _stringify_list(values: Any) -> List[str]:
-        if not isinstance(values, list):
-            return []
-        result: List[str] = []
-        for item in values:
-            if item is None:
-                continue
-            if isinstance(item, str):
-                result.append(item)
-            else:
-                result.append(json.dumps(item, ensure_ascii=False))
-        return result
 
     def _stringify_people_records(values: Any, fields: List[str]) -> List[str]:
         if not isinstance(values, list):
@@ -564,19 +566,6 @@ def _build_visa_relevance(extracted: Dict[str, Any]) -> List[str]:
             parts.append(f"job_title={employment.get('job_title')}")
         if parts:
             items.append("Employment: " + ", ".join(parts))
-
-    def _stringify_list(values: Any) -> List[str]:
-        if not isinstance(values, list):
-            return []
-        result: List[str] = []
-        for item in values:
-            if item is None:
-                continue
-            if isinstance(item, str):
-                result.append(item)
-            else:
-                result.append(json.dumps(item, ensure_ascii=False))
-        return result
 
     if financial:
         parts = []

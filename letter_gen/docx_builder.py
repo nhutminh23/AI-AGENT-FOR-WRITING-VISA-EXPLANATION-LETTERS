@@ -93,8 +93,10 @@ def build_letter_docx(
         header_keywords = [
             'Purpose of Visit', 'Travel Arrangements', 'Financial Capacity',
             'Strong Ties', 'Travel History', 'Current Employment',
-            'Registered Domestic', 'Purpose of the Trip', 'Intention to Return',
+            'Strong Family Ties', 'Purpose of the Trip', 'Intention to Return',
             'Explanation of Previous', 'SUBJECT:', 'Dear Visa Officer',
+            'Key evidence', 'Supporting documents', 'Changed circumstances',
+            'Planned itinerary', 'Refusal',
         ]
         is_known_header = any(kw.lower() in stripped.lower() for kw in header_keywords)
 

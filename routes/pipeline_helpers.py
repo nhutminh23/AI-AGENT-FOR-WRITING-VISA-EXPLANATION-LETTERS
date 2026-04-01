@@ -135,5 +135,6 @@ Example: {{"cert_pages": [2, 5, 8]}} or {{"cert_pages": []}} if none."""}
         parsed = json.loads(text)
         return parsed.get("cert_pages", [])
     except Exception as e:
+        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_helpers.py: %s", e)
         print(f"[SCAN-SPLITTER] ❌ Vision batch error: {e}")
         return []

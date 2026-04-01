@@ -121,11 +121,13 @@ def ds160_process():
     try:
         configs = agent.run_agent(docx_content, rules)
     except Exception as exc:  # pragma: no cover - integration error path
+        import logging; logging.exception("[Safe Log] Unhandled exception in ds160.py: %s", exc)
         return jsonify({"detail": f"Loi khi goi AI Agent: {exc}"}), 500
 
     try:
         results = config_injector.inject_configs(str(DS160_SCRIPT_DIR), configs, str(DS160_OUTPUT_DIR))
     except Exception as exc:  # pragma: no cover - integration error path
+        import logging; logging.exception("[Safe Log] Unhandled exception in ds160.py: %s", exc)
         return jsonify({"detail": f"Loi khi inject config vao script: {exc}"}), 500
 
     return jsonify({"scripts": results, "source": "generated"})
