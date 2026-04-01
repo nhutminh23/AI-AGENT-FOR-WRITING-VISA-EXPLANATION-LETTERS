@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 class Config:
@@ -19,8 +19,8 @@ class Config:
     DEBUG = True
 
     # --- AI Models ---
-    TEXT_MODEL = os.getenv("TEXT_MODEL", "gpt-5-mini")
-    VISION_MODEL = os.getenv("VISION_MODEL", "gpt-4o-mini")
+    TEXT_MODEL = os.getenv("OPENAI_MODEL") or os.getenv("TEXT_MODEL", "gpt-5-mini")
+    VISION_MODEL = os.getenv("OPENAI_VISION_MODEL") or os.getenv("VISION_MODEL", "gpt-4o-mini")
 
     # --- API Keys ---
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -50,6 +50,9 @@ class Config:
     # --- Australia Forms ---
     AUSTRALIA_FORMS_OUTPUT_DIR = os.path.join("australia_forms", "output")
     AUSTRALIA_FORMS_TEMPLATE_DIR = os.path.join("australia_forms", "templates")
+
+    # --- Letter Generation V3 ---
+    LETTER_GEN_OUTPUT_DIR = os.path.join("letter_gen", "output")
 
     # --- Gemini (fallback AI) ---
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

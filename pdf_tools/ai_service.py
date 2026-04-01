@@ -196,7 +196,7 @@ async def call_openai(model_name: str, prompt: str, images_base64: List[str]) ->
         "messages": [{"role": "user", "content": content}],
     }
     
-    if "gpt-5" in model_name or "gpt-4.1" in model_name:
+    if "gpt-5" in model_name:
         api_params["max_completion_tokens"] = 1500
     else:
         api_params["max_tokens"] = 1500

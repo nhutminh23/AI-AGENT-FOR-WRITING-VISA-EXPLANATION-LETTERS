@@ -1,5 +1,4 @@
 
-
 function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -18,6 +17,8 @@ function setActiveTab(tab) {
 
   if (tab === "letter") {
     letterSection.classList.remove("hidden");
+    // Init V3 letter gen UI
+    if (typeof initLetterGen === 'function') initLetterGen();
   } else if (tab === "itinerary") {
     itinerarySection.classList.remove("hidden");
     loadLatestItinerary();
@@ -52,12 +53,6 @@ function setActiveTab(tab) {
     initEditPdfUI();
   } else if (tab === "insurance") {
     if (insSection) insSection.classList.remove("hidden");
-  }
-}
-
-async function runAll() {
-  for (const step of LETTER_STEP_ORDER) {
-    await runStep(step, true);
   }
 }
 

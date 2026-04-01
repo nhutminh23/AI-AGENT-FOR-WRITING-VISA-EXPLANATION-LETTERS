@@ -62,7 +62,8 @@ if not exist .env (
         copy .env.example .env >nul
     ) else (
         echo OPENAI_API_KEY=YOUR_KEY_HERE>.env
-        echo OPENAI_MODEL=gpt-4o-mini>>.env
+        echo OPENAI_MODEL=gpt-5-mini>>.env
+        echo OPENAI_VISION_MODEL=gpt-4o-mini>>.env
     )
     echo.
     echo ⚠️  FILE .env CHUA CO API KEY!

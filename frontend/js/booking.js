@@ -270,7 +270,7 @@ function getTripInfoFromForm() {
 }
 
 async function loadFilteredFiles() {
-  const inputDir = inputDirEl.value.trim() || "input";
+  const inputDir = (inputDirEl?.value || "").trim() || "input";
   const tableEl = document.getElementById("filteredFilesTable");
   const statusEl = document.getElementById("filteredFilesStatus");
   if (!tableEl) return;
@@ -321,7 +321,7 @@ async function loadFilteredFiles() {
 }
 
 async function extractTripInfo() {
-  const inputDir = inputDirEl.value.trim() || "input";
+  const inputDir = (inputDirEl?.value || "").trim() || "input";
   const originalBtnText = extractTripBtn.textContent;
   extractTripBtn.textContent = "⏳ Đang trích xuất...";
   extractTripBtn.disabled = true;
@@ -496,7 +496,7 @@ async function loadLatestTripInfo() {
 }
 
 async function runAIBooking(target = "both") {
-  const inputDir = inputDirEl.value.trim() || "input";
+  const inputDir = (inputDirEl?.value || "").trim() || "input";
   const outputDir = bookingOutputAIEl.value.trim() || "output";
   const isHotelTarget = target === "hotel";
   const isFlightTarget = target === "flight";

@@ -3,6 +3,9 @@
 
 // ==================== PIPELINE CONNECTION FUNCTIONS ====================
 
+// V1 runAll removed — stub to prevent ReferenceError
+async function runAll() { console.warn("runAll (V1) removed in V3 refactor"); }
+
 
 async function sendToInput() {
   const btn = document.getElementById("sendToInputBtn");
@@ -104,6 +107,7 @@ function resetDownstreamLogs(step) {
 }
 
 function renderSteps(steps) {
+  if (!stepsListEl) return;
   const stepOrder = LETTER_STEP_ORDER;
   const statusMap = {};
   (steps || []).forEach((s) => {
@@ -157,6 +161,7 @@ function renderSteps(steps) {
 }
 
 async function loadSteps() {
+  if (!outputPathEl || !stepsListEl) return;
   const outputPath = outputPathEl.value.trim() || "output/letter.txt";
   stepsListEl.textContent = "Đang tải...";
   const res = await fetch(`/api/steps?output=${encodeURIComponent(outputPath)}`);
@@ -167,6 +172,7 @@ async function loadSteps() {
 }
 
 async function fetchSummary() {
+  if (!outputPathEl || !summaryEl) return;
   const outputPath = outputPathEl.value.trim() || "output/letter.txt";
   const res = await fetch(`/api/summary?output=${encodeURIComponent(outputPath)}`);
   const data = await res.json();
@@ -174,6 +180,7 @@ async function fetchSummary() {
 }
 
 async function fetchWriterContext() {
+  if (!outputPathEl) return;
   const outputPath = outputPathEl.value.trim() || "output/letter.txt";
   const res = await fetch(
     `/api/writer_context?output=${encodeURIComponent(outputPath)}`
@@ -183,6 +190,7 @@ async function fetchWriterContext() {
 }
 
 async function runIngestStream(force = false) {
+  if (!inputDirEl || !outputPathEl) return;
   const inputDir = inputDirEl.value.trim() || "input";
   const outputPath = outputPathEl.value.trim() || "output/letter.txt";
   setStepLog("ingest", "");
@@ -217,6 +225,7 @@ async function runIngestStream(force = false) {
 }
 
 async function runStep(step, force = false) {
+  if (!inputDirEl || !outputPathEl) return;
   const inputDir = inputDirEl.value.trim() || "input";
   const outputPath = outputPathEl.value.trim() || "output/letter.txt";
   if (step === "ingest") {
@@ -631,3 +640,4 @@ function escapeHtml(text) {
     .replace(/'/g, "&#39;");
 }
 
+// V1/V2 letter functions removed — replaced by letter-gen.js (V3)

@@ -1,10 +1,18 @@
+// V3 Letter Gen DOM refs are in js/letter-gen.js
+// Legacy V1/V2 DOM refs — elements removed from HTML but still referenced by
+// pipeline.js, projects.js, booking.js, translation.js. Will be null.
 const fileListEl = document.getElementById("fileList");
 const resultEl = document.getElementById("result");
 const summaryEl = document.getElementById("summary");
-const summaryItineraryEl = document.getElementById("summaryItinerary");
 const stepsListEl = document.getElementById("stepsList");
 const inputDirEl = document.getElementById("inputDir");
 const outputPathEl = document.getElementById("outputPath");
+const refreshBtn = document.getElementById("refreshBtn");
+const loadStepsBtn = document.getElementById("loadStepsBtn");
+const runAllBtn = document.getElementById("runAllBtn");
+let cachedFiles = [];
+
+const summaryItineraryEl = document.getElementById("summaryItinerary");
 const itineraryOutputEl = document.getElementById("itineraryOutput");
 const itParticipantsEl = document.getElementById("itParticipants");
 const itAdditionalInfoEl = document.getElementById("itAdditionalInfo");
@@ -12,9 +20,6 @@ const itTravelPurposeEl = document.getElementById("itTravelPurpose");
 const itTravelStartDateEl = document.getElementById("itTravelStartDate");
 const itTravelEndDateEl = document.getElementById("itTravelEndDate");
 const saveItineraryContextBtn = document.getElementById("saveItineraryContextBtn");
-const refreshBtn = document.getElementById("refreshBtn");
-const loadStepsBtn = document.getElementById("loadStepsBtn");
-const runAllBtn = document.getElementById("runAllBtn");
 const runItineraryBtn = document.getElementById("runItineraryBtn");
 const exportItineraryPdfBtn = document.getElementById("exportItineraryPdfBtn");
 const flightFileInputEl = document.getElementById("flightFileInput");
@@ -22,6 +27,7 @@ const hotelFileInputEl = document.getElementById("hotelFileInput");
 const flightFilePreviewEl = document.getElementById("flightFilePreview");
 const hotelFilePreviewEl = document.getElementById("hotelFilePreview");
 const itineraryResultEl = document.getElementById("itineraryResult");
+
 const bookingSourceDbEl = document.getElementById("bookingSourceDb");
 const bookingSourceFileEl = document.getElementById("bookingSourceFile");
 const bookingSourcePdfEl = document.getElementById("bookingSourcePdf");
@@ -343,10 +349,7 @@ const bulkCreateStreamsBtn = document.getElementById("bulkCreateStreamsBtn");
 const bulkTranslateAllBtn = document.getElementById("bulkTranslateAllBtn");
 const bulkManualFallbackEl = document.getElementById("bulkManualFallback");
 
-let cachedFiles = [];
 let hotelHtmls = [];
-let writerContextCache = "";
-let activeStepLog = null;
 let classifierFilesCache = [];
 let pdfFilesCache = [];
 let currentProjectId = null;
@@ -358,4 +361,5 @@ let translationFlowCounter = 0;
 // ==================== MODULES LOADED FROM js/ ====================
 // projects.js, splitter.js, pipeline.js, booking.js,
 // flights.js, hotels.js, precheck.js, ui-helpers.js,
-// events.js, output.js, pdf-editor.js
+// letter-gen.js, events.js, output.js, pdf-editor.js
+

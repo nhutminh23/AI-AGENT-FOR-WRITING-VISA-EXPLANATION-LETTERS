@@ -562,50 +562,108 @@
       </div>
 
       <div id="letterSection" class="section hidden">
-        <section class="card">
-          <details class="collapsible" open>
-            <summary>Thư mục input</summary>
-            <div class="row">
-              <div>
-                <label for="inputDir">Đường dẫn</label>
-                <input id="inputDir" type="text" value="booking/input" />
-              </div>
-              <button id="refreshBtn">Tải danh sách file</button>
-            </div>
 
-            <div id="fileList" class="file-list empty">
-              Chưa có dữ liệu. Bấm "Tải danh sách file".
-            </div>
-          </details>
-        </section>
-
-        <section class="card">
-          <div class="row">
-            <div>
-              <label for="outputPath">File output</label>
-              <input id="outputPath" type="text" value="output/letter.txt" />
-            </div>
-            <button id="loadStepsBtn">Tải trạng thái</button>
-            <button id="runAllBtn">Chạy tất cả</button>
+        <!-- Steps Bar -->
+        <div class="letter-steps-bar" style="display:flex; gap:0; margin-bottom:20px; background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155;">
+          <div class="letter-step active" data-letter-step="1" style="flex:1; padding:12px 16px; text-align:center; cursor:pointer; transition:all 0.3s; background:#4f46e5; color:#fff;">
+            <span style="font-weight:700;">①</span> Copy Prompt
           </div>
-        </section>
+          <div class="letter-step" data-letter-step="2" style="flex:1; padding:12px 16px; text-align:center; cursor:pointer; transition:all 0.3s; color:#94a3b8;">
+            <span style="font-weight:700;">②</span> Paste JSON
+          </div>
+          <div class="letter-step" data-letter-step="3" style="flex:1; padding:12px 16px; text-align:center; cursor:pointer; transition:all 0.3s; color:#94a3b8;">
+            <span style="font-weight:700;">③</span> AI Sinh Thư
+          </div>
+          <div class="letter-step" data-letter-step="4" style="flex:1; padding:12px 16px; text-align:center; cursor:pointer; transition:all 0.3s; color:#94a3b8;">
+            <span style="font-weight:700;">④</span> Download
+          </div>
+        </div>
 
-        <section class="card">
-          <h2>Các bước xử lý</h2>
-          <div id="stepsList" class="steps-list">Chưa tải trạng thái.</div>
-        </section>
+        <!-- Step 1: Copy Prompt -->
+        <div id="letterGenStep1" class="letter-gen-step">
+          <section class="card">
+            <h2>📋 Copy Prompt cho Grok</h2>
+            <div class="hint">
+              Copy prompt bên dưới → Paste vào Grok cùng với TẤT CẢ tài liệu hồ sơ (passport, sao kê ngân hàng, giấy tờ tài sản, thư từ chối nếu có...) → Grok trả về JSON.
+            </div>
+            <div id="letterGenPromptDisplay" style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:16px; margin-top:12px; max-height:400px; overflow-y:auto; font-family:monospace; font-size:0.85em; white-space:pre-wrap; color:#e2e8f0;">
+              Đang tải prompt...
+            </div>
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="letterGenCopyPromptBtn" style="background:#4f46e5; padding:10px 24px; font-size:14px;">📋 Copy Prompt</button>
+              <button id="letterGenGoStep2Btn" style="background:#64748b; padding:10px 20px; font-size:14px;">Đã có JSON → Tiếp ➡️</button>
+            </div>
+            <div id="letterGenCopyStatus" style="margin-top:8px; font-size:0.9em;"></div>
+          </section>
+        </div>
 
-        <section class="card">
-          <h2>Tổng hợp thông tin</h2>
-          <pre id="summary" class="summary">Chưa có dữ liệu.</pre>
-        </section>
+        <!-- Step 2: Paste JSON -->
+        <div id="letterGenStep2" class="letter-gen-step" style="display:none;">
+          <section class="card">
+            <h2>📥 Paste JSON từ Grok</h2>
+            <div class="hint">
+              Paste JSON mà Grok trả về vào ô bên dưới. Hỗ trợ cả JSON thuần và JSON trong <code>```json</code> code block.
+            </div>
+            <textarea id="letterGenJsonInput" rows="20" style="width:100%; font-family:monospace; font-size:0.85em; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:8px; padding:12px;" placeholder='Paste JSON từ Grok vào đây...
 
-        <section class="card">
-          <h2>Kết quả thư giải trình</h2>
-          <pre id="result" class="result">Chưa chạy.</pre>
-        </section>
+{
+  "applicant": {
+    "full_name": "NGUYEN VAN A",
+    "dob": "15 March 1990",
+    ...
+  },
+  "trip": { ... },
+  "financial": { ... },
+  "refusal_history": null
+}'></textarea>
+            <div style="margin-top:10px;">
+              <label for="letterGenAdditionalContext" style="font-weight:600;">Thông tin bổ sung (tùy chọn)</label>
+              <textarea id="letterGenAdditionalContext" rows="3" placeholder="VD: Nhấn mạnh tự túc tài chính, không ở lại nhà người thân qua đêm..." style="width:100%; margin-top:4px;"></textarea>
+            </div>
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="letterGenApplyJsonBtn" style="background:#16a34a; padding:10px 24px; font-size:14px;">🚀 Tạo Thư Giải Trình</button>
+              <button id="letterGenBackStep1Btn" style="background:#64748b; padding:10px 20px; font-size:14px;">← Quay lại</button>
+            </div>
+            <div id="letterGenJsonStatus" style="margin-top:8px; font-size:0.9em;"></div>
+          </section>
+        </div>
+
+        <!-- Step 3: AI Generate + Review -->
+        <div id="letterGenStep3" class="letter-gen-step" style="display:none;">
+          <section class="card">
+            <h2>✍️ Kết quả thư giải trình</h2>
+            <div id="letterGenResultInfo" class="hint" style="margin-bottom:10px;"></div>
+
+            <!-- Letter tabs (visible when 2 letters) -->
+            <div id="letterGenTabs" style="display:none; margin-bottom:12px;">
+              <button id="letterGenTabMain" class="letter-tab-btn active" style="padding:8px 16px; background:#4f46e5; color:#fff; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:600;">📄 Thư Giải Trình</button>
+              <button id="letterGenTabRefusal" class="letter-tab-btn" style="padding:8px 16px; background:#334155; color:#94a3b8; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:600;">📄 Giải Thích Từ Chối</button>
+            </div>
+
+            <!-- Main letter textarea -->
+            <div id="letterGenMainPanel">
+              <label style="font-weight:600; display:block; margin-bottom:4px;">Explanation Letter</label>
+              <textarea id="letterGenMainText" rows="25" style="width:100%; font-family:'Times New Roman', serif; font-size:0.95em; line-height:1.6; padding:16px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#e2e8f0;"></textarea>
+            </div>
+
+            <!-- Refusal letter textarea (hidden by default) -->
+            <div id="letterGenRefusalPanel" style="display:none;">
+              <label style="font-weight:600; display:block; margin-bottom:4px;">Explanation of Previous Visa Refusals</label>
+              <textarea id="letterGenRefusalText" rows="20" style="width:100%; font-family:'Times New Roman', serif; font-size:0.95em; line-height:1.6; padding:16px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#e2e8f0;"></textarea>
+            </div>
+
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="letterGenDownloadMainBtn" style="background:#16a34a; padding:10px 24px; font-size:14px;">📥 Tải DOCX — Thư Giải Trình</button>
+              <button id="letterGenDownloadRefusalBtn" style="background:#0ea5e9; padding:10px 20px; font-size:14px; display:none;">📥 Tải DOCX — Thư Từ Chối</button>
+              <button id="letterGenBackStep2Btn" style="background:#64748b; padding:10px 20px; font-size:14px;">← Sửa JSON</button>
+              <button id="letterGenStartOverBtn" style="background:#dc2626; padding:10px 20px; font-size:14px;">🔄 Làm lại</button>
+            </div>
+            <div id="letterGenDownloadStatus" style="margin-top:8px; font-size:0.9em;"></div>
+          </section>
+        </div>
 
       </div>
+
 
       <div id="outputsSection" class="section hidden">
         <section class="card">
@@ -1179,6 +1237,7 @@ Ví dụ:
     <script src="js/output.js"></script>
     <script src="js/pdf-editor.js"></script>
     <script src="js/insurance.js"></script>
+    <script src="js/letter-gen.js"></script>
     <script src="js/events.js"></script>
   </body>
 </html>

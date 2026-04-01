@@ -35,13 +35,14 @@ Mở trình duyệt: **http://127.0.0.1:8000**
 | Biến                  | Mô tả                                           | Bắt buộc |
 | --------------------- | ------------------------------------------------ | -------- |
 | `OPENAI_API_KEY`      | API key OpenAI                                   | ✅       |
-| `TEXT_MODEL`          | Model text reasoning (mặc định: `gpt-5-mini`)    | ❌       |
-| `VISION_MODEL`       | Model vision/OCR (mặc định: `gpt-4o-mini`)       | ❌       |
+| `OPENAI_MODEL`        | Model text reasoning (mặc định: `gpt-5-mini`)    | ❌       |
+| `OPENAI_VISION_MODEL` | Model vision/OCR (mặc định: `gpt-4o-mini`)       | ❌       |
 | `GEMINI_API_KEY`      | API key Google Gemini (fallback khi OpenAI hết quota) | ❌   |
 | `GEMINI_MODEL`        | Model Gemini (mặc định: `gemini-1.5-flash`)      | ❌       |
 | `SERPAPI_KEY`         | API key SerpAPI cho tìm chuyến bay               | ❌       |
 
-> **Lưu ý:** Tất cả config được quản lý tập trung qua `config.py` → class `Config`. Không cần gọi `os.getenv()` trực tiếp trong code.
+> **Lưu ý:** `TEXT_MODEL` và `VISION_MODEL` vẫn được hỗ trợ như alias tương thích ngược, nhưng nên ưu tiên `OPENAI_MODEL` và `OPENAI_VISION_MODEL`.
+> Tất cả config được quản lý tập trung qua `config.py` → class `Config`. Không cần gọi `os.getenv()` trực tiếp trong code.
 
 ---
 

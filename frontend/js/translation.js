@@ -5,7 +5,7 @@ async function loadTranslationTemplates() {
 }
 
 async function loadTranslationSourceFiles() {
-  const inputDir = inputDirEl.value.trim() || "input";
+  const inputDir = (inputDirEl?.value || "").trim() || "input";
   const res = await fetch(`/api/files?input_dir=${encodeURIComponent(inputDir)}`);
   const data = await res.json();
   translationSourceFilesCache = data.files || [];
@@ -611,7 +611,7 @@ async function runTranslateFlow(flowId) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        input_dir: inputDirEl.value.trim() || "input",
+        input_dir: (inputDirEl?.value || "").trim() || "input",
         file_ref: inputFile,
         template_name: templateName,
         flow_id: flowId,
