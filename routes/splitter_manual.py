@@ -43,7 +43,7 @@ def manual_split_upload_and_split():
     try:
         segments = json.loads(segments_json)
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", e)
         return jsonify({"error": "invalid_segments"}), 400
     if not isinstance(segments, list) or not segments:
         return jsonify({"error": "missing_segments"}), 400
@@ -61,7 +61,7 @@ def manual_split_upload_and_split():
     try:
         reader = PdfReader(tmp_path)
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", exc)
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return jsonify({"error": "read_pdf_failed", "detail": str(exc)}), 500
 
@@ -90,7 +90,7 @@ def manual_split_upload_and_split():
             s = int(seg.get("start_page"))
             e = int(seg.get("end_page"))
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         if s < 1 or e < 1 or s > total_pages or e > total_pages:
@@ -105,7 +105,7 @@ def manual_split_upload_and_split():
             with open(out_path, "wb") as f:
                 writer.write(f)
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         created.append(
@@ -189,7 +189,7 @@ def manual_split_get_page_count():
     try:
         count = get_page_count(str(file_path))
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", exc)
         return jsonify({"error": "read_failed", "detail": str(exc)}), 500
     return jsonify({"page_count": count, "filename": filename, "file_id": file_id})
 
@@ -213,7 +213,7 @@ def manual_split_upload_get_page_count():
     try:
         count = get_page_count(str(file_path))
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in splitter_manual.py: %s", exc)
         shutil.rmtree(str(temp_dir), ignore_errors=True)
         return jsonify({"error": "read_failed", "detail": str(exc)}), 500
 

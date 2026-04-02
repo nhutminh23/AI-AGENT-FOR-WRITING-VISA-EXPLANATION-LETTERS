@@ -204,7 +204,7 @@ def scan_splitter_split():
             _scan_split_progress["running"] = False
 
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
             _scan_split_progress["error"] = str(e)
             _scan_split_progress["running"] = False
 
@@ -379,7 +379,7 @@ def scan_splitter_auto_name():
             doc.close()
             file_images.append({"filename": fname, "b64": b64})
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
             file_images.append({"filename": fname, "b64": None, "error": str(e)})
 
     llm = _get_or_create_llm()
@@ -429,5 +429,5 @@ def scan_splitter_auto_name():
         suggestions = _json.loads(text)
         return jsonify({"suggestions": suggestions})
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_scan.py: %s", e)
         return jsonify({"error": f"AI naming failed: {str(e)}"}), 500

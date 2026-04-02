@@ -169,7 +169,7 @@ def _upsert_file_record(project_id: int, file_info: dict) -> None:
             files_data=[file_info],
         )
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
         logging.debug("_upsert_file_record ignored: %s", e)
 
 @pipeline_bp.post("/api/pipeline/send-to-splitter")
@@ -224,7 +224,7 @@ def pipeline_send_to_splitter():
             with open(mapping_file, "r", encoding="utf-8") as mf:
                 existing_mapping = json.load(mf)
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
             logging.debug("Ignored: %s", e)
     for src, stored in zip(file_paths, copied):
         existing_mapping[stored] = src
@@ -272,7 +272,7 @@ def splitter_save_to_source():
             shutil.copy2(src, dst)
             saved.append(os.path.basename(dst))
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
             errors.append({"file": fname, "error": str(e)})
 
     # Delete the original file if at least 1 split file was saved
@@ -282,7 +282,7 @@ def splitter_save_to_source():
             os.remove(original_path)
             deleted_original = True
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
             logging.debug("Ignored: %s", e)
 
     return jsonify({
@@ -306,7 +306,7 @@ def splitter_source_mapping():
             with open(mapping_file, "r", encoding="utf-8") as mf:
                 return jsonify(json.load(mf))
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
             logging.debug("Ignored: %s", e)
     return jsonify({})
 
@@ -456,7 +456,7 @@ Example: {{"cert_pages": [2, 5, 8]}} or {{"cert_pages": []}} if none."""}
         parsed = _json.loads(text)
         return parsed.get("cert_pages", [])
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
         print(f"[SCAN-SPLITTER] ❌ Vision batch error: {e}")
         return []
 
@@ -483,7 +483,7 @@ def splitter_save_to_input():
             with open(mapping_file, "r", encoding="utf-8") as mf:
                 source_mapping = json.load(mf)
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
             logging.debug("Ignored: %s", e)
 
     copied = []
@@ -505,7 +505,7 @@ def splitter_save_to_input():
                 source_path = meta.get("source_path", "")
                 source_filename = meta.get("source_filename", "")
             except Exception as e:
-                import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+                logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
                 logging.debug("Ignored: %s", e)
 
         # If no source_path in _source.json, try the mapping
@@ -553,7 +553,7 @@ def splitter_save_to_input():
                 os.remove(source_path)
                 originals_deleted.append(os.path.basename(source_path))
             except Exception as e:
-                import logging; logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
+                logging.exception("[Safe Log] Unhandled exception in pipeline.py: %s", e)
                 logging.debug("Ignored: %s", e)
 
     return jsonify({

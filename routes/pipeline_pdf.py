@@ -57,7 +57,7 @@ def merge_pdf_upload():
         try:
             reader = PdfReader(f.stream)
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         for page in reader.pages:
@@ -74,7 +74,7 @@ def merge_pdf_upload():
         with open(out_path, "wb") as fp:
             writer.write(fp)
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": "write_failed", "detail": str(exc)}), 500
 
     # Save to database
@@ -201,7 +201,7 @@ def merge_pdf():
         try:
             reader = PdfReader(src_path)
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
             logging.debug("Skipped: %s", e)
             continue
         for page in reader.pages:
@@ -218,7 +218,7 @@ def merge_pdf():
         with open(out_path, "wb") as f:
             writer.write(f)
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": "write_failed", "detail": str(exc)}), 500
 
     return jsonify(
@@ -285,7 +285,7 @@ def rename_pdf():
     try:
         os.rename(src_path, dest_path)
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": "rename_failed", "detail": str(exc)}), 500
 
     return jsonify(
@@ -326,7 +326,7 @@ def pdf_rename_suggest_name():
     try:
         result = llm.invoke([system, human])
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         if _is_quota_error(exc):
             return jsonify({"error": "quota_exceeded", "detail": "⚠️ Đã hết quota OpenAI API! Vui lòng kiểm tra billing."}), 429
         return jsonify({"error": "llm_error", "detail": str(exc)}), 500
@@ -393,7 +393,7 @@ def extract_pdf_objects():
         doc.close()
         return jsonify({"pages": pages})
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 
@@ -473,7 +473,7 @@ def edit_pdf():
     try:
         replacements = _json.loads(raw_replacements)
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", e)
         return jsonify({"error": "invalid_replacements_json"}), 400
 
     if not replacements or not isinstance(replacements, list):
@@ -594,7 +594,7 @@ def edit_pdf():
             download_name=f.filename.replace(".pdf", "_edited.pdf"),
         )
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in pipeline_pdf.py: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 

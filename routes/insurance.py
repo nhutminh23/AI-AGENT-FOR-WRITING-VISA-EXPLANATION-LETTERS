@@ -4,6 +4,7 @@ Extract text data from insurance PDFs, allow AI-assisted editing,
 and produce corrected PDFs with exact font/position matching.
 """
 from __future__ import annotations
+import logging
 
 import json
 import os
@@ -126,7 +127,7 @@ def insurance_extract():
         })
 
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in insurance.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in insurance.py: %s", e)
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
@@ -210,7 +211,7 @@ def insurance_apply():
         })
 
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in insurance.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in insurance.py: %s", e)
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 

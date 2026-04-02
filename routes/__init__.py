@@ -3,6 +3,7 @@ Blueprint registration.
 Import and register all route blueprints here.
 """
 from __future__ import annotations
+import logging
 
 from flask import Flask
 

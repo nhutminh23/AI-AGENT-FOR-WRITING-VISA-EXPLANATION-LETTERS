@@ -2,6 +2,7 @@
 SerpAPI-based booking routes: flights search, hotels search, ticket generation.
 """
 from __future__ import annotations
+import logging
 
 import json
 import os
@@ -83,7 +84,7 @@ def search_flights():
         search = GoogleSearch(params)
         results = search.get_dict()
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
         return jsonify({"error": f"SerpAPI error: {str(e)}"}), 500
 
     best = results.get("best_flights", [])
@@ -184,7 +185,7 @@ def search_hotels_itinerary():
                 "properties": properties[:10],  # Top 10 results per city
             }
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
             print(f"[HOTEL-SEARCH] ❌ {stop_info['city']}: {e}")
             return {
                 "city": stop_info["city"],
@@ -232,7 +233,7 @@ def generate_hotel_booking_from_serp():
         result = build_hotel_booking_htmls_from_serp(payload, _BASE_DIR, api_key)
         return jsonify(result)
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
@@ -252,7 +253,7 @@ def _serp_dt_parts(dt_str: str) -> tuple[str, str]:
         yyyy, mm, dd = ymd.split("-")
         return f"{dd}/{mm}/{yyyy}", hm
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
         return "", hm
 
 
@@ -260,7 +261,7 @@ def _serp_minutes_to_duration(minutes: Any) -> str:
     try:
         total = int(minutes or 0)
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in booking_serpapi.py: %s", e)
         total = 0
     h = total // 60
     m = total % 60

@@ -2,6 +2,7 @@
 Booking routes: generate bookings, AI booking, trip info extraction.
 """
 from __future__ import annotations
+import logging
 
 import json
 import os
@@ -271,7 +272,7 @@ def extract_trip():
     try:
         trip_info = extract_trip_info(llm, input_dir, guest_names=saved_guest_names)
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
         return jsonify({"error": str(e)}), 500
 
     if not isinstance(trip_info, dict):
@@ -427,7 +428,7 @@ def ai_generate_booking():
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
             return jsonify({"error": f"Lỗi AI: {str(e)}"}), 500
 
         # Cache booking data for next time
@@ -489,7 +490,7 @@ def ai_generate_booking():
             "flight_path": result["flight_path"],
         })
     except Exception as e:
-        import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
+        logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
         return jsonify({"error": "Lỗi khi tạo HTML: " + str(e), "traceback": traceback.format_exc()}), 500
 
 
@@ -608,7 +609,7 @@ def ai_generate_booking_stream():
                     json.dump(booking_data, f, ensure_ascii=False, indent=2)
 
             except Exception as e:
-                import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
+                logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
                 yield from send_event(-1, f"❌ Lỗi AI: {str(e)}")
                 return
 
@@ -673,7 +674,7 @@ def ai_generate_booking_stream():
             yield from send_event(4, "✅ Hoàn tất!", final)
 
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in booking.py: %s", e)
             yield from send_event(-1, f"❌ Lỗi tạo HTML: {str(e)}")
 
     return Response(generate(), mimetype="text/event-stream", headers={

@@ -430,7 +430,7 @@ def run_itinerary_stream():
             yield from send_event(5, "✅ Hoàn tất!", {"itinerary": itinerary, "output_path": output_path})
 
         except Exception as e:
-            import logging; logging.exception("[Safe Log] Unhandled exception in pipeline_itinerary.py: %s", e)
+            logging.exception("[Safe Log] Unhandled exception in pipeline_itinerary.py: %s", e)
             yield from send_event(-1, f"❌ Lỗi: {str(e)}")
 
     return Response(generate(), mimetype="text/event-stream", headers={

@@ -75,7 +75,7 @@ def letter_gen_generate():
         result = generate_letters(profile, additional_context)
         return jsonify(result)
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in letter_gen.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in letter_gen.py: %s", exc)
         logger.exception("Letter generation failed")
         return jsonify({"error": f"Generation failed: {str(exc)}"}), 500
 
@@ -117,7 +117,7 @@ def letter_gen_build_docx():
             mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
     except Exception as exc:
-        import logging; logging.exception("[Safe Log] Unhandled exception in letter_gen.py: %s", exc)
+        logging.exception("[Safe Log] Unhandled exception in letter_gen.py: %s", exc)
         logger.exception("DOCX build failed")
         return jsonify({"error": f"DOCX build failed: {str(exc)}"}), 500
 
