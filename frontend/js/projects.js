@@ -252,9 +252,10 @@ const DEFAULT_TRIP_INFO = {
 };
 
 function renderFiles(files) {
+  if (!fileListEl) return;
   if (!files || files.length === 0) {
     fileListEl.classList.add("empty");
-    fileListEl.textContent = "Không có file nào trong thư mục input.";
+    if (fileListEl) fileListEl.textContent = "Không có file nào trong thư mục input.";
     return;
   }
 
@@ -275,8 +276,8 @@ function renderFiles(files) {
 }
 
 async function fetchFiles() {
-  const inputDir = inputDirEl.value.trim() || "input";
-  fileListEl.textContent = "Đang tải...";
+  const inputDir = inputDirEl ? inputDirEl.value.trim() : "input";
+  if (fileListEl) fileListEl.textContent = "Đang tải...";
   const res = await fetch(`/api/files?input_dir=${encodeURIComponent(inputDir)}`);
   const data = await res.json();
   renderFiles(data.files || []);

@@ -152,13 +152,13 @@ function renderSteps(steps) {
       `;
     })
     .join("");
-  stepsListEl.innerHTML = rows;
+  if (stepsListEl) stepsListEl.innerHTML = rows;
   setWriterContextValue(writerContextCache);
 }
 
 async function loadSteps() {
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
-  stepsListEl.textContent = "Đang tải...";
+  const outputPath = outputPathEl ? outputPathEl.value.trim() : "output/letter.txt";
+  if (stepsListEl) stepsListEl.textContent = "Đang tải...";
   const res = await fetch(`/api/steps?output=${encodeURIComponent(outputPath)}`);
   const data = await res.json();
   renderSteps(data.steps || []);
@@ -167,14 +167,14 @@ async function loadSteps() {
 }
 
 async function fetchSummary() {
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
+  const outputPath = outputPathEl ? outputPathEl.value.trim() : "output/letter.txt";
   const res = await fetch(`/api/summary?output=${encodeURIComponent(outputPath)}`);
   const data = await res.json();
-  summaryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
+  if (summaryEl) summaryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
 }
 
 async function fetchWriterContext() {
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
+  const outputPath = outputPathEl ? outputPathEl.value.trim() : "output/letter.txt";
   const res = await fetch(
     `/api/writer_context?output=${encodeURIComponent(outputPath)}`
   );
@@ -183,8 +183,8 @@ async function fetchWriterContext() {
 }
 
 async function runIngestStream(force = false) {
-  const inputDir = inputDirEl.value.trim() || "input";
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
+  const inputDir = inputDirEl ? inputDirEl.value.trim() : "input";
+  const outputPath = outputPathEl ? outputPathEl.value.trim() : "output/letter.txt";
   setStepLog("ingest", "");
   if (force) resetDownstreamLogs("ingest");
   showStepLog("ingest", true);
@@ -217,8 +217,8 @@ async function runIngestStream(force = false) {
 }
 
 async function runStep(step, force = false) {
-  const inputDir = inputDirEl.value.trim() || "input";
-  const outputPath = outputPathEl.value.trim() || "output/letter.txt";
+  const inputDir = inputDirEl ? inputDirEl.value.trim() : "input";
+  const outputPath = outputPathEl ? outputPathEl.value.trim() : "output/letter.txt";
   if (step === "ingest") {
     await runIngestStream(force);
     await loadSteps();
@@ -315,7 +315,7 @@ function buildItinerarySummaryFromForm(formData) {
 }
 
 async function runItinerary() {
-  const inputDir = inputDirEl.value.trim() || "input";
+  const inputDir = inputDirEl ? inputDirEl.value.trim() : "input";
   const outputPath = itineraryOutputEl.value.trim() || "output/itinerary.html";
   const formData = collectItineraryFormData();
   const summaryProfile = buildItinerarySummaryFromForm(formData);
@@ -749,7 +749,7 @@ async function generateLetterV2() {
       throw new Error(data.message || data.error || "Không tạo được thư V2");
     }
 
-    summaryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
+    if (summaryEl) summaryEl.textContent = data.summary_profile || "Chưa có dữ liệu.";
     resultEl.textContent = data.letter || "Không có kết quả.";
 
     letterV2StyleProfileCache = data.style_profile || styleProfile;
@@ -781,7 +781,7 @@ async function generateLetterV2() {
 async function loadLatestLetterV2() {
   if (!letterV2QualityReportEl || !letterV2StyleProfileEl) return;
   try {
-    const outputPath = outputPathEl.value.trim() || "output/letter_v2.txt";
+    const outputPath = outputPathEl ? outputPathEl.value.trim() : "output/letter_v2.txt";
     const res = await fetch(`/api/letter-v2/latest?output=${encodeURIComponent(outputPath)}`);
     const data = await res.json();
     if (!res.ok) return;

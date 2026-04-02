@@ -141,3 +141,133 @@ def australia_check_template():
         "form54_available": t54.exists(),
         "path": str(AU_TEMPLATE_DIR),
     })
+
+
+# ---------------------------------------------------------------------------
+# IMMI AutoFill Hub — Active Profile (Hub & Inject Architecture)
+# ---------------------------------------------------------------------------
+AU_ACTIVE_DIR = AU_OUTPUT_DIR / "immi_profiles"
+
+
+@australia_forms_bp.post("/australia/api/active-profile")
+def australia_set_active_profile():
+    """Save the active applicant JSON for the Chrome Extension to fetch.
+    
+    Accepts either:
+    - A single applicant object → saves as the active profile
+    - An array of applicants → saves each, sets first as active
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "No JSON body provided"}), 400
+
+    AU_ACTIVE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Normalize: always work with a list
+    applicants = data if isinstance(data, list) else [data]
+    saved = []
+
+    for i, applicant in enumerate(applicants):
+        name = applicant.get("applicant_name", f"applicant_{i+1}").strip()
+        safe_name = name.replace(" ", "_").lower()
+        profile_path = AU_ACTIVE_DIR / f"{safe_name}.json"
+        profile_path.write_text(json.dumps(applicant, ensure_ascii=False, indent=2), encoding="utf-8")
+        saved.append({"name": name, "file": profile_path.name})
+        logger.info("Saved IMMI profile: %s → %s", name, profile_path)
+
+    # Set the active applicant (first one or the single one)
+    active_path = AU_ACTIVE_DIR / "_active.json"
+    active_applicant = applicants[0]
+    active_path.write_text(json.dumps(active_applicant, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return jsonify({
+        "success": True,
+        "active": active_applicant.get("applicant_name", "Unknown"),
+        "total_saved": len(saved),
+        "profiles": saved,
+    })
+
+
+@australia_forms_bp.get("/australia/api/active-profile")
+def australia_get_active_profile():
+    """Return the active applicant JSON (used by Chrome Extension)."""
+    active_path = AU_ACTIVE_DIR / "_active.json"
+    if not active_path.exists():
+        return jsonify({"error": "No active profile set. Paste JSON in Tab Australia first."}), 404
+
+    try:
+        profile = json.loads(active_path.read_text(encoding="utf-8"))
+        return jsonify(profile)
+    except Exception as exc:
+        logger.exception("Failed to read active profile: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@australia_forms_bp.post("/australia/api/set-active/<name>")
+def australia_switch_active(name: str):
+    """Switch the active applicant by name."""
+    safe_name = secure_filename(name.replace(" ", "_").lower())
+    profile_path = AU_ACTIVE_DIR / f"{safe_name}.json"
+    if not profile_path.exists():
+        return jsonify({"error": f"Profile '{name}' not found"}), 404
+
+    active_path = AU_ACTIVE_DIR / "_active.json"
+    data = json.loads(profile_path.read_text(encoding="utf-8"))
+    active_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify({"success": True, "active": data.get("applicant_name", name)})
+
+
+@australia_forms_bp.get("/australia/api/profiles")
+def australia_list_profiles():
+    """List all saved applicant profiles."""
+    if not AU_ACTIVE_DIR.exists():
+        return jsonify({"profiles": []})
+
+    profiles = []
+    active_name = None
+    active_path = AU_ACTIVE_DIR / "_active.json"
+    if active_path.exists():
+        try:
+            active_data = json.loads(active_path.read_text(encoding="utf-8"))
+            active_name = active_data.get("applicant_name")
+        except Exception:
+            pass
+
+    for f in sorted(AU_ACTIVE_DIR.glob("*.json")):
+        if f.name.startswith("_"):
+            continue
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            name = d.get("applicant_name", f.stem)
+            profiles.append({
+                "name": name,
+                "file": f.name,
+                "is_active": name == active_name,
+            })
+        except Exception:
+            continue
+
+    return jsonify({"profiles": profiles, "active": active_name})
+
+
+# ---------------------------------------------------------------------------
+# IMMI AutoFill Hub — Grok Prompt
+# ---------------------------------------------------------------------------
+@australia_forms_bp.get("/australia/api/grok-prompt-immi")
+def australia_grok_prompt_immi():
+    """Return the Grok prompt template for IMMI online form extraction."""
+    prompt_path = AU_BASE_DIR / "grok_prompt_immi.md"
+    if not prompt_path.exists():
+        return jsonify({"error": "Prompt file not found"}), 404
+
+    content = prompt_path.read_text(encoding="utf-8")
+
+    # Extract just the PROMPT section
+    marker = "## PROMPT (Copy từ đây)"
+    idx = content.find(marker)
+    if idx != -1:
+        prompt_text = content[idx + len(marker):].strip()
+    else:
+        prompt_text = content
+
+    return jsonify({"prompt": prompt_text})

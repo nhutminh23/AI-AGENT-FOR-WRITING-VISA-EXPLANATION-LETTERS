@@ -3,21 +3,21 @@
 
 // ==================== EVENT LISTENERS ====================
 
-refreshBtn.addEventListener("click", fetchFiles);
-loadStepsBtn.addEventListener("click", loadSteps);
-runItineraryBtn.addEventListener("click", runItinerary);
-runAllBtn.addEventListener("click", runAll);
-saveItineraryContextBtn.addEventListener("click", saveItineraryContext);
-runBookingBtn.addEventListener("click", runBookingGeneration);
-extractTripBtn.addEventListener("click", extractTripInfo);
-saveTripInfoBtn.addEventListener("click", saveTripInfo);
+if (refreshBtn) refreshBtn.addEventListener("click", fetchFiles);
+if (loadStepsBtn) loadStepsBtn.addEventListener("click", loadSteps);
+if (runItineraryBtn) runItineraryBtn.addEventListener("click", runItinerary);
+if (runAllBtn) runAllBtn.addEventListener("click", runAll);
+if (saveItineraryContextBtn) saveItineraryContextBtn.addEventListener("click", saveItineraryContext);
+if (runBookingBtn) runBookingBtn.addEventListener("click", runBookingGeneration);
+if (extractTripBtn) extractTripBtn.addEventListener("click", extractTripInfo);
+if (saveTripInfoBtn) saveTripInfoBtn.addEventListener("click", saveTripInfo);
 if (analyzeSampleV2Btn) analyzeSampleV2Btn.addEventListener("click", analyzeSampleLetterV2);
 if (generateLetterV2Btn) generateLetterV2Btn.addEventListener("click", generateLetterV2);
 if (runAIBookingHotelBtn) runAIBookingHotelBtn.addEventListener("click", () => runAIBooking("hotel"));
 if (bookingModeHotelBtn) bookingModeHotelBtn.addEventListener("click", () => setBookingMode("hotel"));
 if (bookingModeFlightBtn) bookingModeFlightBtn.addEventListener("click", () => setBookingMode("flight"));
-loadClassifierFilesBtn.addEventListener("click", loadClassifierFiles);
-runClassifierBtn.addEventListener("click", runClassifier);
+if (loadClassifierFilesBtn) loadClassifierFilesBtn.addEventListener("click", loadClassifierFiles);
+if (runClassifierBtn) runClassifierBtn.addEventListener("click", runClassifier);
 if (pdfBuildSplitFormBtn) {
   pdfBuildSplitFormBtn.addEventListener("click", buildPdfManualSegments);
 }
@@ -98,27 +98,27 @@ function printIframeAsPdf(iframeEl, title) {
   }, 800);
 }
 
-exportHotelPdfBtn.addEventListener("click", () => {
+if (exportHotelPdfBtn) exportHotelPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(hotelBookingResultEl, "Hotel Booking");
 });
 
-exportFlightPdfBtn.addEventListener("click", () => {
+if (exportFlightPdfBtn) exportFlightPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(flightBookingResultEl, "Flight Booking");
 });
 
-exportItineraryPdfBtn.addEventListener("click", () => {
+if (exportItineraryPdfBtn) exportItineraryPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(itineraryResultEl, "Travel Itinerary");
 });
 
-exportCombinedItineraryPdfBtn.addEventListener("click", () => {
+if (exportCombinedItineraryPdfBtn) exportCombinedItineraryPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(combinedItineraryResultEl, "Travel Itinerary");
 });
 
-exportCombinedFlightPdfBtn.addEventListener("click", () => {
+if (exportCombinedFlightPdfBtn) exportCombinedFlightPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(combinedFlightBookingResultEl, "Flight Booking");
 });
 
-exportCombinedHotelPdfBtn.addEventListener("click", () => {
+if (exportCombinedHotelPdfBtn) exportCombinedHotelPdfBtn.addEventListener("click", () => {
   printIframeAsPdf(combinedHotelBookingResultEl, "Hotel Booking");
 });
 
@@ -347,43 +347,49 @@ function printCombinedPackagePdf() {
   setTimeout(() => { printWin.print(); }, 1000);
 }
 
-exportAllHotelPdfBtn.addEventListener("click", printAllHotelsAsPdf);
-exportCombinedAllPdfBtn.addEventListener("click", printCombinedPackagePdf);
+if (exportAllHotelPdfBtn) exportAllHotelPdfBtn.addEventListener("click", printAllHotelsAsPdf);
+if (exportCombinedAllPdfBtn) exportCombinedAllPdfBtn.addEventListener("click", printCombinedPackagePdf);
 
-stepsListEl.addEventListener("click", (event) => {
-  const btn = event.target.closest(".step-btn");
-  if (btn) {
-    if (btn.disabled) return;
-    const step = btn.dataset.step;
-    const done = btn.dataset.done === "true";
-    if (step) runStep(step, done);
-    return;
-  }
+if (stepsListEl) {
+  stepsListEl.addEventListener("click", (event) => {
+    const btn = event.target.closest(".step-btn");
+    if (btn) {
+      if (btn.disabled) return;
+      const step = btn.dataset.step;
+      const done = btn.dataset.done === "true";
+      if (step) runStep(step, done);
+      return;
+    }
 
-  const toggle = event.target.closest(".step-log-toggle");
-  if (!toggle) return;
-  const step = toggle.dataset.stepLogToggle;
-  if (!step) return;
-  if (activeStepLog === step) {
-    showStepLog(step, false);
-  } else {
-    showStepLog(step, true);
-  }
-});
+    const toggle = event.target.closest(".step-log-toggle");
+    if (!toggle) return;
+    const step = toggle.dataset.stepLogToggle;
+    if (!step) return;
+    if (activeStepLog === step) {
+      showStepLog(step, false);
+    } else {
+      showStepLog(step, true);
+    }
+  });
+}
 
-stepsListEl.addEventListener("input", (event) => {
-  const target = event.target;
-  if (target && target.id === "writerContext") {
-    writerContextCache = target.value || "";
-  }
-});
+if (stepsListEl) {
+  stepsListEl.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target && target.id === "writerContext") {
+      writerContextCache = target.value || "";
+    }
+  });
+}
 
-hotelBookingTabsEl.addEventListener("click", (event) => {
-  const btn = event.target.closest(".hotel-tab-btn");
-  if (!btn) return;
-  const index = parseInt(btn.dataset.index);
-  showHotelTab(index);
-});
+if (hotelBookingTabsEl) {
+  hotelBookingTabsEl.addEventListener("click", (event) => {
+    const btn = event.target.closest(".hotel-tab-btn");
+    if (!btn) return;
+    const index = parseInt(btn.dataset.index);
+    showHotelTab(index);
+  });
+}
 
 tabButtons.forEach((btn) => {
   btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));

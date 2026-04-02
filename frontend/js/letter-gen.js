@@ -204,22 +204,34 @@ async function letterGenDownloadDocx(type) {
         filename_prefix: prefix,
       }),
     });
-    const data = await res.json();
-
     if (!res.ok) {
-      status.innerHTML = `<span style="color:#dc2626;">❌ ${data.error}</span>`;
+      // If error, it returns JSON
+      const data = await res.json();
+      status.innerHTML = `<span style="color:#dc2626;">❌ ${data.error || 'Server error'}</span>`;
       return;
     }
 
-    // Trigger download
+    // Success -> it returns a Blob (DOCX file attachment)
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    
+    // Get filename from Content-Disposition if possible, fallback to custom
+    const cd = res.headers.get('content-disposition');
+    let filename = `${prefix}_${applicantName}.docx`;
+    if (cd && cd.includes('filename=')) {
+        filename = cd.split('filename=')[1].replace(/["']/g, '');
+    }
+
+    // Trigger download via Blob URL (bypasses browser popup blockers completely)
     const link = document.createElement('a');
-    link.href = data.download_url;
-    link.download = data.filename;
+    link.href = url;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 
-    status.innerHTML = `<span style="color:#16a34a;">✅ Đã tải: ${data.filename}</span>`;
+    status.innerHTML = `<span style="color:#16a34a;">✅ Đã tải thành công (Không lưu rác trên hệ thống!)</span>`;
     
     // Move to step 4
     letterGenSetStep(4);

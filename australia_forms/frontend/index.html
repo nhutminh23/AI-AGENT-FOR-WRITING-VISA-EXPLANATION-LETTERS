@@ -23,6 +23,15 @@
             </div>
         </header>
 
+        <!-- Tabs -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; background: #1e293b; padding: 10px; border-radius: 12px; border: 1px solid #334155;">
+            <button id="tabForm54Btn" class="btn" style="flex: 1; background: #3b82f6; color: white; border: none; font-weight: 600;">📄 Form 54 (Family Composition)</button>
+            <button id="tabImmiHubBtn" class="btn" style="flex: 1; background: transparent; color: #94a3b8; border: 1px solid transparent; font-weight: 600;">🚀 IMMI Online AutoFill</button>
+        </div>
+
+        <!-- ==================== FORM 54 CONTENT ==================== -->
+        <div id="contentForm54">
+
         <!-- Step indicators -->
         <div class="steps-bar">
             <div class="step active" data-step="1">
@@ -167,8 +176,89 @@ Example:
                 </div>
             </div>
         </section>
+        </section>
+        </div> <!-- End contentForm54 -->
+
+        <!-- ==================== IMMI HUB CONTENT ==================== -->
+        <div id="contentImmiHub" style="display: none;">
+            <div class="card">
+                <h2>🇦🇺 AutoFill IMMI Online — Hub điều khiển</h2>
+                <p class="card-desc" style="margin-bottom:16px;">
+                    Dùng Grok để trích xuất dữ liệu từ hồ sơ → Dán JSON vào đây → Extension tự động điền form IMMI Online.
+                </p>
+
+                <!-- Step 1: Copy Grok Prompt -->
+                <div style="margin-top:20px;">
+                    <h3 style="margin-bottom:12px; color:#f59e0b; font-size:16px;">📋 Bước 1 — Copy Prompt cho Grok</h3>
+                    <p class="card-desc" style="font-size:13px;">Bấm nút bên dưới để copy prompt. Qua grok.com → Upload toàn bộ file hồ sơ → Dán prompt → Grok trả JSON.</p>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                        <button id="auCopyGrokPromptBtn" class="btn" style="background:#f59e0b; color:#000; border:none; padding:10px 24px; border-radius:8px; cursor:pointer; font-weight:600;">📋 Copy Prompt IMMI</button>
+                        <span id="auCopyStatus" style="font-size:13px; color:#4ade80;"></span>
+                    </div>
+                </div>
+
+                <!-- Step 2: Paste JSON -->
+                <div style="margin-top:24px;">
+                    <h3 style="margin-bottom:12px; color:#f59e0b; font-size:16px;">📥 Bước 2 — Dán JSON từ Grok</h3>
+                    <p class="card-desc" style="font-size:13px;">Paste output JSON của Grok vào đây. Mặc định support mảng chuẩn của Grok <code>[ {person1}, {person2} ]</code></p>
+                    <textarea id="auJsonInput" rows="12" style="width:100%; box-sizing:border-box; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:10px; padding:14px; font-family:'Fira Code','Cascadia Code',monospace; font-size:13px; resize:vertical; margin-top:8px;" placeholder='Dán JSON từ Grok vào đây...'></textarea>
+                    <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <button id="auSaveProfileBtn" class="btn" style="background:#16a34a; color:white; border:none; padding:12px 32px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600;">✅ Lưu & Kích hoạt</button>
+                        <span id="auSaveStatus" style="font-size:13px;"></span>
+                    </div>
+                </div>
+
+                <!-- Step 3: Active profile -->
+                <div style="margin-top:24px;">
+                    <h3 style="margin-bottom:12px; color:#f59e0b; font-size:16px;">👤 Bước 3 — Người đang khai</h3>
+                    <div id="auActiveProfile" style="padding:12px; background:#1e293b; border:1px solid #334155; border-radius:8px; font-size:14px;">
+                        <strong>Chưa có ai.</strong> Dán JSON ở bước 2 để bắt đầu.
+                    </div>
+                    <div id="auProfileList" style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+                </div>
+
+                <!-- Step 4: Instructions -->
+                <div style="margin-top:24px; padding:16px; background:#1a1a2e; border:1px solid #334155; border-radius:10px;">
+                    <h3 style="margin-bottom:12px; color:#f59e0b; font-size:16px;">🚀 Bước 4 — Tự động điền trên IMMI</h3>
+                    <div style="font-size:13px; line-height:1.8; color:#94a3b8;">
+                        <p>1. Mở trang <a href="https://online.immi.gov.au" target="_blank" style="color:#60a5fa;">online.immi.gov.au</a> trên Chrome</p>
+                        <p>2. Extension <strong>"IMMI Smart AutoFill"</strong> sẽ hiện bảng điều khiển góc trái trên.</p>
+                        <p>3. Extension tự động gọi về local server API để lấy data "Người đang khai".</p>
+                        <p>4. Bấm <strong>"🚀 Auto-Fill Trang Này"</strong> → Xong người 1 thì quay lại web này bấm Người 2.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
+    <script>
+        // Tab switching logic
+        document.getElementById('tabForm54Btn').addEventListener('click', () => {
+            document.getElementById('contentForm54').style.display = 'block';
+            document.getElementById('contentImmiHub').style.display = 'none';
+            document.getElementById('tabForm54Btn').style.background = '#3b82f6';
+            document.getElementById('tabForm54Btn').style.color = 'white';
+            document.getElementById('tabForm54Btn').style.border = 'none';
+            document.getElementById('tabImmiHubBtn').style.background = 'transparent';
+            document.getElementById('tabImmiHubBtn').style.color = '#94a3b8';
+            document.getElementById('tabImmiHubBtn').style.border = '1px solid transparent';
+        });
+
+        document.getElementById('tabImmiHubBtn').addEventListener('click', () => {
+            document.getElementById('contentForm54').style.display = 'none';
+            document.getElementById('contentImmiHub').style.display = 'block';
+            document.getElementById('tabImmiHubBtn').style.background = '#f59e0b';
+            document.getElementById('tabImmiHubBtn').style.color = 'black';
+            document.getElementById('tabImmiHubBtn').style.border = 'none';
+            document.getElementById('tabForm54Btn').style.background = 'transparent';
+            document.getElementById('tabForm54Btn').style.color = '#94a3b8';
+            document.getElementById('tabForm54Btn').style.border = '1px solid transparent';
+            
+            if (typeof loadAuProfiles === 'function') loadAuProfiles();
+        });
+    </script>
     <script src="/australia/static/app.js"></script>
+    <script src="/australia/static/immi-hub.js"></script>
 </body>
 </html>

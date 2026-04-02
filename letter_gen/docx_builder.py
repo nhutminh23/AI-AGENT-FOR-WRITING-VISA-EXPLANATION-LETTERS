@@ -4,6 +4,8 @@ Uses python-docx to create professional A4 documents.
 """
 from __future__ import annotations
 
+import io
+
 import logging
 import re
 import uuid
@@ -26,9 +28,9 @@ def _sanitize_filename(name: str) -> str:
 def build_letter_docx(
     letter_text: str,
     applicant_name: str,
-    output_dir: str | Path,
+    output_dir: str | Path | None = None,
     filename_prefix: str = "Explanation_Letter",
-) -> Path:
+) -> Path | io.BytesIO:
     """
     Build a DOCX file from letter text.
 
@@ -39,10 +41,12 @@ def build_letter_docx(
         filename_prefix: Prefix for the filename.
 
     Returns:
-        Path to the saved DOCX file.
+    Returns:
+        Path to the saved DOCX file if output_dir is provided, else io.BytesIO.
     """
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     doc = Document()
 
@@ -117,12 +121,17 @@ def build_letter_docx(
             p.add_run(stripped)
 
     # -- Save --
-    safe_name = _sanitize_filename(applicant_name)
-    session_id = str(uuid.uuid4())[:8]
-    filename = f"{filename_prefix}_{safe_name}_{session_id}.docx"
-    filepath = output_dir / filename
-
-    doc.save(str(filepath))
-    logger.info("DOCX saved: %s (%d bytes)", filepath, filepath.stat().st_size)
-
-    return filepath
+    if output_dir:
+        safe_name = _sanitize_filename(applicant_name)
+        session_id = str(uuid.uuid4())[:8]
+        filename = f"{filename_prefix}_{safe_name}_{session_id}.docx"
+        filepath = output_dir / filename
+        doc.save(str(filepath))
+        logger.info("DOCX saved: %s (%d bytes)", filepath, filepath.stat().st_size)
+        return filepath
+    else:
+        # Return in-memory bytes buffer
+        file_stream = io.BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+        return file_stream

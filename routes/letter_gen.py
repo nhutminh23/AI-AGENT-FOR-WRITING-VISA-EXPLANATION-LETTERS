@@ -94,21 +94,28 @@ def letter_gen_build_docx():
     if not letter_text.strip():
         return jsonify({"error": "Missing letter_text"}), 400
 
-    LETTER_GEN_OUTPUT.mkdir(parents=True, exist_ok=True)
-
     try:
-        from letter_gen.docx_builder import build_letter_docx
-        filepath = build_letter_docx(
+        from letter_gen.docx_builder import build_letter_docx, _sanitize_filename
+        import uuid
+        
+        # Pass output_dir=None to get an in-memory BytesIO object
+        file_stream = build_letter_docx(
             letter_text=letter_text,
             applicant_name=applicant_name,
-            output_dir=LETTER_GEN_OUTPUT,
+            output_dir=None,
             filename_prefix=filename_prefix,
         )
-        return jsonify({
-            "success": True,
-            "filename": filepath.name,
-            "download_url": f"/api/letter-gen/download/{filepath.name}",
-        })
+        
+        safe_name = _sanitize_filename(applicant_name)
+        session_id = str(uuid.uuid4())[:8]
+        filename = f"{filename_prefix}_{safe_name}_{session_id}.docx"
+
+        return send_file(
+            file_stream,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
     except Exception as exc:
         import logging; logging.exception("[Safe Log] Unhandled exception in letter_gen.py: %s", exc)
         logger.exception("DOCX build failed")
