@@ -354,15 +354,17 @@ def fill_imm5645(
     filled_count = sum(1 for v in data.values() if v not in (None, "", "0", False))
 
     # -----------------------------------------------------------------------
-    # Write output (re-encrypt to match original format)
+    # STRIP DIGITAL SIGNATURES / CERTIFICATIONS
     # -----------------------------------------------------------------------
-    # Original template is encrypted — re-encrypt with empty password
-    # so the PDF maintains its locked format for the Canada portal
-    writer.encrypt(
-        user_password="",
-        owner_password="",
-        permissions_flag=0xFFFFF2C4,  # Allow printing, form fill
-    )
+    # PyPDF breaks the DocMDP signature because it rewrites the XREF table.
+    # An invalid signature causes Adobe Acrobat to enter high-security mode
+    # and disable JavaScript, which might prevent validation.
+    root = writer._root_object
+    if "/Perms" in root:
+        del root["/Perms"]
+        
+    if "/SigFlags" in acroform:
+        del acroform["/SigFlags"]
 
     with open(output_path, "wb") as f:
         writer.write(f)

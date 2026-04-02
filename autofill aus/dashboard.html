@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoScript - Bảng tổng quan</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <img src="icons/icon48.png" alt="AutoScript" class="brand-icon">
+      <div class="brand-text">
+        <span class="brand-name">AutoScript</span>
+        <span class="brand-version">v1.0.0</span>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="scripts">Các tập lệnh người dùng đã cài</button>
+      <button class="tab" data-tab="settings">Thiết đặt</button>
+      <button class="tab" data-tab="help">Giúp</button>
+    </nav>
+  </header>
+
+  <div class="toolbar">
+    <button class="toolbar-btn primary" id="addNew">+ Thêm mới</button>
+    <button class="toolbar-btn" id="settingsBtn">⚙ Thiết đặt</button>
+    <button class="toolbar-btn" id="trashBtn">🗑 Thùng rác</button>
+    <div class="toolbar-spacer"></div>
+    <div class="search-box">
+      <input type="text" placeholder="Tìm kiếm script..." id="searchInput">
+    </div>
+  </div>
+
+  <div class="tab-content active" id="tab-scripts">
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th class="col-num">#</th>
+            <th class="col-toggle">Đã bật</th>
+            <th class="col-name">Tên</th>
+            <th class="col-version">Phiên bản</th>
+            <th class="col-size">Kích cỡ</th>
+            <th class="col-date">Cập nhật lần cuối</th>
+            <th class="col-actions">Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="scriptList"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none">
+        <p>Chưa có tập lệnh nào.</p>
+        <button class="toolbar-btn primary" id="addNewEmpty">+ Tạo tập lệnh mới</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-panel">
+      <h2>Thiết đặt</h2>
+      <div class="setting-row">
+        <label>Bật/Tắt toàn bộ script</label>
+        <label class="toggle">
+          <input type="checkbox" id="globalToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="setting-row">
+        <label>Xuất tất cả script (JSON)</label>
+        <button class="toolbar-btn" id="exportBtn">📤 Xuất</button>
+      </div>
+      <div class="setting-row">
+        <label>Nhập script từ JSON</label>
+        <button class="toolbar-btn" id="importBtn">📥 Nhập</button>
+        <input type="file" id="importFile" accept=".json" style="display:none">
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-help">
+    <div class="help-panel">
+      <h2>Hướng dẫn sử dụng</h2>
+      <ul>
+        <li><strong>Thêm script mới:</strong> Click "+ Thêm mới" hoặc "Tạo tập lệnh mới" từ popup.</li>
+        <li><strong>Chỉnh sửa:</strong> Click tên script hoặc nút ✏️ để mở editor.</li>
+        <li><strong>Bật/Tắt:</strong> Dùng toggle switch tại cột "Đã bật".</li>
+        <li><strong>Xóa:</strong> Click 🗑️ để xóa script (có thể khôi phục từ Thùng rác).</li>
+        <li><strong>Script tự động chạy:</strong> Khi bạn truy cập URL khớp với @match trong header.</li>
+      </ul>
+      <p style="margin-top:24px;color:#888">AutoScript v1.0.0</p>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="trashModal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>🗑 Thùng rác</h3>
+        <button class="modal-close" id="closeTrash">&times;</button>
+      </div>
+      <div class="modal-body" id="trashList"></div>
+      <div class="modal-footer">
+        <button class="toolbar-btn danger" id="emptyTrashBtn">Xóa tất cả</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared/storage.js"></script>
+  <script src="shared/metadata.js"></script>
+  <script src="shared/utils.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

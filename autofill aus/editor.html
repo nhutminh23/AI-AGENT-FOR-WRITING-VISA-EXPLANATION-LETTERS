@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoScript - Editor</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <div class="menubar">
+    <span class="menu-label">Tệp</span>
+    <span class="menu-label">Sửa</span>
+    <span class="menu-label">Phần được chọn</span>
+    <span class="menu-label">Tìm</span>
+    <span class="menu-label">Đi đến</span>
+    <span class="menu-label">Nhà phát triển</span>
+  </div>
+
+  <div class="toolbar">
+    <button class="tb-btn save" id="saveBtn">💾 Save</button>
+    <button class="tb-btn run" id="runBtn">▶ Run</button>
+    <button class="tb-btn delete" id="deleteBtn">🗑 Delete</button>
+    <div class="tb-spacer"></div>
+    <span class="script-info" id="scriptInfo">New Script</span>
+  </div>
+
+  <div class="editor-wrapper">
+    <div class="line-numbers" id="lineNumbers"></div>
+    <textarea id="codeEditor" spellcheck="false" wrap="off" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+  </div>
+
+  <div class="statusbar">
+    <span id="statusText">Ready</span>
+    <div class="statusbar-right">
+      <span id="lineCol">Ln 1, Col 1</span>
+      <span class="sep">|</span>
+      <span id="charCount">0 ký tự</span>
+      <span class="sep">|</span>
+      <span>UTF-8</span>
+    </div>
+  </div>
+
+  <script src="shared/storage.js"></script>
+  <script src="shared/metadata.js"></script>
+  <script src="shared/utils.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>

@@ -53,6 +53,12 @@ def _build_form1_xml(data: dict) -> str:
     # ================ PAGE 1 ================
     L.append('<Page1>')
     
+    # Missing hidden IRCC metadata tags required for validation
+    L.append('<Header><CRCNum/></Header>')
+    L.append('<Age/><AdultFlag>false</AdultFlag>')
+    L.append('<FormVersion>.ENU-09-2023</FormVersion>')
+    L.append('<PrevSpouseAge/>')
+    
     L.append('<PersonalDetails>')
     L.append(f'<UCIClientID>{_e(data.get("uci", ""))}</UCIClientID>')
     
@@ -513,11 +519,24 @@ def _build_form1_xml(data: dict) -> str:
     L.append('<Consent0>')
     L.append('<Choice>Y</Choice>')
     L.append('</Consent0>')
+    L.append('<hand xfa:dataNode="dataGroup"/>')
     L.append(f'<C1CertificateIssueDate>{today.isoformat()}</C1CertificateIssueDate>')
+    L.append('<TextField2/>')
     L.append('</Signature>')
+    
+    # Missing trailing elements to make Portal validation succeed
+    L.append('<Disclosure xfa:dataNode="dataGroup"/>')
+    L.append('<ReaderInfo/>')
     
     L.append('</Page3>')
     
+    L.append('<Barcodes xfa:dataNode="dataGroup"/>')
+    L.append('<Page5>')
+    L.append('<TextField1/><TextField1/><TextField1/><TextField1/><TextField1/>')
+    L.append('</Page5>')
+    for _ in range(9):
+        L.append('<TextField/>')
+        
     L.append('</form1>')
     
     return '\n'.join(L)
@@ -633,6 +652,19 @@ def fill_imm5257(
     # clone_from preserves the /Perms dict with the original signature.
     # After filling, user must open PDF in Adobe Reader → click Validate → Save
     # to restore proper encryption and generate upload barcodes.
+    
+    # NEW FIX: Because PyPDF rewriting breaks byte offsets, the restored signature
+    # is mathematically invalid. Adobe Acrobat triggers a security lockdown
+    # ("Certification by IRCC is invalid") and blocks JavaScript execution!
+    # By stripping the broken signature objects (/Perms & /SigFlags),
+    # Acrobat treats the file as an uncertified (but usable) form, 
+    # allowing the internal JavaScript to run successfully and generate the barcode.
+    root = writer._root_object
+    if "/Perms" in root:
+        del root["/Perms"]
+        
+    if "/SigFlags" in acroform:
+        del acroform["/SigFlags"]
 
     with open(output_path, "wb") as f:
         writer.write(f)

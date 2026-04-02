@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <div class="menu-item toggle-item enabled" id="globalToggle">
+      <span class="icon toggle-icon">✓</span>
+      <span class="label">Đã bật</span>
+      <span class="shortcut">&gt;&gt;</span>
+    </div>
+
+    <div class="separator"></div>
+
+    <div class="menu-item disabled" id="runningScripts">
+      <span class="icon rs-icon">🔗</span>
+      <span class="label">Không có tập lệnh nào đang chạy</span>
+    </div>
+
+    <div class="separator"></div>
+
+    <div class="menu-item" id="searchScripts">
+      <span class="icon">🔍</span>
+      <span class="label">Tìm tập lệnh mới...</span>
+    </div>
+    <div class="menu-item" id="createScript">
+      <span class="icon">➕</span>
+      <span class="label">Tạo tập lệnh mới...</span>
+    </div>
+
+    <div class="separator"></div>
+
+    <div class="menu-item" id="donate">
+      <span class="icon heart">❤</span>
+      <span class="label">Vui lòng gửi một khoản đóng góp</span>
+    </div>
+
+    <div class="separator"></div>
+
+    <div class="menu-item" id="utilities">
+      <span class="icon"></span>
+      <span class="label">Các tiện ích</span>
+      <span class="arrow">›</span>
+    </div>
+
+    <div class="separator"></div>
+
+    <div class="menu-item" id="dashboard">
+      <span class="icon">⚙</span>
+      <span class="label">Bảng tổng quan</span>
+    </div>
+    <div class="menu-item info-item" id="help">
+      <span class="icon">ⓘ</span>
+      <span class="label">Giúp | Nhật kí thay đổi</span>
+    </div>
+  </div>
+
+  <script src="shared/storage.js"></script>
+  <script src="shared/metadata.js"></script>
+  <script src="shared/utils.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

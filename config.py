@@ -51,9 +51,6 @@ class Config:
     AUSTRALIA_FORMS_OUTPUT_DIR = os.path.join("australia_forms", "output")
     AUSTRALIA_FORMS_TEMPLATE_DIR = os.path.join("australia_forms", "templates")
 
-    # --- Letter Generation V3 ---
-    LETTER_GEN_OUTPUT_DIR = os.path.join("letter_gen", "output")
-
     # --- Gemini (fallback AI) ---
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")

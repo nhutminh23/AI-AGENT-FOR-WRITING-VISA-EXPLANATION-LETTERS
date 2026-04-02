@@ -3,15 +3,16 @@
 
 // ==================== EVENT LISTENERS ====================
 
-if (refreshBtn) refreshBtn.addEventListener("click", fetchFiles);
-if (loadStepsBtn) loadStepsBtn.addEventListener("click", loadSteps);
+refreshBtn.addEventListener("click", fetchFiles);
+loadStepsBtn.addEventListener("click", loadSteps);
 runItineraryBtn.addEventListener("click", runItinerary);
-if (runAllBtn) runAllBtn.addEventListener("click", runAll);
+runAllBtn.addEventListener("click", runAll);
 saveItineraryContextBtn.addEventListener("click", saveItineraryContext);
 runBookingBtn.addEventListener("click", runBookingGeneration);
 extractTripBtn.addEventListener("click", extractTripInfo);
 saveTripInfoBtn.addEventListener("click", saveTripInfo);
-// V2 letter gen buttons removed in V3 refactor
+if (analyzeSampleV2Btn) analyzeSampleV2Btn.addEventListener("click", analyzeSampleLetterV2);
+if (generateLetterV2Btn) generateLetterV2Btn.addEventListener("click", generateLetterV2);
 if (runAIBookingHotelBtn) runAIBookingHotelBtn.addEventListener("click", () => runAIBooking("hotel"));
 if (bookingModeHotelBtn) bookingModeHotelBtn.addEventListener("click", () => setBookingMode("hotel"));
 if (bookingModeFlightBtn) bookingModeFlightBtn.addEventListener("click", () => setBookingMode("flight"));
@@ -349,7 +350,7 @@ function printCombinedPackagePdf() {
 exportAllHotelPdfBtn.addEventListener("click", printAllHotelsAsPdf);
 exportCombinedAllPdfBtn.addEventListener("click", printCombinedPackagePdf);
 
-if (stepsListEl) stepsListEl.addEventListener("click", (event) => {
+stepsListEl.addEventListener("click", (event) => {
   const btn = event.target.closest(".step-btn");
   if (btn) {
     if (btn.disabled) return;
@@ -370,7 +371,7 @@ if (stepsListEl) stepsListEl.addEventListener("click", (event) => {
   }
 });
 
-if (stepsListEl) stepsListEl.addEventListener("input", (event) => {
+stepsListEl.addEventListener("input", (event) => {
   const target = event.target;
   if (target && target.id === "writerContext") {
     writerContextCache = target.value || "";
@@ -421,7 +422,7 @@ window.addEventListener("load", async () => {
   await loadDestinations();
   await loadClassifierFiles();
   await initTranslationSection();
-  // Letter V3 — no loadLatestLetterV2 needed
+  await loadLatestLetterV2();
   initSerpFlightUI();
   setBookingMode("hotel");
   syncCombinedPreviews();

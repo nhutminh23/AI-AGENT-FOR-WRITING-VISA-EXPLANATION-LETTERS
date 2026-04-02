@@ -49,7 +49,7 @@ projectSelectEl.addEventListener("change", async () => {
     await loadClassifierFiles();
     await loadSplitterFileList();
     await loadOutputHistory();
-    // Letter V3 — no project-level letter loading needed
+    if (typeof loadLatestLetterV2 === "function") await loadLatestLetterV2();
   } catch (e) {
     console.error("Failed to reload project-scoped data:", e);
   }
@@ -76,7 +76,7 @@ btnNewProject.addEventListener("click", async () => {
     await loadClassifierFiles();
     await loadSplitterFileList();
     await loadOutputHistory();
-    // Letter V3 — no project-level letter loading needed
+    if (typeof loadLatestLetterV2 === "function") await loadLatestLetterV2();
     if (typeof loadFilteredFiles === 'function') await loadFilteredFiles();
     alert("Đã xóa dữ liệu. Bạn có thể bỏ file mới vào và làm lại từ đầu.");
   } catch (e) {
@@ -124,7 +124,7 @@ btnCreateProject.addEventListener("click", async () => {
       await loadClassifierFiles();
       await loadSplitterFileList();
       await loadOutputHistory();
-      // Letter V3 — no project-level letter loading needed
+      if (typeof loadLatestLetterV2 === "function") await loadLatestLetterV2();
       if (typeof loadFilteredFiles === 'function') await loadFilteredFiles();
     } catch (e) {
       console.error("Failed to reload project-scoped data:", e);
@@ -252,7 +252,6 @@ const DEFAULT_TRIP_INFO = {
 };
 
 function renderFiles(files) {
-  if (!fileListEl) return;
   if (!files || files.length === 0) {
     fileListEl.classList.add("empty");
     fileListEl.textContent = "Không có file nào trong thư mục input.";
@@ -276,7 +275,6 @@ function renderFiles(files) {
 }
 
 async function fetchFiles() {
-  if (!inputDirEl || !fileListEl) return;
   const inputDir = inputDirEl.value.trim() || "input";
   fileListEl.textContent = "Đang tải...";
   const res = await fetch(`/api/files?input_dir=${encodeURIComponent(inputDir)}`);

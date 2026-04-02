@@ -26,7 +26,6 @@ def register_blueprints(app: Flask) -> None:
     from routes.canada_forms import canada_forms_bp
     from routes.australia_forms import australia_forms_bp
     from routes.insurance import insurance_bp
-    from routes.letter_gen import letter_gen_bp
     from routes.letter_v2 import letter_v2_bp
     app.register_blueprint(projects_bp)
     app.register_blueprint(booking_bp)
@@ -45,7 +44,6 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(canada_forms_bp)
     app.register_blueprint(australia_forms_bp)
     app.register_blueprint(insurance_bp)
-    app.register_blueprint(letter_gen_bp)
     app.register_blueprint(letter_v2_bp)
 
 
