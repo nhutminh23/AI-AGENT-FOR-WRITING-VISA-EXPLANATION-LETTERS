@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_from_directory, send_file
+from flask_cors import cross_origin
 from werkzeug.utils import secure_filename
 
 from config import Config
@@ -150,6 +151,7 @@ AU_ACTIVE_DIR = AU_OUTPUT_DIR / "immi_profiles"
 
 
 @australia_forms_bp.post("/australia/api/active-profile")
+@cross_origin()
 def australia_set_active_profile():
     """Save the active applicant JSON for the Chrome Extension to fetch.
     
@@ -189,6 +191,7 @@ def australia_set_active_profile():
 
 
 @australia_forms_bp.get("/australia/api/active-profile")
+@cross_origin()
 def australia_get_active_profile():
     """Return the active applicant JSON (used by Chrome Extension)."""
     active_path = AU_ACTIVE_DIR / "_active.json"

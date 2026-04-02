@@ -38,11 +38,13 @@ async function injectIntoMatchingTabs(script) {
 
 async function injectSingle(tabId, script) {
   try {
+    // Skip immi.gov.au — handled by dedicated content script (immi-autofill.js)
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.url && tab.url.includes('online.immi.gov.au')) return;
+
     await chrome.scripting.executeScript({
       target: { tabId },
       func: (code) => {
-        // Chạy trực tiếp code user script trong MAIN world.
-        // Cách này ổn định hơn việc chèn inline <script> trên một số site có CSP chặt.
         (0, eval)(code);
       },
       args: [script.code],
@@ -169,6 +171,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.action === 'reloadScripts') {
     loadScripts().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // --- IMMI Hub Proxy: fetch localhost data on behalf of content scripts ---
+  if (msg.action === 'fetchHubData') {
+    (async () => {
+      try {
+        const res = await fetch(msg.url);
+        if (!res.ok) {
+          sendResponse({ data: null, error: `HTTP ${res.status}` });
+          return;
+        }
+        const data = await res.json();
+        sendResponse({ data, error: null });
+      } catch (e) {
+        sendResponse({ data: null, error: e.message });
+      }
+    })();
     return true;
   }
 });

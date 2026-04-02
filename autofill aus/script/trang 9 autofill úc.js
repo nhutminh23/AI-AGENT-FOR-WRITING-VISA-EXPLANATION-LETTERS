@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         IMMI Visitor Short Stay Visa - AutoFill Page 2/20
+// @name         IMMI Visitor Short Stay Visa - AutoFill Page 9/20 + Inline Contact
 // @namespace    https://tampermonkey.net/
-// @version      1.4
-// @description  Chỉ chạy khi click nút Autofill. Đã fix hoàn toàn phần Significant dates.
-// @author       Grok
+// @version      1.3
+// @description  Fix email Contact in Australia (type=email) + debug log
+// @author       Grok (team hỗ trợ)
 // @match        https://online.immi.gov.au/elp/app*
 // @grant        none
 // @run-at       document-end
@@ -11,157 +11,193 @@
 
 (function() {
     'use strict';
-// ==================== CẤU HÌNH (BẠN CHỈ CẦN SỬA ĐOẠN NÀY) ====================
+
+// ==================== CONFIG - CHỈNH SỬA TẠI ĐÂY ====================
 const CONFIG = {
-    // Current location (mã quốc gia)
-    currentLocationCode: "VIET",
+    // === Phần chính trang 9 ===
+    multipleEntry: "No",                    // Single entry (an toàn nhất cho Tourist stream)
+    lengthOfStay: "12",                     // Giữ nguyên theo mẫu bạn cung cấp
+    plannedArrival: "01 May 2026",
+    plannedDeparture: "30 May 2026",
+    isParentOfAustralian: "No",
+    undertakeStudy: "No",
+    visitRelatives: "Yes",                  // Quan trọng - thăm em gái
 
-    // Legal status
-    legalStatusValue: "1",                    // 1 = Citizen (ở Việt Nam)
-
-    // Purpose of stay stream
-    purposeStreamValue: "29",                 // 29 = Tourist stream (đúng với hồ sơ)
-
-    // Chỉ dùng nếu chọn Frequent Traveller (61)
-    initialPurposeValue: "2",                 // 2 = Tourism
-
-    // List all reasons for visiting Australia
-    visitReasonValue: "4",                    // 4 = Family visit (ưu tiên vì thăm em gái Thi Phuong Thao Nguyen đang ở Úc)
-
-    // Significant dates (copy nguyên văn từ đơn cũ)
-    significantDatesText: "THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM 15 MARCH 2026 TO 25 MARCH 2026. HOWEVER, THIS SCHEDULE IS SUBJECT TO CHANGE BASED ON THE DATE OF VISA GRANT.",
-
-    // Group processing
-    groupProcessing: "1",                     // 1 = Yes (đang nộp nhóm NGUYEN THI HA PHUONG FAMILY)
-
-    // Special category of entry
-    specialCategory: "2"                      // 2 = No
+    // === Phần inline Contact in Australia (Em gái - người liên lạc phù hợp nhất) ===
+    contact: {
+        relationship: "34",                 // 34 = Sister (em gái)
+        familyName: "NGUYEN",
+        givenNames: "THI PHUONG THAO",
+        sex: "F",
+        dateOfBirth: "28 May 1990",
+        address1: "380 KEIRA ST",
+        address2: "",
+        suburbTown: "WOLLONGONG",
+        stateProvince: "NSW",
+        postcode: "2500",
+        homePhone: "",
+        businessPhone: "",
+        mobilePhone: "",                    // ← Thêm số điện thoại Úc của em gái nếu có
+        email: "",                          // ← Thêm email của em gái nếu có
+        residencyStatus: "3"                // Temporary (Bridging B visa)
+    }
 };
+    // ===================================================================
 
-    let autofillBtn = null;
+    let mainBtn = null;
+    let contactBtn = null;
 
-    function addAutofillButton() {
-        if (document.getElementById('immi-autofill-btn')) return;
-
-        autofillBtn = document.createElement('button');
-        autofillBtn.id = 'immi-autofill-btn';
-        autofillBtn.textContent = 'Autofill Page 2';
-        autofillBtn.style.cssText = `
-position: fixed; 
-top: 30px;      /* Thay bottom thành top */
-left: 30px;     /* Thay right thành left */
-z-index: 999999;
-padding: 14px 24px; 
-background: #0066cc; 
-color: white;
-border: none; 
-border-radius: 8px; 
-font-weight: bold;
-cursor: pointer; 
-        `;
-        autofillBtn.onclick = () => {
-            if (confirm('Bắt đầu autofill trang 2/20?')) startAutofill();
-        };
-        document.body.appendChild(autofillBtn);
+    function addMainButton() {
+        if (document.getElementById('immi-autofill-page9')) return;
+        mainBtn = document.createElement('button');
+        mainBtn.id = 'immi-autofill-page9';
+        mainBtn.textContent = 'Autofill Page 9';
+        mainBtn.style.cssText = `
+                position:fixed; top:30px; left:880px; z-index:999999;
+                padding:14px 24px; background:#0066cc; color:white;
+                border:none; border-radius:8px; font-weight:bold; cursor:pointer;
+`;
+        mainBtn.onclick = () => confirm('Autofill trang 9/20?') && startMainAutofill();
+        document.body.appendChild(mainBtn);
     }
 
-    async function startAutofill() {
-        console.log('🚀 Bắt đầu autofill...');
+    function addContactButton() {
+        if (document.getElementById('immi-autofill-contact')) return;
+        contactBtn = document.createElement('button');
+        contactBtn.id = 'immi-autofill-contact';
+        contactBtn.textContent = 'Autofill Contact';
+        contactBtn.style.cssText = `                position:fixed; top:80px; left:880px; z-index:999999;
+                padding:14px 24px; background:#ff6600; color:white;
+                border:none; border-radius:8px; font-weight:bold; cursor:pointer;display:none;`;
+        contactBtn.onclick = () => confirm('Autofill form Contact?') && startContactAutofill();
+        document.body.appendChild(contactBtn);
+    }
 
-        // 1. Outside Australia = Yes
-        const yesRadio = findRadio("Is the applicant currently outside Australia?", "Yes");
-        if (yesRadio) yesRadio.click();
-
-        await delay(1500);
-
-        // 2. Current location & Legal status
-        setSelect("Current location", CONFIG.currentLocationCode);
-        setSelect("Legal status", CONFIG.legalStatusValue);
-
+    async function startMainAutofill() { /* giữ nguyên như script cũ */ 
+        console.log('🚀 Autofill trang 9 bắt đầu...');
+        clickRadio("Does the applicant intend to enter Australia on more than one occasion?", CONFIG.multipleEntry);
         await delay(800);
+        setSelect("Length of stay in Australia", CONFIG.lengthOfStay);
+        setDate("Planned arrival date", CONFIG.plannedArrival);
+        setDate("Planned final departure date", CONFIG.plannedDeparture);
+        clickRadio("Is the applicant a parent or step-parent of an Australian citizen or Australian permanent resident?", CONFIG.isParentOfAustralian);
+        clickRadio("Will the applicant undertake a course of study in Australia?", CONFIG.undertakeStudy);
+        clickRadio("Will the applicant visit any relatives, friends or contacts while in Australia?", CONFIG.visitRelatives);
+        console.log('✅ TRANG 9 HOÀN TẤT!');
+        alert('✅ Autofill trang 9 xong! Bây giờ click "Add" để mở Contact.');
+    }
 
-        // 3. Purpose stream
-        const streamRadio = document.querySelector(`input[type="radio"][value="${CONFIG.purposeStreamValue}"]`);
-        if (streamRadio) streamRadio.click();
+    async function startContactAutofill() {
+        await delay(600);   // ← Đợi form inline load xong
+        const c = CONFIG.contact;
+        console.log('🚀 Bắt đầu autofill Contact in Australia...');
 
-        await delay(900);
+        setSelectContact("Relationship to the applicant", c.relationship);
+        setTextContact("Family name", c.familyName);
+        setTextContact("Given names", c.givenNames);
+        clickRadioContact("Sex", c.sex);
+        setDateContact("Date of birth", c.dateOfBirth);
+        setTextContact("Address", c.address1);
+        setTextContact("Address 2", c.address2);
+        setTextContact("Suburb / Town", c.suburbTown);
+        setSelectContact("State / Territory", c.stateProvince);
+        setTextContact("Postcode", c.postcode);
+        setTextContact("Home phone", c.homePhone);
+        setTextContact("Business phone", c.businessPhone);
+        setTextContact("Mobile / Cell phone", c.mobilePhone);
+        setTextContact("Email address", c.email);           // ← Bây giờ sẽ điền được
+        setSelectContact("Australian residency status", c.residencyStatus);
 
-        // 4. Frequent Traveller → initial purpose
-        if (CONFIG.purposeStreamValue === "61") {
-            const initRadio = document.querySelector(`input[type="radio"][value="${CONFIG.initialPurposeValue}"]`);
-            if (initRadio) initRadio.click();
+        console.log('✅ CONTACT IN AUSTRALIA HOÀN TẤT!');
+        alert('✅ Autofill Contact xong! Nhấn "Save" hoặc "Confirm".');
+    }
+
+    // ==================== HELPERS CHUNG (giữ nguyên) ====================
+    function clickRadio(labelText, optionText) { /* giữ nguyên */ 
+        const labels = [...document.querySelectorAll('label.wc-option')];
+        const target = labels.find(l => l.textContent.trim() === optionText && l.closest('fieldset')?.textContent.includes(labelText));
+        if (target) target.querySelector('input').click();
+    }
+    function setSelect(labelText, value) { /* giữ nguyên */ 
+        const label = [...document.querySelectorAll('label.wc-label')].find(l => l.textContent.includes(labelText));
+        if (label) {
+            const select = label.closest('.wc-row')?.querySelector('select');
+            if (select) { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }
         }
-
-        // 5. List all reasons
-        const reasonSelect = findMultiSelect("List all reasons for visiting Australia");
-        if (reasonSelect) {
-            reasonSelect.value = CONFIG.visitReasonValue;
-            reasonSelect.dispatchEvent(new Event('change', {bubbles: true}));
-            const plusBtn = document.querySelector('.wc_btn_icon.wc-invite');
-            if (plusBtn) plusBtn.click();
-        }
-
-        // 6. SIGNIFICANT DATES - ĐÃ SỬA (phần này trước bị lỗi)
-        const datesLabel = Array.from(document.querySelectorAll('label.wc-label'))
-            .find(l => l.textContent.includes('significant dates') || 
-                      l.textContent.includes('Give details of any significant dates'));
-
-        if (datesLabel) {
-            const textareaId = datesLabel.getAttribute('for');
-            const datesTA = textareaId ? document.getElementById(textareaId) : null;
-
-            if (datesTA) {
-                datesTA.value = CONFIG.significantDatesText;
-                datesTA.dispatchEvent(new Event('input', { bubbles: true }));
-                datesTA.dispatchEvent(new Event('change', { bubbles: true }));
-                console.log('✅ Significant dates đã điền thành công!');
+    }
+    function setDate(labelText, value) { /* giữ nguyên */ 
+        const label = [...document.querySelectorAll('label.wc-label')].find(l => l.textContent.includes(labelText));
+        if (label) {
+            const input = label.closest('.wc-row')?.querySelector('input[type="text"]');
+            if (input) {
+                input.value = value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
             }
-        } else {
-            console.warn('⚠️ Không tìm thấy label Significant dates');
-        }
-
-        // 7. Group processing = No
-        const groupNo = findRadio("Is this application being lodged as part of a group of applications?", "No");
-        if (groupNo) groupNo.click();
-
-        await delay(600);
-
-        // 8. Special category = No
-        const specialNo = findRadio("Is the applicant travelling as a representative of a foreign government", "No");
-        if (specialNo) specialNo.click();
-
-        console.log('🎉 HOÀN TẤT!');
-        alert('✅ Auto fill trang 2/20 đã xong!\nKiểm tra lại phần Significant dates trước khi Next.');
-    }
-
-    // ==================== HELPER (đã cải tiến) ====================
-    function findRadio(question, option) {
-        return Array.from(document.querySelectorAll('label.wc-option'))
-            .find(l => l.textContent.trim() === option && 
-                  l.closest('fieldset') && 
-                  l.closest('fieldset').textContent.includes(question))
-            ?.querySelector('input[type="radio"]');
-    }
-
-    function setSelect(labelText, value) {
-        const label = Array.from(document.querySelectorAll('label.wc-label'))
-            .find(l => l.textContent.includes(labelText));
-        if (!label) return;
-        const select = label.closest('.wc-row')?.querySelector('select') || 
-                       label.parentElement.parentElement.querySelector('select');
-        if (select) {
-            select.value = value;
-            select.dispatchEvent(new Event('change', {bubbles: true}));
         }
     }
-
-    function findMultiSelect(labelText) {
-        const label = Array.from(document.querySelectorAll('.wc-label'))
-            .find(l => l.textContent.includes(labelText));
-        return label ? label.closest('.wc-panel').querySelector('select') : null;
-    }
-
     function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    window.addEventListener('load', addAutofillButton);
-})()
+    // ==================== HELPERS CHO CONTACT (ĐÃ SỬA) ====================
+    function setTextContact(labelText, value) {
+        if (!value) return;
+        const label = [...document.querySelectorAll('label.wc-label')].find(l => 
+            l.textContent.trim().includes(labelText)
+        );
+        if (!label) {
+            console.log(`❌ Không tìm thấy label: ${labelText}`);
+            return;
+        }
+        const row = label.closest('.wc-row') || label.closest('.wc-panel');
+        const input = row?.querySelector('input[type="text"], input[type="email"], input[type="tel"]');
+        
+        if (input) {
+            input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log(`✅ Điền thành công: ${labelText} = ${value}`);
+        } else {
+            console.log(`❌ Không tìm thấy input cho: ${labelText}`);
+        }
+    }
+
+    function setDateContact(labelText, value) { /* giữ nguyên */ 
+        const label = [...document.querySelectorAll('label.wc-label')].find(l => l.textContent.includes(labelText));
+        if (label) {
+            const input = label.closest('.wc-row')?.querySelector('input[type="text"]');
+            if (input) {
+                input.value = value;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+    }
+    function clickRadioContact(labelText, value) { /* giữ nguyên */ 
+        const radios = [...document.querySelectorAll('input[type="radio"]')];
+        const target = radios.find(r => r.value === value && r.closest('fieldset')?.textContent.includes(labelText));
+        if (target) target.click();
+    }
+    function setSelectContact(labelText, value) { /* giữ nguyên */ 
+        const label = [...document.querySelectorAll('label.wc-label')].find(l => l.textContent.includes(labelText));
+        if (label) {
+            const select = label.closest('.wc-row')?.querySelector('select');
+            if (select) { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }
+        }
+    }
+
+    // ==================== OBSERVER & INIT ====================
+    const observer = new MutationObserver(() => {
+        const heading = [...document.querySelectorAll('h2, h3')].find(el => el.textContent.includes('Contact in Australia'));
+        if (contactBtn) contactBtn.style.display = heading ? 'block' : 'none';
+    });
+
+    function init() {
+        addMainButton();
+        addContactButton();
+    }
+
+    init();
+    setInterval(init, 2000);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    console.log('✅ Script v1.3 đã chạy - Email Contact đã được fix!');
+})();

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dotenv import load_dotenv
 from flask import Flask, send_from_directory
-
+from flask_cors import CORS
 
 load_dotenv()
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
+CORS(app)
 
 # Register extracted route blueprints
 from routes import register_blueprints

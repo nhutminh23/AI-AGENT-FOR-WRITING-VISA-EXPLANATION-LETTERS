@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         IMMI Visitor Short Stay Visa - AutoFill Page 2/20
+// @name         IMMI Visitor Short Stay Visa - AutoFill Page 6/20
 // @namespace    https://tampermonkey.net/
-// @version      1.4
-// @description  Chỉ chạy khi click nút Autofill. Đã fix hoàn toàn phần Significant dates.
-// @author       Grok
+// @version      1.0
+// @description  Autofill toàn bộ trang 6/20 (Country of residence + Department office + Residential address + Phones + Postal address + Email). Chỉ chạy khi click button.
+// @author       Grok (team hỗ trợ)
 // @match        https://online.immi.gov.au/elp/app*
 // @grant        none
 // @run-at       document-end
@@ -11,157 +11,179 @@
 
 (function() {
     'use strict';
-// ==================== CẤU HÌNH (BẠN CHỈ CẦN SỬA ĐOẠN NÀY) ====================
+
+    // ==================== CONFIG - CHỈNH SỬA TẠI ĐÂY ====================
 const CONFIG = {
-    // Current location (mã quốc gia)
-    currentLocationCode: "VIET",
+    usualCountry: "VIET",
 
-    // Legal status
-    legalStatusValue: "1",                    // 1 = Citizen (ở Việt Nam)
+    closestOffice: "Vietnam, Hanoi",   // Phù hợp nhất vì khách ở Hải Phòng (miền Bắc)
 
-    // Purpose of stay stream
-    purposeStreamValue: "29",                 // 29 = Tourist stream (đúng với hồ sơ)
+    residential: {
+        country: "VIET",
+        address1: "TDP Thuy Son 1",
+        address2: "",
+        suburbTown: "Thuy Nguyen",
+        stateProvince: "VNSG",
+        postalCode: "180000"
+    },
 
-    // Chỉ dùng nếu chọn Frequent Traveller (61)
-    initialPurposeValue: "2",                 // 2 = Tourism
+    phones: {
+        home: "",
+        business: "",
+        mobile: "0912345678"           // ← Thay bằng số điện thoại thật của khách
+    },
 
-    // List all reasons for visiting Australia
-    visitReasonValue: "4",                    // 4 = Family visit (ưu tiên vì thăm em gái Thi Phuong Thao Nguyen đang ở Úc)
-
-    // Significant dates (copy nguyên văn từ đơn cũ)
-    significantDatesText: "THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM 15 MARCH 2026 TO 25 MARCH 2026. HOWEVER, THIS SCHEDULE IS SUBJECT TO CHANGE BASED ON THE DATE OF VISA GRANT.",
-
-    // Group processing
-    groupProcessing: "1",                     // 1 = Yes (đang nộp nhóm NGUYEN THI HA PHUONG FAMILY)
-
-    // Special category of entry
-    specialCategory: "2"                      // 2 = No
+    postalSameAsResidential: true,
+    email: "your.email@gmail.com"      // ← Thay bằng email thật của khách
 };
-
-    let autofillBtn = null;
+    // ===================================================================
 
     function addAutofillButton() {
-        if (document.getElementById('immi-autofill-btn')) return;
+        if (document.getElementById('immi-autofill-page6')) return;
 
-        autofillBtn = document.createElement('button');
-        autofillBtn.id = 'immi-autofill-btn';
-        autofillBtn.textContent = 'Autofill Page 2';
-        autofillBtn.style.cssText = `
-position: fixed; 
-top: 30px;      /* Thay bottom thành top */
-left: 30px;     /* Thay right thành left */
-z-index: 999999;
-padding: 14px 24px; 
-background: #0066cc; 
-color: white;
-border: none; 
-border-radius: 8px; 
-font-weight: bold;
-cursor: pointer; 
+        const btn = document.createElement('button');
+        btn.id = 'immi-autofill-page6';
+        btn.textContent = 'Autofill Page 6';
+        btn.style.cssText = `
+                position:fixed; top:30px; left:540px; z-index:999999;
+                padding:14px 24px; background:#0066cc; color:white;
+                border:none; border-radius:8px; font-weight:bold; cursor:pointer;
         `;
-        autofillBtn.onclick = () => {
-            if (confirm('Bắt đầu autofill trang 2/20?')) startAutofill();
+        btn.onclick = () => {
+            if (confirm('Autofill trang 6/20?')) startAutofill();
         };
-        document.body.appendChild(autofillBtn);
+        document.body.appendChild(btn);
     }
 
     async function startAutofill() {
-        console.log('🚀 Bắt đầu autofill...');
+        console.log('🚀 Bắt đầu Autofill trang 6/20...');
 
-        // 1. Outside Australia = Yes
-        const yesRadio = findRadio("Is the applicant currently outside Australia?", "Yes");
-        if (yesRadio) yesRadio.click();
+        // 1. Country of residence
+        setSelect("Usual country of residence", CONFIG.usualCountry);
 
-        await delay(1500);
+        // 2. Department office (combobox)
+        setComboBox("Office", CONFIG.closestOffice);
 
-        // 2. Current location & Legal status
-        setSelect("Current location", CONFIG.currentLocationCode);
-        setSelect("Legal status", CONFIG.legalStatusValue);
+        // 3. Residential address
+        setSelect("Country", CONFIG.residential.country, true); // residential section
+        await delay(800); // chờ form update state dropdown
+        setText("Address", CONFIG.residential.address1);
+        setText("Address 2", CONFIG.residential.address2);
+        setText("Suburb / Town", CONFIG.residential.suburb);
+        setSelectVietnamProvince(CONFIG.residential.stateProvince);
+        setText("Postal code", CONFIG.residential.postalCode);
 
-        await delay(800);
+        // 4. Contact telephone numbers
+        setText("Home phone", CONFIG.phones.home);
+        setText("Business phone", CONFIG.phones.business);
+        setText("Mobile / Cell phone", CONFIG.phones.mobile);
 
-        // 3. Purpose stream
-        const streamRadio = document.querySelector(`input[type="radio"][value="${CONFIG.purposeStreamValue}"]`);
-        if (streamRadio) streamRadio.click();
-
-        await delay(900);
-
-        // 4. Frequent Traveller → initial purpose
-        if (CONFIG.purposeStreamValue === "61") {
-            const initRadio = document.querySelector(`input[type="radio"][value="${CONFIG.initialPurposeValue}"]`);
-            if (initRadio) initRadio.click();
+        // 5. Postal address
+        clickRadioPostalSame(CONFIG.postalSameAsResidential ? "Yes" : "No");
+        if (!CONFIG.postalSameAsResidential) {
+            await delay(1000);
+            // Nếu cần điền postal riêng, copy lại residential (bạn có thể chỉnh CONFIG)
+            setSelect("Country", CONFIG.residential.country, false); // postal section
+            setText("Address", CONFIG.residential.address1, false);
+            setText("Address 2", CONFIG.residential.address2, false);
+            setText("Suburb / Town", CONFIG.residential.suburb, false);
+            setSelectVietnamProvince(CONFIG.residential.stateProvince, false);
+            setText("Postal code", CONFIG.residential.postalCode, false);
         }
 
-        // 5. List all reasons
-        const reasonSelect = findMultiSelect("List all reasons for visiting Australia");
-        if (reasonSelect) {
-            reasonSelect.value = CONFIG.visitReasonValue;
-            reasonSelect.dispatchEvent(new Event('change', {bubbles: true}));
-            const plusBtn = document.querySelector('.wc_btn_icon.wc-invite');
-            if (plusBtn) plusBtn.click();
-        }
+        // 6. Email address
+        setText("Email address", CONFIG.email);
 
-        // 6. SIGNIFICANT DATES - ĐÃ SỬA (phần này trước bị lỗi)
-        const datesLabel = Array.from(document.querySelectorAll('label.wc-label'))
-            .find(l => l.textContent.includes('significant dates') || 
-                      l.textContent.includes('Give details of any significant dates'));
+        console.log('🎉 TRANG 6 HOÀN TẤT!');
+        alert('✅ Autofill trang 6/20 xong!\nKiểm tra lại Closest Office và State/Province.');
+    }
 
-        if (datesLabel) {
-            const textareaId = datesLabel.getAttribute('for');
-            const datesTA = textareaId ? document.getElementById(textareaId) : null;
-
-            if (datesTA) {
-                datesTA.value = CONFIG.significantDatesText;
-                datesTA.dispatchEvent(new Event('input', { bubbles: true }));
-                datesTA.dispatchEvent(new Event('change', { bubbles: true }));
-                console.log('✅ Significant dates đã điền thành công!');
+    // ==================== HELPER FUNCTIONS ====================
+    function setSelect(labelText, value, isResidential = true) {
+        const labels = document.querySelectorAll('label.wc-label');
+        for (let label of labels) {
+            if (label.textContent.includes(labelText)) {
+                const row = label.closest('.wc-row');
+                const select = row ? row.querySelector('select') : null;
+                if (select) {
+                    select.value = value;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                    return;
+                }
             }
-        } else {
-            console.warn('⚠️ Không tìm thấy label Significant dates');
-        }
-
-        // 7. Group processing = No
-        const groupNo = findRadio("Is this application being lodged as part of a group of applications?", "No");
-        if (groupNo) groupNo.click();
-
-        await delay(600);
-
-        // 8. Special category = No
-        const specialNo = findRadio("Is the applicant travelling as a representative of a foreign government", "No");
-        if (specialNo) specialNo.click();
-
-        console.log('🎉 HOÀN TẤT!');
-        alert('✅ Auto fill trang 2/20 đã xong!\nKiểm tra lại phần Significant dates trước khi Next.');
-    }
-
-    // ==================== HELPER (đã cải tiến) ====================
-    function findRadio(question, option) {
-        return Array.from(document.querySelectorAll('label.wc-option'))
-            .find(l => l.textContent.trim() === option && 
-                  l.closest('fieldset') && 
-                  l.closest('fieldset').textContent.includes(question))
-            ?.querySelector('input[type="radio"]');
-    }
-
-    function setSelect(labelText, value) {
-        const label = Array.from(document.querySelectorAll('label.wc-label'))
-            .find(l => l.textContent.includes(labelText));
-        if (!label) return;
-        const select = label.closest('.wc-row')?.querySelector('select') || 
-                       label.parentElement.parentElement.querySelector('select');
-        if (select) {
-            select.value = value;
-            select.dispatchEvent(new Event('change', {bubbles: true}));
         }
     }
 
-    function findMultiSelect(labelText) {
-        const label = Array.from(document.querySelectorAll('.wc-label'))
-            .find(l => l.textContent.includes(labelText));
-        return label ? label.closest('.wc-panel').querySelector('select') : null;
+    function setComboBox(labelText, value) {
+        const labels = document.querySelectorAll('label.wc-label');
+        for (let label of labels) {
+            if (label.textContent.includes(labelText)) {
+                const input = label.closest('.wc-row').querySelector('input[type="text"]');
+                if (input) {
+                    input.value = value;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    // Tự động chọn gợi ý nếu có
+                    setTimeout(() => {
+                        const suggestion = document.querySelector(`span[data-wc-value="${value}"]`);
+                        if (suggestion) suggestion.click();
+                    }, 300);
+                    return;
+                }
+            }
+        }
     }
 
-    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function setText(labelText, value, isResidential = true) {
+        const labels = document.querySelectorAll('label.wc-label');
+        for (let label of labels) {
+            if (label.textContent.includes(labelText)) {
+                const input = label.closest('.wc-row').querySelector('input[type="text"]');
+                if (input) {
+                    input.value = value;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    return;
+                }
+            }
+        }
+    }
 
-    window.addEventListener('load', addAutofillButton);
-})()
+    function setSelectVietnamProvince(value, isResidential = true) {
+        // Tìm select có các option VNxx
+        const selects = document.querySelectorAll('select');
+        for (let sel of selects) {
+            if (Array.from(sel.options).some(opt => opt.value.startsWith('VN'))) {
+                sel.value = value;
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
+        }
+    }
+
+    function clickRadioPostalSame(optionText) {
+        const labels = document.querySelectorAll('label.wc-option');
+        for (let label of labels) {
+            if (label.textContent.trim() === optionText && 
+                label.closest('fieldset') && 
+                label.closest('fieldset').textContent.includes('postal address the same')) {
+                label.querySelector('input[type="radio"]').click();
+                return;
+            }
+        }
+    }
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // ==================== RUN ====================
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', addAutofillButton);
+    } else {
+        addAutofillButton();
+    }
+
+    // MutationObserver để button luôn hiện
+    const observer = new MutationObserver(addAutofillButton);
+    observer.observe(document.body, { childList: true, subtree: true });
+})();

@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         IMMI Visitor Short Stay Visa - AutoFill Page 2/20
+// @name         IMMI Visitor Short Stay Visa - AutoFill Page 3/20 (FULL)
 // @namespace    https://tampermonkey.net/
-// @version      1.4
-// @description  Chỉ chạy khi click nút Autofill. Đã fix hoàn toàn phần Significant dates.
-// @author       Grok
+// @version      1.0
+// @description  Autofill toàn bộ trang 3/20 + popup National Identity Card. 2 nút riêng biệt.
+// @author       Grok (team hỗ trợ)
 // @match        https://online.immi.gov.au/elp/app*
 // @grant        none
 // @run-at       document-end
@@ -11,157 +11,260 @@
 
 (function() {
     'use strict';
-// ==================== CẤU HÌNH (BẠN CHỈ CẦN SỬA ĐOẠN NÀY) ====================
+
+    // ==================== CONFIG (CHỈ SỬA ĐOẠN NÀY) ====================
 const CONFIG = {
-    // Current location (mã quốc gia)
-    currentLocationCode: "VIET",
+    // Passport details (lấy chính xác từ hồ sơ)
+    familyName: "NGUYEN",
+    givenNames: "THI HA PHUONG",
+    sex: "F",                          // Female
+    dateOfBirth: "10 Mar 1988",
+    passportNumber: "C8161337",
+    countryOfPassport: "VNM",
+    nationality: "VNM",
+    dateOfIssue: "11 Sep 2019",
+    dateOfExpiry: "11 Sep 2029",
+    placeOfIssue: "VIETNAM IMMIGRATION DEPARTMENT",
 
-    // Legal status
-    legalStatusValue: "1",                    // 1 = Citizen (ở Việt Nam)
+    // National Identity Card
+    hasNationalID: true,
+    nationalFamilyName: "NGUYEN",
+    nationalGivenNames: "THI HA PHUONG",
+    nationalIDNumber: "031188003197",
+    nationalCountry: "VIET",
+    nationalDateOfIssue: "29 Jul 2022",
+    nationalDateOfExpiry: "10 Mar 2028",
 
-    // Purpose of stay stream
-    purposeStreamValue: "29",                 // 29 = Tourist stream (đúng với hồ sơ)
-
-    // Chỉ dùng nếu chọn Frequent Traveller (61)
-    initialPurposeValue: "2",                 // 2 = Tourism
-
-    // List all reasons for visiting Australia
-    visitReasonValue: "4",                    // 4 = Family visit (ưu tiên vì thăm em gái Thi Phuong Thao Nguyen đang ở Úc)
-
-    // Significant dates (copy nguyên văn từ đơn cũ)
-    significantDatesText: "THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM 15 MARCH 2026 TO 25 MARCH 2026. HOWEVER, THIS SCHEDULE IS SUBJECT TO CHANGE BASED ON THE DATE OF VISA GRANT.",
-
-    // Group processing
-    groupProcessing: "1",                     // 1 = Yes (đang nộp nhóm NGUYEN THI HA PHUONG FAMILY)
-
-    // Special category of entry
-    specialCategory: "2"                      // 2 = No
+    // Các phần còn lại
+    pacificAustraliaCard: "2",
+    townCity: "Hai Phong",
+    stateProvince: "Hai Phong",
+    countryOfBirth: "VIET",
+    relationshipStatus: "M",           // M = Married (đã có giấy kết hôn)
+    otherNames: "2",
+    citizenOfPassportCountry: "1",
+    citizenOfOtherCountry: "2",
+    previouslyTravelled: "2",
+    previouslyAppliedVisa: "2",
+    hasGrantNumber: "2",
+    otherPassports: "2",
+    otherIdentityDocs: "2",
+    healthExamination: "2"
 };
+    // =================================================================
 
-    let autofillBtn = null;
+    let mainBtn = null;
+    let nationalBtn = null;
 
-    function addAutofillButton() {
-        if (document.getElementById('immi-autofill-btn')) return;
+    function addButtons() {
+        // Nút chính trang 3
+        if (!document.getElementById('immi-autofill-page3')) {
+            mainBtn = document.createElement('button');
+            mainBtn.id = 'immi-autofill-page3';
+            mainBtn.textContent = 'Autofill Page 3';
+            mainBtn.style.cssText = `
+                position:fixed; top:30px; left:200px; z-index:999999;
+                padding:14px 24px; background:#0066cc; color:white;
+                border:none; border-radius:8px; font-weight:bold; cursor:pointer;
+            `;
+            mainBtn.onclick = () => { if(confirm('Autofill trang 3/20?')) startMainAutofill(); };
+            document.body.appendChild(mainBtn);
+        }
 
-        autofillBtn = document.createElement('button');
-        autofillBtn.id = 'immi-autofill-btn';
-        autofillBtn.textContent = 'Autofill Page 2';
-        autofillBtn.style.cssText = `
-position: fixed; 
-top: 30px;      /* Thay bottom thành top */
-left: 30px;     /* Thay right thành left */
-z-index: 999999;
-padding: 14px 24px; 
-background: #0066cc; 
-color: white;
-border: none; 
-border-radius: 8px; 
-font-weight: bold;
-cursor: pointer; 
-        `;
-        autofillBtn.onclick = () => {
-            if (confirm('Bắt đầu autofill trang 2/20?')) startAutofill();
-        };
-        document.body.appendChild(autofillBtn);
+        // Nút National ID (chỉ hiện khi popup mở)
+        if (!document.getElementById('immi-autofill-national')) {
+            nationalBtn = document.createElement('button');
+            nationalBtn.id = 'immi-autofill-national';
+            nationalBtn.textContent = 'Autofill NationalID';
+            nationalBtn.style.cssText = `
+                position:fixed; top: 80px; left:200px; z-index:999999;
+                padding:12px 20px; background:#ff6600; color:white;
+                border:none; border-radius:8px; font-weight:bold; cursor:pointer;
+                display:none;
+            `;
+            nationalBtn.onclick = () => startNationalAutofill();
+            document.body.appendChild(nationalBtn);
+        }
     }
 
-    async function startAutofill() {
-        console.log('🚀 Bắt đầu autofill...');
+    // ==================== AUTOFILL TRANG CHÍNH ====================
+    async function startMainAutofill() {
+        console.log('🚀 Autofill Page 3/20 bắt đầu...');
 
-        // 1. Outside Australia = Yes
-        const yesRadio = findRadio("Is the applicant currently outside Australia?", "Yes");
-        if (yesRadio) yesRadio.click();
+        // Family name + Given names
+        setTextInput("Family name", CONFIG.familyName);
+        setTextInput("Given names", CONFIG.givenNames);
 
-        await delay(1500);
+        // Sex
+        clickRadioByValue("Sex", CONFIG.sex);
 
-        // 2. Current location & Legal status
-        setSelect("Current location", CONFIG.currentLocationCode);
-        setSelect("Legal status", CONFIG.legalStatusValue);
+        // Dates
+        setDateInput("Date of birth", CONFIG.dateOfBirth);
+        setDateInput("Date of issue", CONFIG.dateOfIssue);
+        setDateInput("Date of expiry", CONFIG.dateOfExpiry);
 
-        await delay(800);
+        // Passport number
+        setTextInput("Passport number", CONFIG.passportNumber);
 
-        // 3. Purpose stream
-        const streamRadio = document.querySelector(`input[type="radio"][value="${CONFIG.purposeStreamValue}"]`);
-        if (streamRadio) streamRadio.click();
+        // Country & Nationality
+        setSelectByLabel("Country of passport", CONFIG.countryOfPassport);
+        setSelectByLabel("Nationality of passport holder", CONFIG.nationality);
 
-        await delay(900);
+        // Place of issue
+        setTextInput("Place of issue / issuing authority", CONFIG.placeOfIssue);
 
-        // 4. Frequent Traveller → initial purpose
-        if (CONFIG.purposeStreamValue === "61") {
-            const initRadio = document.querySelector(`input[type="radio"][value="${CONFIG.initialPurposeValue}"]`);
-            if (initRadio) initRadio.click();
-        }
-
-        // 5. List all reasons
-        const reasonSelect = findMultiSelect("List all reasons for visiting Australia");
-        if (reasonSelect) {
-            reasonSelect.value = CONFIG.visitReasonValue;
-            reasonSelect.dispatchEvent(new Event('change', {bubbles: true}));
-            const plusBtn = document.querySelector('.wc_btn_icon.wc-invite');
-            if (plusBtn) plusBtn.click();
-        }
-
-        // 6. SIGNIFICANT DATES - ĐÃ SỬA (phần này trước bị lỗi)
-        const datesLabel = Array.from(document.querySelectorAll('label.wc-label'))
-            .find(l => l.textContent.includes('significant dates') || 
-                      l.textContent.includes('Give details of any significant dates'));
-
-        if (datesLabel) {
-            const textareaId = datesLabel.getAttribute('for');
-            const datesTA = textareaId ? document.getElementById(textareaId) : null;
-
-            if (datesTA) {
-                datesTA.value = CONFIG.significantDatesText;
-                datesTA.dispatchEvent(new Event('input', { bubbles: true }));
-                datesTA.dispatchEvent(new Event('change', { bubbles: true }));
-                console.log('✅ Significant dates đã điền thành công!');
-            }
+        // National Identity Card
+        if (CONFIG.hasNationalID) {
+            clickRadioByText("Does this applicant have a national identity card?", "Yes");
+            await delay(1200); // đợi popup mở
+            nationalBtn.style.display = 'block';
+            console.log('✅ Đã chọn Yes National ID - popup đang mở');
         } else {
-            console.warn('⚠️ Không tìm thấy label Significant dates');
+            clickRadioByText("Does this applicant have a national identity card?", "No");
         }
 
-        // 7. Group processing = No
-        const groupNo = findRadio("Is this application being lodged as part of a group of applications?", "No");
-        if (groupNo) groupNo.click();
+        // Các Yes/No còn lại (mặc định No)
+        clickRadioByText("Is the applicant a Pacific-Australia Card holder?", CONFIG.pacificAustraliaCard === "1" ? "Yes" : "No");
+        setTextInput("Town / City", CONFIG.townCity);
+        setTextInput("State / Province", CONFIG.stateProvince);
+        setSelectByLabel("Country of birth", CONFIG.countryOfBirth);
 
-        await delay(600);
+        setSelectByLabel("Relationship status", CONFIG.relationshipStatus);
 
-        // 8. Special category = No
-        const specialNo = findRadio("Is the applicant travelling as a representative of a foreign government", "No");
-        if (specialNo) specialNo.click();
+        clickRadioByText("Is this applicant currently, or have they ever been known by any other names?", CONFIG.otherNames === "1" ? "Yes" : "No");
+        clickRadioByText("Is this applicant a citizen of the selected country of passport", CONFIG.citizenOfPassportCountry === "1" ? "Yes" : "No");
+        clickRadioByText("Is this applicant a citizen of any other country?", CONFIG.citizenOfOtherCountry === "1" ? "Yes" : "No");
 
-        console.log('🎉 HOÀN TẤT!');
-        alert('✅ Auto fill trang 2/20 đã xong!\nKiểm tra lại phần Significant dates trước khi Next.');
+        clickRadioByText("Has this applicant previously travelled to Australia?", CONFIG.previouslyTravelled === "1" ? "Yes" : "No");
+        clickRadioByText("Has this applicant previously applied for a visa to Australia?", CONFIG.previouslyAppliedVisa === "1" ? "Yes" : "No");
+        clickRadioByText("Does this applicant have an Australian visa grant number?", CONFIG.hasGrantNumber === "1" ? "Yes" : "No");
+
+        clickRadioByText("Does this applicant have any other passports or documents for travel?", CONFIG.otherPassports === "1" ? "Yes" : "No");
+        clickRadioByText("Does this applicant have other identity documents?", CONFIG.otherIdentityDocs === "1" ? "Yes" : "No");
+        clickRadioByText("Has this applicant undertaken a health examination for an Australian visa in the last 12 months?", CONFIG.healthExamination === "1" ? "Yes" : "No");
+
+        console.log('🎉 TRANG 3 HOÀN TẤT!');
+        alert('✅ Autofill trang 3/20 xong!\nKiểm tra lại rồi nhấn Next.');
     }
 
-    // ==================== HELPER (đã cải tiến) ====================
-    function findRadio(question, option) {
-        return Array.from(document.querySelectorAll('label.wc-option'))
-            .find(l => l.textContent.trim() === option && 
-                  l.closest('fieldset') && 
-                  l.closest('fieldset').textContent.includes(question))
-            ?.querySelector('input[type="radio"]');
+    // ==================== AUTOFILL POPUP NATIONAL ID ====================
+    async function startNationalAutofill() {
+        if (!document.querySelector('button[title="Cancel the current entry"]')) {
+            alert('❌ Popup National ID chưa mở!');
+            return;
+        }
+
+        console.log('🚀 Đang fill National ID popup...');
+
+        setTextInputPopup("Family name", CONFIG.nationalFamilyName);
+        setTextInputPopup("Given names", CONFIG.nationalGivenNames);
+        setTextInputPopup("Identification number", CONFIG.nationalIDNumber);
+        setSelectPopup("Country of issue", CONFIG.nationalCountry);
+
+        setDateInputPopup("Date of issue", CONFIG.nationalDateOfIssue);
+        setDateInputPopup("Date of expiry", CONFIG.nationalDateOfExpiry);
+
+        console.log('✅ National ID popup đã điền xong!');
+        alert('✅ National ID đã autofill!\nNhấn Confirm trên popup.');
     }
 
-    function setSelect(labelText, value) {
-        const label = Array.from(document.querySelectorAll('label.wc-label'))
-            .find(l => l.textContent.includes(labelText));
-        if (!label) return;
-        const select = label.closest('.wc-row')?.querySelector('select') || 
-                       label.parentElement.parentElement.querySelector('select');
-        if (select) {
-            select.value = value;
-            select.dispatchEvent(new Event('change', {bubbles: true}));
+    // ==================== HELPER FUNCTIONS ====================
+    function setTextInput(label, value) {
+        const lbl = Array.from(document.querySelectorAll('label.wc-label')).find(l => l.textContent.includes(label));
+        if (lbl) {
+            const input = lbl.closest('.wc-row').querySelector('input[type="text"]');
+            if (input) {
+                input.value = value;
+                input.dispatchEvent(new Event('input', {bubbles:true}));
+            }
         }
     }
 
-    function findMultiSelect(labelText) {
-        const label = Array.from(document.querySelectorAll('.wc-label'))
-            .find(l => l.textContent.includes(labelText));
-        return label ? label.closest('.wc-panel').querySelector('select') : null;
+    function setDateInput(label, value) {
+        const lbl = Array.from(document.querySelectorAll('label.wc-label')).find(l => l.textContent.includes(label));
+        if (lbl) {
+            const input = lbl.closest('.wc-row').querySelector('input[type="text"]');
+            if (input) {
+                input.value = value;
+                input.dispatchEvent(new Event('change', {bubbles:true}));
+            }
+        }
+    }
+
+    function clickRadioByValue(label, value) {
+        const radios = document.querySelectorAll('input[type="radio"]');
+        for (let r of radios) {
+            if (r.value === value && r.closest('fieldset') && r.closest('fieldset').textContent.includes(label)) {
+                r.click();
+                return;
+            }
+        }
+    }
+
+    function clickRadioByText(labelText, optionText) {
+        const labels = Array.from(document.querySelectorAll('label.wc-option'));
+        for (let l of labels) {
+            if (l.textContent.trim() === optionText) {
+                const fieldset = l.closest('fieldset');
+                if (fieldset && fieldset.textContent.includes(labelText)) {
+                    l.querySelector('input').click();
+                    return;
+                }
+            }
+        }
+    }
+
+    function setSelectByLabel(label, value) {
+        const lbl = Array.from(document.querySelectorAll('label.wc-label')).find(l => l.textContent.includes(label));
+        if (lbl) {
+            const select = lbl.closest('.wc-row').querySelector('select');
+            if (select) {
+                select.value = value;
+                select.dispatchEvent(new Event('change', {bubbles:true}));
+            }
+        }
+    }
+
+    // Helper cho popup National ID
+    function setTextInputPopup(label, value) {
+        const lbl = Array.from(document.querySelectorAll('label.wc-label')).find(l => l.textContent.includes(label));
+        if (lbl) {
+            const input = lbl.closest('.wc-row').querySelector('input[type="text"]');
+            if (input) input.value = value;
+        }
+    }
+
+    function setDateInputPopup(label, value) {
+        const lbl = Array.from(document.querySelectorAll('label.wc-label')).find(l => l.textContent.includes(label));
+        if (lbl) {
+            const input = lbl.closest('.wc-row').querySelector('input[type="text"]');
+            if (input) input.value = value;
+        }
+    }
+
+    function setSelectPopup(label, value) {
+        const lbl = Array.from(document.querySelectorAll('label.wc-label')).find(l => l.textContent.includes(label));
+        if (lbl) {
+            const select = lbl.closest('.wc-row').querySelector('select');
+            if (select) select.value = value;
+        }
     }
 
     function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    window.addEventListener('load', addAutofillButton);
-})()
+    // Theo dõi popup National ID
+    const observer = new MutationObserver(() => {
+        if (document.querySelector('button[title="Cancel the current entry"]')) {
+            nationalBtn.style.display = 'block';
+        } else {
+            nationalBtn.style.display = 'none';
+        }
+    });
+
+    // Khởi chạy
+    window.addEventListener('load', () => {
+        addButtons();
+        observer.observe(document.body, { childList: true, subtree: true });
+        console.log('%c✅ 2 nút Autofill Page 3 + National ID đã sẵn sàng!', 'color:#0066cc; font-weight:bold');
+    });
+})();

@@ -12,6 +12,10 @@
 (function() {
     'use strict';
 
+    // ===== GUARD: Prevent multiple injections from background.js =====
+    if (window.__immiHubRunning) return;
+    window.__immiHubRunning = true;
+
     const HUB_URL = "http://127.0.0.1:8000/australia/api/active-profile";
     let applicantData = null;
     let currentPage = null;
@@ -19,12 +23,27 @@
 
     // ==================== DETECT CURRENT PAGE ====================
     function detectPage() {
-        // IMMI shows "Page X of Y" in the page header/title
+        // Method 1: Look for the specific IMMI page indicator element (e.g. "2/20")
+        const pageLabel = document.querySelector('#_2a0b0a0a0c0');
+        if (pageLabel) {
+            const m = pageLabel.textContent.trim().match(/^(\d+)\s*\/\s*\d+$/);
+            if (m) return parseInt(m[1]);
+        }
+
+        // Method 2: Scan all wc-label spans for "X/Y" pattern
+        const labels = document.querySelectorAll('span.wc-label, .wc-label');
+        for (const lbl of labels) {
+            const txt = lbl.textContent.trim();
+            const m = txt.match(/^(\d+)\s*\/\s*\d+$/);
+            if (m) return parseInt(m[1]);
+        }
+
+        // Method 3: Fallback - search body text for "Page X of Y"
         const pageText = document.body.innerText;
         const match = pageText.match(/Page\s+(\d+)\s+of\s+(\d+)/i);
         if (match) return parseInt(match[1]);
 
-        // Fallback: check URL or heading
+        // Method 4: Check headings
         const heading = document.querySelector("h1, h2, .wc-heading");
         if (heading) {
             const hText = heading.textContent;
@@ -34,19 +53,42 @@
         return null;
     }
 
-    // ==================== FETCH DATA FROM HUB ====================
+    // ==================== FETCH DATA FROM HUB (via Extension Bridge) ====================
     async function fetchProfile() {
-        try {
-            const res = await fetch(HUB_URL);
-            if (!res.ok) {
-                console.warn("Hub: No active profile");
-                return null;
+        // Use window.postMessage to ask bridge.js (ISOLATED world) to fetch via background.js
+        // This bypasses Chrome's Mixed Content block (HTTPS page → HTTP localhost)
+        return new Promise((resolve) => {
+            const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+            function onResponse(event) {
+                if (event.source !== window) return;
+                if (!event.data || event.data.type !== 'IMMI_HUB_RESPONSE') return;
+                if (event.data.requestId !== requestId) return;
+
+                window.removeEventListener('message', onResponse);
+
+                if (event.data.error || !event.data.data) {
+                    console.warn('Hub fetch error:', event.data.error);
+                    resolve(null);
+                } else {
+                    resolve(event.data.data);
+                }
             }
-            return await res.json();
-        } catch (e) {
-            console.warn("Hub not reachable:", e.message);
-            return null;
-        }
+
+            window.addEventListener('message', onResponse);
+
+            window.postMessage({
+                type: 'IMMI_HUB_FETCH',
+                url: HUB_URL,
+                requestId: requestId
+            }, '*');
+
+            // Timeout after 5 seconds
+            setTimeout(() => {
+                window.removeEventListener('message', onResponse);
+                resolve(null);
+            }, 5000);
+        });
     }
 
     // ==================== DOM HELPERS ====================
@@ -113,39 +155,66 @@
 
     // ==================== PAGE FILLERS ====================
     async function fillPage2(d) {
-        // Outside Australia = Yes
+        console.log('[IMMI AutoFill] fillPage2 START', d);
+
+        // 1. Outside Australia = Yes
         const yesRadio = findRadio("Is the applicant currently outside Australia?", "Yes");
+        console.log('[IMMI] Step 1 - Outside Australia radio:', yesRadio);
         if (yesRadio) yesRadio.click();
         await delay(1500);
 
+        // 2. Current location & Legal status
+        console.log('[IMMI] Step 2 - Current location:', d.current_location);
         setSelect("Current location", d.current_location || "VIET");
         setSelect("Legal status", d.legal_status || "1");
         await delay(800);
 
+        // 3. Purpose stream (radio by value)
+        console.log('[IMMI] Step 3 - Purpose stream:', d.purpose_stream);
         clickRadioByValue(d.purpose_stream || "29");
         await delay(900);
 
+        // 4. Frequent Traveller → initial purpose
         if (d.purpose_stream === "61" && d.initial_purpose) {
             clickRadioByValue(d.initial_purpose);
         }
 
-        // Visit reason
-        const reasonSelect = Array.from(document.querySelectorAll('.wc-label'))
+        // 5. List all reasons - use findMultiSelect (proven working method)
+        console.log('[IMMI] Step 5 - Visit reason:', d.visit_reason);
+        const reasonLabel = Array.from(document.querySelectorAll('.wc-label'))
             .find(l => l.textContent.includes('List all reasons'));
-        if (reasonSelect) {
-            const select = reasonSelect.closest('.wc-panel')?.querySelector('select');
-            if (select) {
-                select.value = d.visit_reason || "4";
-                select.dispatchEvent(new Event('change', {bubbles: true}));
+        if (reasonLabel) {
+            const reasonSelect = reasonLabel.closest('.wc-panel')?.querySelector('select');
+            if (reasonSelect) {
+                reasonSelect.value = d.visit_reason || "4";
+                reasonSelect.dispatchEvent(new Event('change', {bubbles: true}));
                 const plusBtn = document.querySelector('.wc_btn_icon.wc-invite');
                 if (plusBtn) plusBtn.click();
+                console.log('[IMMI] ✅ Visit reason set');
+            } else {
+                console.warn('[IMMI] ⚠️ Visit reason select not found');
             }
         }
 
-        // Significant dates
-        setTextarea("significant dates", d.significant_dates || "");
+        // 6. Significant dates - find label → get "for" attr → getElementById (proven working method)
+        console.log('[IMMI] Step 6 - Significant dates');
+        const datesLabel = Array.from(document.querySelectorAll('label.wc-label'))
+            .find(l => l.textContent.includes('significant dates') ||
+                      l.textContent.includes('Give details of any significant dates'));
+        if (datesLabel) {
+            const textareaId = datesLabel.getAttribute('for');
+            const datesTA = textareaId ? document.getElementById(textareaId) : null;
+            if (datesTA) {
+                datesTA.value = d.significant_dates || "";
+                datesTA.dispatchEvent(new Event('input', { bubbles: true }));
+                datesTA.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log('[IMMI] ✅ Significant dates filled');
+            } else {
+                console.warn('[IMMI] ⚠️ Significant dates textarea not found');
+            }
+        }
 
-        // Group processing
+        // 7. Group processing (JSON: "1"=Yes, "2"=No)
         if (d.group_processing === "1") {
             findRadio("Is this application being lodged as part of a group", "Yes")?.click();
         } else {
@@ -153,8 +222,10 @@
         }
         await delay(600);
 
-        // Special category
+        // 8. Special category = No (JSON: "2"=No)
         findRadio("Is the applicant travelling as a representative of a foreign government", "No")?.click();
+
+        console.log('[IMMI AutoFill] fillPage2 DONE ✅');
     }
 
     async function fillPage3(d) {
