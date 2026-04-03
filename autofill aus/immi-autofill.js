@@ -76,6 +76,9 @@
                 <button id="immi-hub-fill" style="width:100%; padding:12px; background:#f59e0b; color:#000; border:none; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer;">
                     🚀 Auto-Fill Trang Này
                 </button>
+                <div id="immi-hub-hint" style="display:none; font-size:11px; margin-top:8px; padding:8px; background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.3); border-radius:6px; color:#fbbf24; line-height:1.4;">
+                    💡 Mỗi lần Confirm xong quay về bảng, ấn <strong>Auto-Fill</strong> 1 lần để cập nhật danh sách đã thêm.
+                </div>
                 <div id="immi-hub-status" style="font-size:12px; margin-top:8px; color:#94a3b8;"></div>
             </div>
         `;
@@ -108,6 +111,12 @@
             pageEl.textContent = `📄 Trang ${currentPage} ${hasData ? '✅ Có data' : '⚠️ Không có data cho trang này'}`;
             fillBtn.disabled = !hasData;
             fillBtn.textContent = hasData ? `🚀 Auto-Fill Trang ${currentPage}` : `⚪ Không có data trang ${currentPage}`;
+
+            // Show hint on multi-member pages (5 & 8)
+            const hintEl = document.getElementById('immi-hub-hint');
+            if (hintEl) {
+                hintEl.style.display = (currentPage === 5 || currentPage === 8) ? 'block' : 'none';
+            }
         } else {
             pageEl.textContent = `📄 Không detect được trang số mấy`;
         }
@@ -173,19 +182,103 @@
         }, 15000);
     }
 
+    // ==================== INFO MESSAGE LISTENER ====================
+    // Listens for IMMI_FILL_INFO messages from MAIN world (filler)
+    // and displays them in the panel status area
+    window.addEventListener('message', (event) => {
+        if (event.data?.type !== 'IMMI_FILL_INFO') return;
+        const statusEl = document.getElementById('immi-hub-status');
+        if (statusEl) {
+            statusEl.style.whiteSpace = 'pre-line';
+            statusEl.style.color = '#fbbf24';
+            statusEl.textContent = event.data.message;
+        }
+    });
+    // ==================== SMART TABLE DETECTION (Page 5 & 8) ====================
+    // After Confirm → back to table → auto-detect and show notification
+    function countTableMembers() {
+        let count = 0;
+        const tables = document.querySelectorAll('table');
+        for (const table of tables) {
+            const rows = table.querySelectorAll('tr');
+            for (const row of rows) {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 2) {
+                    const familyName = cells[0]?.textContent?.trim().toUpperCase() || '';
+                    if (familyName && familyName !== 'FAMILY NAME') count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    let lastTableCheck = '';
+    function checkMultiMemberPages() {
+        if (!applicantData || !currentPage) return;
+        if (currentPage !== 5 && currentPage !== 8) return;
+
+        const statusEl = document.getElementById('immi-hub-status');
+        const fillBtn = document.getElementById('immi-hub-fill');
+        if (!statusEl || !fillBtn) return;
+
+        // Only check when table is visible (not inline form)
+        const isInlineForm = Array.from(document.querySelectorAll('label.wc-label'))
+            .some(l => l.textContent.includes('Relationship to the applicant'));
+        if (isInlineForm) return;
+
+        const tableCount = countTableMembers();
+        let expectedCount = 0;
+        if (currentPage === 5 && applicantData.page_5?.companions) {
+            expectedCount = applicantData.page_5.companions.length;
+        } else if (currentPage === 8 && applicantData.page_8?.non_accompanying_members) {
+            expectedCount = applicantData.page_8.non_accompanying_members.length;
+        }
+
+        // Avoid re-triggering same notification
+        const checkKey = `p${currentPage}_t${tableCount}_e${expectedCount}`;
+        if (checkKey === lastTableCheck) return;
+        lastTableCheck = checkKey;
+
+        const remaining = expectedCount - tableCount;
+        statusEl.style.whiteSpace = 'pre-line';
+
+        if (remaining > 0) {
+            statusEl.style.color = '#fbbf24';
+            statusEl.textContent = `📊 Đã thêm ${tableCount}/${expectedCount} người.\n👉 Ấn [Add] rồi [Auto-Fill] để thêm người tiếp theo.`;
+            fillBtn.textContent = `🔄 Auto-Fill Trang ${currentPage} (cập nhật bảng)`;
+        } else if (expectedCount > 0 && remaining <= 0) {
+            statusEl.style.color = '#4ade80';
+            statusEl.textContent = `✅ Đã thêm đủ ${expectedCount}/${expectedCount} người! Ấn Next để tiếp tục.`;
+        }
+    }
+
     // ==================== INIT ====================
     async function init() {
         console.log('[IMMI Hub] ISOLATED world: panel + data fetch');
         createPanel();
         await updatePanel();
 
+        // Check page changes + smart table detection every 2 seconds
         setInterval(async () => {
             const newPage = detectPage();
             if (newPage !== currentPage) {
                 currentPage = newPage;
+                lastTableCheck = ''; // Reset when page changes
                 await updatePanel();
             }
-        }, 3000);
+            // Auto-detect table changes on page 5/8
+            checkMultiMemberPages();
+        }, 2000);
+
+        // MutationObserver for faster detection after Confirm
+        const observer = new MutationObserver(() => {
+            const newPage = detectPage();
+            if (newPage && (newPage === 5 || newPage === 8)) {
+                currentPage = newPage;
+                checkMultiMemberPages();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 
     if (document.readyState === 'loading') {
