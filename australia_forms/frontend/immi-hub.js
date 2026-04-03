@@ -100,17 +100,43 @@ window.loadAuProfiles = async function() {
       auActiveProfile.innerHTML = `<strong>Chưa có ai.</strong> Dán JSON ở bước 2 để bắt đầu.`;
     }
 
-    // Render profile buttons
+    // Render profile buttons with delete
     if (auProfileList && data.profiles && data.profiles.length > 0) {
-      auProfileList.innerHTML = data.profiles.map(p => `
-        <button class="btn" onclick="switchAuProfile('${p.name}')" 
-          style="padding:8px 16px; border-radius:8px; font-size:13px; cursor:pointer;
-            background:${p.is_active ? '#16a34a' : '#334155'}; 
-            color:${p.is_active ? 'white' : '#e2e8f0'}; 
-            border:${p.is_active ? '2px solid #4ade80' : '1px solid #475569'};">
-          ${p.is_active ? '🟢' : '⚪'} ${p.name}
-        </button>
+      let html = '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">';
+      html += data.profiles.map(p => `
+        <div style="display:inline-flex; align-items:center; gap:2px;">
+          <button class="btn" onclick="switchAuProfile('${p.name}')" 
+            style="padding:8px 16px; border-radius:8px 0 0 8px; font-size:13px; cursor:pointer;
+              background:${p.is_active ? '#16a34a' : '#334155'}; 
+              color:${p.is_active ? 'white' : '#e2e8f0'}; 
+              border:${p.is_active ? '2px solid #4ade80' : '1px solid #475569'};">
+            ${p.is_active ? '🟢' : '⚪'} ${p.name}
+          </button>
+          <button onclick="deleteAuProfile('${p.name}')" title="Xóa ${p.name}"
+            style="padding:8px 10px; border-radius:0 8px 8px 0; font-size:13px; cursor:pointer;
+              background:#7f1d1d; color:#fca5a5; border:1px solid #991b1b;
+              transition:background 0.2s;"
+            onmouseover="this.style.background='#991b1b'" 
+            onmouseout="this.style.background='#7f1d1d'">
+            🗑️
+          </button>
+        </div>
       `).join("");
+
+      // "Xóa tất cả" button when 2+ profiles
+      if (data.profiles.length >= 2) {
+        html += `
+          <button onclick="deleteAllAuProfiles()" title="Xóa tất cả"
+            style="padding:8px 14px; border-radius:8px; font-size:12px; cursor:pointer;
+              background:#450a0a; color:#fca5a5; border:1px dashed #991b1b; margin-left:8px;
+              transition:background 0.2s;"
+            onmouseover="this.style.background='#7f1d1d'" 
+            onmouseout="this.style.background='#450a0a'">
+            🗑️ Xóa tất cả
+          </button>`;
+      }
+      html += '</div>';
+      auProfileList.innerHTML = html;
     } else if (auProfileList) {
       auProfileList.innerHTML = "";
     }
@@ -130,6 +156,45 @@ window.switchAuProfile = async function(name) {
     } else {
       alert(`Lỗi chuyển profile: ${data.error}`);
     }
+  } catch (e) {
+    alert(`Lỗi: ${e.message}`);
+  }
+}
+
+window.deleteAuProfile = async function(name) {
+  if (!confirm(`Xóa profile "${name}"?\nDữ liệu sẽ bị xóa vĩnh viễn.`)) return;
+  try {
+    const res = await fetch(`/australia/api/delete-profile/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (res.ok) {
+      auSaveStatus.textContent = `🗑️ Đã xóa: ${name}`;
+      auSaveStatus.style.color = "#fbbf24";
+      loadAuProfiles();
+    } else {
+      alert(`Lỗi xóa: ${data.error}`);
+    }
+  } catch (e) {
+    alert(`Lỗi: ${e.message}`);
+  }
+}
+
+window.deleteAllAuProfiles = async function() {
+  if (!confirm("Xóa TẤT CẢ profiles đã lưu?\nHành động này không thể hoàn tác.")) return;
+  try {
+    const res = await fetch("/australia/api/profiles");
+    const data = await res.json();
+    if (!data.profiles || data.profiles.length === 0) return;
+
+    for (const p of data.profiles) {
+      await fetch(`/australia/api/delete-profile/${encodeURIComponent(p.name)}`, {
+        method: "DELETE",
+      });
+    }
+    auSaveStatus.textContent = `🗑️ Đã xóa tất cả ${data.profiles.length} profiles`;
+    auSaveStatus.style.color = "#fbbf24";
+    loadAuProfiles();
   } catch (e) {
     alert(`Lỗi: ${e.message}`);
   }

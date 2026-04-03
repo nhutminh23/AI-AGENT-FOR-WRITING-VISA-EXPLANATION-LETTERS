@@ -253,6 +253,39 @@ def australia_list_profiles():
     return jsonify({"profiles": profiles, "active": active_name})
 
 
+@australia_forms_bp.delete("/australia/api/delete-profile/<name>")
+@cross_origin()
+def australia_delete_profile(name: str):
+    """Delete a saved applicant profile by name."""
+    safe_name = secure_filename(name.replace(" ", "_").lower())
+    profile_path = AU_ACTIVE_DIR / f"{safe_name}.json"
+    if not profile_path.exists():
+        return jsonify({"error": f"Profile '{name}' not found"}), 404
+
+    profile_path.unlink()
+    logger.info("Deleted IMMI profile: %s → %s", name, profile_path)
+
+    # If deleted profile was the active one, reset active
+    active_path = AU_ACTIVE_DIR / "_active.json"
+    if active_path.exists():
+        try:
+            active_data = json.loads(active_path.read_text(encoding="utf-8"))
+            if active_data.get("applicant_name", "").strip() == name.strip():
+                # Switch to next available profile, or clear
+                remaining = [f for f in sorted(AU_ACTIVE_DIR.glob("*.json")) if not f.name.startswith("_")]
+                if remaining:
+                    new_active = json.loads(remaining[0].read_text(encoding="utf-8"))
+                    active_path.write_text(json.dumps(new_active, ensure_ascii=False, indent=2), encoding="utf-8")
+                    logger.info("Switched active profile to: %s", new_active.get("applicant_name"))
+                else:
+                    active_path.unlink()
+                    logger.info("No profiles left, cleared active profile")
+        except Exception as exc:
+            logger.warning("Error resetting active profile: %s", exc)
+
+    return jsonify({"success": True, "deleted": name})
+
+
 # ---------------------------------------------------------------------------
 # IMMI AutoFill Hub — Grok Prompt
 # ---------------------------------------------------------------------------

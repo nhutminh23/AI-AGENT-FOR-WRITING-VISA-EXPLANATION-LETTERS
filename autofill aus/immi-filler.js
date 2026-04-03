@@ -240,12 +240,58 @@ async function fillPage3(d) {
         clickRadioByText("Does this applicant have a national identity card?", "Yes");
         await delay(1500);
 
-        setTextInput("Family name", d.national_id_family_name || d.family_name || "");
-        setTextInput("Given names", d.national_id_given_names || d.given_names || "");
-        setTextInput("Identification number", d.national_id_number || "");
-        setSelect("Country of issue", d.national_id_country || "VIET");
-        setTextInput("Date of issue", d.national_id_issue_date || "");
-        setTextInput("Date of expiry", d.national_id_expiry_date || "");
+        // Check if inline CCCD form is showing (has Cancel/Confirm buttons)
+        const cccdConfirmBtn = document.querySelector('button[title="Save the current entry"]');
+        if (cccdConfirmBtn) {
+            // Inline form is showing — use specific IDs to avoid label conflicts with passport
+            // Family name (CCCD)
+            const cccdFamilyName = document.getElementById('_2a0b0a0a0e0b0a0d1a1a0_input');
+            if (cccdFamilyName) {
+                cccdFamilyName.value = d.national_id_family_name || d.family_name || '';
+                cccdFamilyName.dispatchEvent(new Event('input', {bubbles: true}));
+                cccdFamilyName.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Given names (CCCD)
+            const cccdGivenNames = document.getElementById('_2a0b0a0a0e0b0a0d2a1a0_input');
+            if (cccdGivenNames) {
+                cccdGivenNames.value = d.national_id_given_names || d.given_names || '';
+                cccdGivenNames.dispatchEvent(new Event('input', {bubbles: true}));
+                cccdGivenNames.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Identification number
+            const cccdNumber = document.getElementById('_2a0b0a0a0e0b0a0e0b0_input');
+            if (cccdNumber) {
+                cccdNumber.value = d.national_id_number || '';
+                cccdNumber.dispatchEvent(new Event('input', {bubbles: true}));
+                cccdNumber.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Country of issue (select)
+            const cccdCountry = document.getElementById('_2a0b0a0a0e0b0a0f0b0_input');
+            if (cccdCountry) {
+                cccdCountry.value = d.national_id_country || 'VIET';
+                cccdCountry.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Date of issue (CCCD) — ONLY fill if we have CCCD-specific date, NOT passport date
+            const cccdIssueDate = document.getElementById('_2a0b0a0a0e0b0a0h0b0_input');
+            if (cccdIssueDate && d.national_id_issue_date) {
+                cccdIssueDate.value = d.national_id_issue_date;
+                cccdIssueDate.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Date of expiry (CCCD) — ONLY fill if we have CCCD-specific date
+            const cccdExpiryDate = document.getElementById('_2a0b0a0a0e0b0a0i0b0_input');
+            if (cccdExpiryDate && d.national_id_expiry_date) {
+                cccdExpiryDate.value = d.national_id_expiry_date;
+                cccdExpiryDate.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            console.log('[IMMI MAIN] ✅ National ID (CCCD) inline form filled via IDs');
+        } else {
+            // Fallback: label-based (when not in inline form)
+            setTextInput("Identification number", d.national_id_number || "");
+            setSelect("Country of issue", d.national_id_country || "VIET");
+            if (d.national_id_issue_date) setTextInput("Date of issue", d.national_id_issue_date);
+            if (d.national_id_expiry_date) setTextInput("Date of expiry", d.national_id_expiry_date);
+            console.log('[IMMI MAIN] ✅ National ID fields filled via labels (no inline form)');
+        }
 
         console.log('[IMMI MAIN] National ID: Yes');
 
@@ -311,6 +357,22 @@ async function fillPage3(d) {
         d.previously_applied_visa === "Yes" ? "Yes" : "No");
     clickRadioByText("Does this applicant have an Australian visa grant number?", 
         d.has_grant_number === "Yes" ? "Yes" : "No");
+    if (d.has_grant_number === "Yes" && d.grant_number) {
+        await delay(800);
+        const grantInput = Array.from(document.querySelectorAll('input[type="text"]'))
+            .find(inp => {
+                const label = document.querySelector(`label[for="${inp.id}"]`);
+                return label && label.textContent.includes('Australian visa grant number');
+            });
+        if (grantInput) {
+            grantInput.value = d.grant_number;
+            grantInput.dispatchEvent(new Event('input', {bubbles: true}));
+            grantInput.dispatchEvent(new Event('change', {bubbles: true}));
+            console.log('[IMMI MAIN] ✅ Filled grant_number:', d.grant_number);
+        } else {
+            console.warn('[IMMI MAIN] ❌ Could not find grant number input');
+        }
+    }
     clickRadioByText("Does this applicant have any other passports or documents for travel?", 
         d.other_passports === "Yes" ? "Yes" : "No");
     clickRadioByText("Has this applicant undertaken a health examination for an Australian visa in the last 12 months?", 
@@ -577,17 +639,55 @@ async function fillPage3(d) {
         // Suburb / Town (international section)
         setById('_2a0b0a0a0e0a0a5a4h1a1a_input', d.residential_suburb || '');
 
-        // State / Province (dropdown for VN, text for others)
+        // State / Province (can be SELECT dropdown or TEXT input depending on timing)
         if (d.residential_state) {
-            // Try VN province dropdown first
-            const vnDrop = document.getElementById('_2a0b0a0a0e0a0a5a4h2b0b0_input');
-            if (vnDrop && !vnDrop.closest('[hidden]')) {
-                vnDrop.value = d.residential_state;
-                vnDrop.dispatchEvent(new Event('change', {bubbles: true}));
-                console.log(`[IMMI MAIN] ✅ VN Province = "${d.residential_state}"`);
-            } else {
-                // Text input for non-VN
-                setById('_2a0b0a0a0e0a0a5a4h2a0b0_input', d.residential_state);
+            let stateSet = false;
+
+            // Strategy 1: Find visible select by label "State or Province"
+            const stateLabel = Array.from(document.querySelectorAll('label.wc-label'))
+                .find(l => l.textContent.includes('State or Province') || l.textContent.includes('State / Province'));
+            if (stateLabel) {
+                const row = stateLabel.closest('.wc-row') || stateLabel.closest('.wc-panel');
+                const sel = row?.querySelector('select:not([hidden])');
+                const txtInp = row?.querySelector('input[type="text"]:not([hidden])');
+
+                if (sel && !sel.closest('[hidden]')) {
+                    // Try exact value match first
+                    const opts = Array.from(sel.options);
+                    const exactMatch = opts.find(o => o.value === d.residential_state);
+                    const textMatch = opts.find(o => o.textContent.trim().toUpperCase().includes(d.residential_state.toUpperCase()));
+                    if (exactMatch) {
+                        sel.value = exactMatch.value;
+                    } else if (textMatch) {
+                        sel.value = textMatch.value;
+                    } else {
+                        sel.value = d.residential_state;
+                    }
+                    sel.dispatchEvent(new Event('change', {bubbles: true}));
+                    stateSet = true;
+                    console.log(`[IMMI MAIN] ✅ State/Province (select by label) = "${d.residential_state}"`);
+                } else if (txtInp && !txtInp.closest('[hidden]')) {
+                    txtInp.value = d.residential_state;
+                    txtInp.dispatchEvent(new Event('input', {bubbles: true}));
+                    txtInp.dispatchEvent(new Event('change', {bubbles: true}));
+                    stateSet = true;
+                    console.log(`[IMMI MAIN] ✅ State/Province (text by label) = "${d.residential_state}"`);
+                }
+            }
+
+            // Strategy 2: Fallback to known IDs
+            if (!stateSet) {
+                const vnDrop = document.getElementById('_2a0b0a0a0e0a0a5a4h2b0b0_input');
+                if (vnDrop && !vnDrop.closest('[hidden]')) {
+                    vnDrop.value = d.residential_state;
+                    vnDrop.dispatchEvent(new Event('change', {bubbles: true}));
+                    stateSet = true;
+                    console.log(`[IMMI MAIN] ✅ VN Province (ID fallback) = "${d.residential_state}"`);
+                } else {
+                    setById('_2a0b0a0a0e0a0a5a4h2a0b0_input', d.residential_state);
+                    stateSet = true;
+                    console.log(`[IMMI MAIN] ✅ State/Province (text ID fallback) = "${d.residential_state}"`);
+                }
             }
         }
 
@@ -660,6 +760,31 @@ async function fillPage3(d) {
         if (d.length_of_stay) setSelect("Length of stay in Australia", d.length_of_stay);
         if (d.planned_arrival) setTextInput("Planned arrival date", d.planned_arrival);
         if (d.planned_departure) setTextInput("Planned final departure date", d.planned_departure);
+
+        // "Does the applicant know the dates of entry for each occasion after first entry?"
+        // This field appears when applicant has previous Aus visa or selected multiple entry
+        if (d.know_dates_of_entry !== undefined) {
+            clickRadioByText("Does the applicant know the dates of entry for each occasion after first entry to Australia?",
+                d.know_dates_of_entry === "Yes" ? "Yes" : "No");
+            await delay(800);
+
+            // If "No" → fill the "Give reason" textarea
+            if (d.know_dates_of_entry === "No" && d.dates_of_entry_reason) {
+                const reasonTA = Array.from(document.querySelectorAll('textarea'))
+                    .find(t => {
+                        const label = document.querySelector(`label[for="${t.id}"]`);
+                        return label && label.textContent.includes('Give reason');
+                    });
+                if (reasonTA) {
+                    reasonTA.value = d.dates_of_entry_reason;
+                    reasonTA.dispatchEvent(new Event('input', {bubbles: true}));
+                    reasonTA.dispatchEvent(new Event('change', {bubbles: true}));
+                    console.log('[IMMI MAIN] ✅ Filled dates_of_entry_reason');
+                } else {
+                    console.warn('[IMMI MAIN] ❌ Could not find "Give reason" textarea');
+                }
+            }
+        }
 
         clickRadioByText("Is the applicant a parent or step-parent of an Australian citizen", d.is_parent_of_australian === "Yes" ? "Yes" : "No");
         clickRadioByText("Will the applicant undertake a course of study in Australia?", d.undertake_study === "Yes" ? "Yes" : "No");
@@ -763,7 +888,15 @@ async function fillPage3(d) {
 
         // Funding source radio: 1=Self, 2=Employer, 3=Other Org, 4=Other Person
         if (d.funding_source) {
-            clickRadioByValue(d.funding_source);
+            const clicked = clickRadioInFieldset("how the applicant's stay in Australia will be funded", d.funding_source);
+            if (!clicked) {
+                // Fallback: try by fieldset name attribute
+                const radio = document.querySelector(`input[type="radio"][name="_2a0b0a0a0e0a0a11a2e1b0"][value="${d.funding_source}"]`);
+                if (radio) { radio.click(); console.log('[IMMI MAIN] Clicked funding_source via name fallback'); }
+                else { console.warn('[IMMI MAIN] ❌ Could not find funding_source radio for value:', d.funding_source); }
+            } else {
+                console.log('[IMMI MAIN] ✅ Clicked funding_source =', d.funding_source);
+            }
             await delay(1200);
         }
 

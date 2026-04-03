@@ -75,6 +75,7 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
   "previously_travelled_to_australia": "No",
   "previously_applied_visa": "No",
   "has_grant_number": "No",
+  "grant_number": "",
 
   "other_passports": "No",
   "other_identity_docs": "No",
@@ -101,7 +102,7 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
     "residential_address1": "123 NGUYEN HUE STREET",
     "residential_address2": "",
     "residential_suburb": "DISTRICT 1",
-    "residential_state": "VNSG",
+    "residential_state": "HO CHI MINH",
     "residential_postcode": "700000",
     "phone_home": "",
     "phone_business": "",
@@ -128,6 +129,8 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
     "length_of_stay": "3",
     "planned_arrival": "01 May 2026",
     "planned_departure": "30 May 2026",
+    "know_dates_of_entry": "No",
+    "dates_of_entry_reason": "The applicant has a confirmed itinerary for only one short tourist visit to Australia from 01 May 2026 to 30 May 2026. Although the visa allows multiple entries, they have not planned any subsequent visits and therefore do not know the entry dates for any future occasions after the first arrival.",
     "is_parent_of_australian": "No",
     "undertake_study": "No",
     "visit_relatives": "Yes",
@@ -172,7 +175,7 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
   "page_12": {
     "_title": "Financial support (Trang 12/20)",
     "funding_source": "1",
-    "available_funds": "THE APPLICANT WILL SELF-FUND THE TRIP USING PERSONAL SAVINGS OF APPROXIMATELY 5000 AUD. ACCOMMODATION AND FLIGHTS HAVE BEEN PRE-BOOKED AND PAID FOR."
+    "available_funds": "THE APPLICANT WILL SELF-FUND THE TRIP. BANK STATEMENTS FROM VIETCOMBANK SHOW: (1) SAVINGS ACCOUNT BALANCE: VND 150,000,000 (APPROX. AUD 9,500), (2) FIXED DEPOSIT: VND 200,000,000 (APPROX. AUD 12,500). THE APPLICANT ALSO OWNS A RESIDENTIAL PROPERTY (85 SQM APARTMENT) IN DISTRICT 7, HO CHI MINH CITY. MONTHLY SALARY: VND 25,000,000. ROUND-TRIP FLIGHTS AND ACCOMMODATION HAVE BEEN PRE-BOOKED AND PAID."
   },
   "page_16": {
     "_title": "Health declarations (Trang 16/20)",
@@ -262,6 +265,15 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
     - Country of issue → `"VIET"`
   - `"No"` → không cần dữ liệu bổ sung
 
+- **`previously_applied_visa` và `has_grant_number` — LOGIC VISA GRANT:**
+  - Nếu applicant **đã từng xin visa Úc** → `previously_applied_visa`: `"Yes"`
+  - Nếu có **grant number** (từ lá thư cấp visa, lịch sử visa) → `has_grant_number`: `"Yes"`
+  - `grant_number`: **BẮT BUỘC** khi `has_grant_number` = `"Yes"` — điền số grant (VD: `"2909579417223"`). Tìm trong:
+    - Visa grant letter/notification
+    - VEVO check result
+    - Lịch sử visa trước đó
+  - Nếu không có grant number → `has_grant_number`: `"No"`, `grant_number`: `""`
+
 **Các trường khác bắt buộc:**
 - `sex`: `"F"`, `"M"`, hoặc `"U"`
 - `relationship_status`: `"M"` (Married), `"N"` (Never Married), `"D"` (Divorced), `"W"` (Widowed), `"F"` (De Facto), `"E"` (Engaged), `"S"` (Separated)
@@ -269,6 +281,22 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
 - Ngày tháng: định dạng chính xác `"DD MMM YYYY"`
 - `passport_issuing_authority`: `"IMMIGRATION DEPARTMENT OF VIETNAM"`
 - Passport country/nationality: mã 3 chữ `"VNM"`
+
+**⚠️ QUY TẮC TUYỆT ĐỐI VỀ NGÀY THÁNG — PASSPORT vs CCCD:**
+> **PASSPORT và CCCD (National ID) là 2 GIẤY TỜ HOÀN TOÀN KHÁC NHAU. TUYỆT ĐỐI KHÔNG ĐƯỢC LẪN LỘN NGÀY CẤP/HẾT HẠN GIỮA CHÚNG!**
+
+- `passport_issue_date`: Chỉ lấy từ **trang thông tin passport** (nơi có ảnh, số passport). KHÔNG BAO GIỜ lấy từ CCCD.
+- `passport_expiry_date`: Chỉ lấy từ **trang thông tin passport**. KHÔNG BAO GIỜ lấy từ CCCD.
+- `national_id_issue_date`: Chỉ lấy từ **CCCD/CMND** (Căn cước công dân). KHÔNG BAO GIỜ lấy từ passport.
+- `national_id_expiry_date`: Chỉ lấy từ **CCCD/CMND**. KHÔNG BAO GIỜ lấy từ passport.
+
+**QUY TẮC "ĐỂ TRỐNG":** Nếu KHÔNG TÌM THẤY ngày cấp hoặc hết hạn trong đúng giấy tờ tương ứng → **để `""` (chuỗi rỗng)**. TUYỆT ĐỐI KHÔNG tự bịa, không suy luận, không lấy ngày từ giấy tờ khác để chèn vào.
+
+- ✅ `"passport_issue_date": ""` (nếu không thấy trên passport) → **ĐÚNG**
+- ✅ `"national_id_expiry_date": ""` (nếu CCCD không ghi ngày hết hạn) → **ĐÚNG**
+- ❌ `"passport_issue_date": "29 Jul 2022"` (lấy từ ngày cấp CCCD) → **SAI NGHIÊM TRỌNG**
+- ❌ `"national_id_issue_date": "05 Apr 2023"` (lấy từ ngày cấp passport) → **SAI NGHIÊM TRỌNG**
+- ❌ `"passport_expiry_date": "29 Jul 2047"` (lấy từ hạn CCCD) → **SAI NGHIÊM TRỌNG**
 
 ### Page 5 — Travelling companions (Trang 5/20)
 - **Nếu có nhiều applicant**, mỗi người PHẢI có `page_5` khai người đi cùng
@@ -302,13 +330,22 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
 ### Page 6 — Contact details (Trang 6/20)
 - `usual_country`: mã nước: `"VIET"` = Vietnam
 - `closest_office`: text, vd `"Vietnam, Ho Chi Minh City"` hoặc `"Vietnam, Hanoi"`
-- `residential_state`: mã tỉnh VN: `"VNSG"` = HCM, `"VNHN"` = Hà Nội (hoặc text nếu nước khác)
+- `residential_state`: **PHẢI dùng TÊN ĐẦY ĐỦ TIẾNG ANH viết hoa**, KHÔNG dùng mã code:
+  - ✅ `"HO CHI MINH"`, `"HA NOI"`, `"BEN TRE"`, `"DA NANG"`, `"BINH DUONG"`
+  - ❌ KHÔNG dùng `"VNSG"`, `"VNHN"` — đây là mã code, form sẽ không fill đúng
+  - Tên tỉnh dùng romanized Vietnamese không dấu
 - `postal_same_as_residential`: `"Yes"` hoặc `"No"`
 
 ### Page 9 — Planned travel (Trang 9/20)
 - `multiple_entry`: `"Yes"` hoặc `"No"`
 - `length_of_stay`: **CHỈ DÙNG 3 GIÁ TRỊ:** `"3"` (Up to 3 months), `"6"` (Up to 6 months), `"12"` (Up to 12 months). **QUAN TRỌNG: Không dùng số khác!** Chọn giá trị nhỏ nhất phù hợp với thời gian ở (vd: ở 11 ngày → `"3"`, ở 4 tháng → `"6"`)
 - Ngày tháng: `DD MMM YYYY`
+- **`know_dates_of_entry`** — Trường này **XUẤT HIỆN KHI** applicant đã từng có visa Úc hoặc chọn multiple entry:
+  - `"Yes"` nếu applicant biết chính xác ngày nhập cảnh cho mỗi lần sau lần đầu
+  - `"No"` nếu chỉ có kế hoạch 1 chuyến đi (THÔNG THƯỜNG là `"No"`)
+  - **Nếu `"No"`** → `dates_of_entry_reason`: **BẮT BUỘC** — text giải thích lý do bằng tiếng Anh.  
+    **Ví dụ:** `"The applicant has a confirmed itinerary for only one short tourist visit to Australia from 05 Jun 2026 to 15 Jun 2026. Although the visa allows multiple entries, they have not planned any subsequent visits and therefore do not know the entry dates for any future occasions after the first arrival."`
+  - **Nếu `"Yes"`** → `dates_of_entry_reason`: `""` (rỗng)
 - `is_parent_of_australian`: `"Yes"` / `"No"`
 - `undertake_study`: `"Yes"` / `"No"`
 - `visit_relatives`: `"Yes"` / `"No"` — Nếu applicant có người thân/bạn ở Úc → `"Yes"`
@@ -353,7 +390,12 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
   - `course_date_from`: `DD MMM YYYY`
   - `course_date_to`: `DD MMM YYYY`
 - **Nếu `employment_status` = `"99"` (Other):**  
-  - `give_details`: **BẮT BUỘC** — text mô tả chi tiết lý do (ví dụ: "Housewife with rental income", "Property owner", "Self-funded by investments"...). Đây chính là nội dung điền vào ô "Give details" trên form.
+  - `give_details`: **BẮT BUỘC** — text mô tả chi tiết BẰNG TIẾNG ANH ĐẦY ĐỦ (KHÔNG dùng tiếng Việt, KHÔNG dùng tiếng Việt không dấu).
+    - ✅ `"BUDDHIST NUN AND ABBESS OF TU HUE PAGODA (TU HUE TEMPLE), TAM PHUOC COMMUNE, CHAU THANH DISTRICT, BEN TRE PROVINCE, SERVING SINCE 2007"`
+    - ✅ `"HOMEMAKER AND PROPERTY OWNER, MANAGING FAMILY RENTAL PROPERTIES IN HO CHI MINH CITY"`
+    - ❌ KHÔNG dùng: `"TRU TRI CHUA TU HUE"` (tiếng Việt không dấu)
+    - ❌ KHÔNG dùng: `"NI SU CHUA TU HUE"` (tiếng Việt)
+    - **Quy tắc:** Dịch chức danh, tên chùa, tên tổ chức sang tiếng Anh. Có thể kèm tên gốc trong ngoặc nếu cần: `"ABBESS OF TU HUE PAGODA (CHUA TU HUE)"`
 - Tất cả trường hợp: org_country, org_address, org_suburb, org_state, org_postcode
 - Ngày tháng: `DD MMM YYYY`
 
@@ -363,7 +405,20 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
   - `"2"` = Supported by current overseas employer (có công ty hỗ trợ)
   - `"3"` = Supported by other organisation (tổ chức khác hỗ trợ)
   - `"4"` = Supported by other person (người khác hỗ trợ)
-- `available_funds`: text mô tả nguồn tài chính (BẮT BUỘC), vd: `"PERSONAL SAVINGS OF 5000 AUD. ACCOMMODATION AND FLIGHTS PRE-BOOKED."`
+- `available_funds`: **BẮT BUỘC PHẢI CỤ THỂ VỀ TÀI CHÍNH** — TẬP TRUNG VÀO TÀI SẢN VÀ SỐ DƯ, KHÔNG ĐƯỢC chung chung!
+  - **ƯU TIÊN CAO (phải có nếu có trong hồ sơ):**
+    - 🏦 Tên ngân hàng + số dư tài khoản bằng VND VÀ quy đổi AUD (ví dụ: `"AGRIBANK SAVINGS ACCOUNT: VND 250,000,000 (APPROX. AUD 15,600)"`)
+    - 🏦 Nếu có nhiều tài khoản ngân hàng → liệt kê TẤT CẢ với số dư từng cái
+    - 💰 Tiền gửi tiết kiệm / fixed deposit (số tiền, kỳ hạn nếu có)
+    - 🏠 Bất động sản / đất đai (diện tích, vị trí, giá trị ước tính nếu có)
+    - 📊 Thu nhập hàng tháng / nguồn thu nhập (lương, cho thuê, kinh doanh)
+  - **ƯU TIÊN THẤP (nhắc ngắn gọn, không cần chi tiết giá):**
+    - ✈️ Vé máy bay đã đặt (chỉ cần ghi "ROUND-TRIP FLIGHTS HAVE BEEN PRE-BOOKED")
+    - 🏨 Khách sạn đã đặt (chỉ cần ghi "ACCOMMODATION HAS BEEN ARRANGED")
+  - **Ví dụ tốt:** `"THE APPLICANT WILL SELF-FUND THE TRIP. BANK STATEMENTS FROM AGRIBANK SHOW: (1) SAVINGS ACCOUNT BALANCE: VND 250,000,000 (APPROX. AUD 15,600), (2) FIXED DEPOSIT: VND 100,000,000 (APPROX. AUD 6,250). THE APPLICANT ALSO OWNS RESIDENTIAL LAND (200 SQM) IN BEN TRE PROVINCE AND A HOUSE IN TAM PHUOC COMMUNE. MONTHLY INCOME FROM DONATIONS AND TEMPLE ACTIVITIES: APPROX. VND 15,000,000. ROUND-TRIP FLIGHTS AND ACCOMMODATION HAVE BEEN PRE-BOOKED AND PAID."`
+  - **❌ KHÔNG viết:** `"PERSONAL SAVINGS. FLIGHTS AND HOTEL PRE-BOOKED."` (quá chung chung, thiếu số liệu)
+  - **❌ KHÔNG viết:** `"THE APPLICANT WILL SELF-FUND THE TRIP USING PERSONAL SAVINGS AND BANK BALANCE AS SHOWN IN AGRIBANK STATEMENTS."` (thiếu số dư cụ thể)
+  - Nếu hồ sơ không có số tiền chính xác, ước tính hợp lý dựa trên bank statement và tài sản trong hồ sơ
 - **Nếu `funding_source` = `"2"` hoặc `"3"` (Employer/Organisation):**
   - `support_type`: `"1"` = Financial, `"2"` = Accommodation, `"3"` = All costs, `"99"` = Other
   - `paying_org`: `"1"` = Current overseas employer, `"2"` = Organisation in Australia, `"3"` = Other organisation

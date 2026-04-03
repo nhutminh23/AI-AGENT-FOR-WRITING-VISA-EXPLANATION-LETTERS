@@ -100,6 +100,33 @@ async function letterGenApplyJson() {
     return;
   }
 
+  // Handle array of multiple applicants
+  if (Array.isArray(letterGenProfile)) {
+    if (letterGenProfile.length === 0) {
+      status.innerHTML = '<span style="color:#dc2626;">❌ JSON mảng rỗng, không có dữ liệu.</span>';
+      return;
+    }
+    if (letterGenProfile.length === 1) {
+      // Single item in array — unwrap
+      letterGenProfile = letterGenProfile[0];
+    } else {
+      // Multiple applicants — show picker
+      const names = letterGenProfile.map((p, i) => 
+        `${i + 1}. ${p.applicant?.full_name || 'Applicant ' + (i + 1)}`
+      ).join('\n');
+      const choice = prompt(
+        `JSON có ${letterGenProfile.length} người:\n${names}\n\nNhập số thứ tự (1-${letterGenProfile.length}) để chọn người tạo thư:`,
+        '1'
+      );
+      const idx = parseInt(choice) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= letterGenProfile.length) {
+        status.innerHTML = '<span style="color:#dc2626;">❌ Lựa chọn không hợp lệ. Vui lòng thử lại.</span>';
+        return;
+      }
+      letterGenProfile = letterGenProfile[idx];
+    }
+  }
+
   // Validate required fields
   if (!letterGenProfile.applicant || !letterGenProfile.applicant.full_name) {
     status.innerHTML = '<span style="color:#dc2626;">❌ JSON thiếu trường applicant.full_name</span>';
