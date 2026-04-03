@@ -329,9 +329,58 @@ async function fillPage3(d) {
 
     if (shouldHaveOtherID) {
         clickRadioByText("Does this applicant have other identity documents?", "Yes");
-        await delay(1000);
+        await delay(1500);
 
-        sendInfo(`📋 Đã chọn "Yes" cho Other identity documents.\n👉 Vui lòng thêm Birth Certificate (Type: Birth certificate) vào bảng.`);
+        // Auto-fill Birth Certificate inline form using direct IDs
+        const otherDocConfirmBtn = document.getElementById('_2a0b0a0a0e0e3d');
+        if (otherDocConfirmBtn) {
+            // Family name
+            const otherFamilyName = document.getElementById('_2a0b0a0a0e0e0a0e1a1a0_input');
+            if (otherFamilyName) {
+                otherFamilyName.value = d.family_name || '';
+                otherFamilyName.dispatchEvent(new Event('input', {bubbles: true}));
+                otherFamilyName.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Given names
+            const otherGivenNames = document.getElementById('_2a0b0a0a0e0e0a0e2a1a0_input');
+            if (otherGivenNames) {
+                otherGivenNames.value = d.given_names || '';
+                otherGivenNames.dispatchEvent(new Event('input', {bubbles: true}));
+                otherGivenNames.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Type of document → Birth certificate
+            const otherDocType = document.getElementById('_2a0b0a0a0e0e0a0f0b0_input');
+            if (otherDocType) {
+                otherDocType.value = 'BRT_CRT';
+                otherDocType.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Identification number (số giấy khai sinh hoặc mặc định)
+            const otherIdNumber = document.getElementById('_2a0b0a0a0e0e0a0g0b0_input');
+            if (otherIdNumber) {
+                const birthCertNumber = d.other_id_number || d.birth_certificate_number || 'Birth Certificate';
+                otherIdNumber.value = birthCertNumber;
+                otherIdNumber.dispatchEvent(new Event('input', {bubbles: true}));
+                otherIdNumber.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            // Country of issue → VIETNAM
+            const otherCountry = document.getElementById('_2a0b0a0a0e0e0a0h0b0_input');
+            if (otherCountry) {
+                otherCountry.value = 'VIET';
+                otherCountry.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+
+            await delay(500);
+
+            // Click Confirm to save the entry
+            otherDocConfirmBtn.click();
+            console.log('[IMMI MAIN] ✅ Other ID: Birth Certificate filled & Confirmed');
+            sendInfo(`📋 Đã tự động điền Birth Certificate:\n- Họ: ${d.family_name}\n- Tên: ${d.given_names}\n- Loại: Birth certificate\n- Quốc gia: VIETNAM\n✅ Đã nhấn Confirm`);
+
+        } else {
+            // Fallback: form chưa hiện, nhắc user thủ công
+            sendInfo(`📋 Đã chọn "Yes" cho Other identity documents.\n⚠️ Không tìm thấy inline form. Vui lòng nhấn Add và thêm Birth Certificate thủ công.`);
+            console.warn('[IMMI MAIN] ⚠️ Other ID inline form not found');
+        }
     } else {
         clickRadioByText("Does this applicant have other identity documents?", "No");
     }
