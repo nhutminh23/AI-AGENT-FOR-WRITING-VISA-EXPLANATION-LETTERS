@@ -254,10 +254,13 @@ def build_hotel_booking_htmls_from_serp(payload, base_dir, serpapi_key=None):
         except Exception as e:
             logging.exception("[Safe Log] AI generation failed, using defaults: %s", e)
 
+    # Generate one member ID for the entire batch to ensure consistency for the same user
+    session_member_id = str(random.randint(100000000, 999999999))
+
     for i, hs in enumerate(hotel_stops):
         booking_id = str(random.randint(1000000000, 9999999999))
         booking_ref = str(random.randint(1000000000, 9999999999))
-        member_id = str(random.randint(100000000, 9999999999))
+        member_id = session_member_id
 
         check_in = hs.get("check_in", "")
         check_out = hs.get("check_out", "")

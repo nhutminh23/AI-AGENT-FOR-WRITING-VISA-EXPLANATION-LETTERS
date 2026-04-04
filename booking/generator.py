@@ -118,6 +118,7 @@ def generate_hotel_bookings(
     
     bookings = []
     current_date = start_date
+    session_member_id = str(random.randint(100000000, 999999999))
     
     for split in splits:
         city = split["city"]
@@ -143,6 +144,7 @@ def generate_hotel_bookings(
         booking = {
             "booking_id": generate_booking_id(),
             "booking_reference": generate_booking_reference(),
+            "member_id": session_member_id,
             "hotel_name": hotel["hotel_name"],
             "hotel_address": hotel["hotel_address"],
             "hotel_phone": hotel["hotel_phone"],
