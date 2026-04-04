@@ -6,6 +6,10 @@ def random_policy_no() -> str:
     num = random.randint(10000000, 99999999)
     return f"S-TAI-{num:08d}-00-26"
 
+def random_chubb_policy() -> str:
+    """Generate random policy number like CWTVNAA0108016"""
+    return f"CWTVNAA0{random.randint(1000000, 9999999):07d}"
+
 def random_customer_code() -> str:
     """Generate random 8-digit customer code"""
     return f"{random.randint(10000000, 99999999):08d}"

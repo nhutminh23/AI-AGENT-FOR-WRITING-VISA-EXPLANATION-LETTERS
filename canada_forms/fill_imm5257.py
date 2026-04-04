@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from pathlib import Path
 
-import pypdf
+
 
 from canada_forms.dial_codes import split_phone as _split_phone
 from canada_forms.xml_helpers import (
@@ -551,46 +551,32 @@ def fill_imm5257(
     template_path: str | Path,
     output_path: str | Path,
 ) -> Path:
-    """Fill IMM5257E PDF by injecting XFA form data."""
+    """Fill IMM5257E PDF by injecting XFA form data.
+
+    Uses pyHanko incremental PDF update to preserve all original bytes,
+    encryption, DocMDP certification, and UR3 Reader Extension rights.
+    """
     template_path = Path(template_path)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    reader = pypdf.PdfReader(str(template_path))
-    if reader.is_encrypted:
-        reader.decrypt("")
+    # ------------------------------------------------------------------
+    # 1. Read the original datasets XML from the template
+    # ------------------------------------------------------------------
+    from canada_forms.incremental_writer import read_datasets_xml, incremental_xfa_write
 
-    writer = pypdf.PdfWriter(clone_from=reader)
+    original_xml = read_datasets_xml(template_path).decode("utf-8", errors="replace")
 
-    acroform_ref = writer._root_object.get("/AcroForm")
-    if not acroform_ref:
-        raise RuntimeError("PDF has no AcroForm")
-
-    acroform = acroform_ref.get_object() if hasattr(acroform_ref, "get_object") else acroform_ref
-    xfa_ref = acroform.get("/XFA")
-    if not xfa_ref:
-        raise RuntimeError("PDF has no XFA data")
-
-    xfa_array = xfa_ref.get_object() if hasattr(xfa_ref, "get_object") else xfa_ref
-
-    datasets_idx = None
-    for i, item in enumerate(xfa_array):
-        resolved = item.get_object() if hasattr(item, "get_object") else item
-        if str(resolved) == "datasets":
-            datasets_idx = i + 1
-            break
-
-    if datasets_idx is None:
-        raise RuntimeError("Could not find 'datasets' in XFA array")
-
-    datasets_stream_ref = xfa_array[datasets_idx]
-    datasets_stream = datasets_stream_ref.get_object() if hasattr(datasets_stream_ref, "get_object") else datasets_stream_ref
-
-    original_xml = datasets_stream.get_data().decode("utf-8", errors="replace")
+    # ------------------------------------------------------------------
+    # 2. Build form1 XML from applicant data
+    # ------------------------------------------------------------------
     form1_xml = _build_form1_xml(data)
 
-    # Strategy: find the <xfa:data ...> opening and its closing tag, then replace
-    # the content between them. Must handle newlines inside tags (common in XFA).
+    # ------------------------------------------------------------------
+    # 3. Replace <xfa:data> content with our form1 XML
+    # ------------------------------------------------------------------
+    # Strategy: find the <xfa:data ...> opening and its closing tag, then
+    # replace the content between them. Must handle newlines inside tags.
     # Look for '<xfa:data' that's NOT '<xfa:datasets'
     data_start = -1
     search_from = 0
@@ -642,32 +628,16 @@ def fill_imm5257(
             + original_xml[close_end + 1:]
         )
 
-    datasets_stream.set_data(updated_xml.encode("utf-8"))
+    # ------------------------------------------------------------------
+    # 4. Write incrementally (preserves signatures + encryption)
+    # ------------------------------------------------------------------
+    incremental_xfa_write(
+        template_path=template_path,
+        output_path=output_path,
+        updated_xml=updated_xml.encode("utf-8"),
+    )
 
     filled_count = sum(1 for v in data.values() if v not in (None, "", "0", False, {}))
-
-    # NOTE: Do NOT call writer.encrypt() here!
-    # The template contains a DocMDP digital signature (in /Perms) that IRCC
-    # validates on upload. Re-encrypting with new keys invalidates this signature.
-    # clone_from preserves the /Perms dict with the original signature.
-    # After filling, user must open PDF in Adobe Reader → click Validate → Save
-    # to restore proper encryption and generate upload barcodes.
-    
-    # NEW FIX: Because PyPDF rewriting breaks byte offsets, the restored signature
-    # is mathematically invalid. Adobe Acrobat triggers a security lockdown
-    # ("Certification by IRCC is invalid") and blocks JavaScript execution!
-    # By stripping the broken signature objects (/Perms & /SigFlags),
-    # Acrobat treats the file as an uncertified (but usable) form, 
-    # allowing the internal JavaScript to run successfully and generate the barcode.
-    root = writer._root_object
-    if "/Perms" in root:
-        del root["/Perms"]
-        
-    if "/SigFlags" in acroform:
-        del acroform["/SigFlags"]
-
-    with open(output_path, "wb") as f:
-        writer.write(f)
-
     logger.info("IMM5257E XFA filled: %d fields -> %s", filled_count, output_path)
     return output_path
+

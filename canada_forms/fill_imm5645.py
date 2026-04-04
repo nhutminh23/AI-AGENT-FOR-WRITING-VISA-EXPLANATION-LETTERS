@@ -17,14 +17,7 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 
-import pypdf
-from pypdf.generic import (
-    ArrayObject,
-    BooleanObject,
-    DecodedStreamObject,
-    NameObject,
-    TextStringObject,
-)
+
 
 from canada_forms.field_mappings import ALL_FIELDS
 
@@ -280,95 +273,38 @@ def fill_imm5645(
     template_path: str | Path,
     output_path: str | Path,
 ) -> Path:
-    """
-    Fill IMM5645E PDF form by updating XFA datasets XML.
+    """Fill IMM5645E PDF form by updating XFA datasets XML.
 
-    Preserves the original PDF format (XFA + locked structure) so the
-    result can be uploaded to the Canada immigration portal.
+    Uses pyHanko incremental PDF update to preserve all original bytes,
+    encryption, DocMDP certification, and UR3 Reader Extension rights.
     """
     template_path = Path(template_path)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    reader = pypdf.PdfReader(str(template_path))
-    if reader.is_encrypted:
-        reader.decrypt("")
+    # ------------------------------------------------------------------
+    # 1. Read the original datasets XML from the template
+    # ------------------------------------------------------------------
+    from canada_forms.incremental_writer import read_datasets_xml, incremental_xfa_write
 
-    # Clone entire document (preserves everything)
-    writer = pypdf.PdfWriter(clone_from=reader)
+    original_xml = read_datasets_xml(template_path)
 
-    # -----------------------------------------------------------------------
-    # Extract XFA datasets XML
-    # -----------------------------------------------------------------------
-    acroform_ref = writer._root_object.get("/AcroForm")
-    if not acroform_ref:
-        raise RuntimeError("PDF has no AcroForm")
-
-    acroform = acroform_ref.get_object() if hasattr(acroform_ref, "get_object") else acroform_ref
-
-    xfa_ref = acroform.get("/XFA")
-    if not xfa_ref:
-        raise RuntimeError("PDF has no XFA data — cannot use XFA fill method")
-
-    # XFA is an array: [name, stream, name, stream, ...]
-    xfa_array = xfa_ref.get_object() if hasattr(xfa_ref, "get_object") else xfa_ref
-
-    # Find the "datasets" stream
-    datasets_idx = None
-    for i, item in enumerate(xfa_array):
-        if isinstance(item, str) and item == "datasets":
-            datasets_idx = i + 1
-            break
-        # Handle IndirectObject wrapping a string
-        try:
-            resolved = item.get_object() if hasattr(item, "get_object") else item
-            if str(resolved) == "datasets":
-                datasets_idx = i + 1
-                break
-        except Exception:
-            pass
-
-    if datasets_idx is None:
-        raise RuntimeError("Could not find 'datasets' in XFA array")
-
-    datasets_stream_ref = xfa_array[datasets_idx]
-    datasets_stream = datasets_stream_ref.get_object() if hasattr(datasets_stream_ref, "get_object") else datasets_stream_ref
-
-    # Get current XML
-    original_xml = datasets_stream.get_data()
-
-    # -----------------------------------------------------------------------
-    # Build XFA data and update XML
-    # -----------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 2. Build XFA data and update XML
+    # ------------------------------------------------------------------
     xfa_data = _build_xfa_data(data)
     updated_xml = _update_xfa_datasets(original_xml, xfa_data)
 
-    # -----------------------------------------------------------------------
-    # Write updated XML back into the datasets stream
-    # -----------------------------------------------------------------------
-    # Write updated XML back into the datasets stream (in-place)
-    # -----------------------------------------------------------------------
-    datasets_stream.set_data(updated_xml)
+    # ------------------------------------------------------------------
+    # 3. Write incrementally (preserves signatures + encryption)
+    # ------------------------------------------------------------------
+    incremental_xfa_write(
+        template_path=template_path,
+        output_path=output_path,
+        updated_xml=updated_xml,
+    )
 
-    # Count filled fields for logging
     filled_count = sum(1 for v in data.values() if v not in (None, "", "0", False))
-
-    # -----------------------------------------------------------------------
-    # STRIP DIGITAL SIGNATURES / CERTIFICATIONS
-    # -----------------------------------------------------------------------
-    # PyPDF breaks the DocMDP signature because it rewrites the XREF table.
-    # An invalid signature causes Adobe Acrobat to enter high-security mode
-    # and disable JavaScript, which might prevent validation.
-    root = writer._root_object
-    if "/Perms" in root:
-        del root["/Perms"]
-        
-    if "/SigFlags" in acroform:
-        del acroform["/SigFlags"]
-
-    with open(output_path, "wb") as f:
-        writer.write(f)
-
     logger.info(
         "IMM5645E XFA filled: %d fields → %s",
         filled_count, output_path,

@@ -31,7 +31,8 @@ os.makedirs(INSURANCE_OUTPUT_DIR, exist_ok=True)
 
 
 from services.insurance.liberty_api import fetch_liberty_premium
-from services.insurance.random_utils import random_policy_no, random_customer_code, random_membership_no, calc_trip_days
+from services.insurance.chubb_api import fetch_chubb_premium
+from services.insurance.random_utils import random_policy_no, random_customer_code, random_membership_no, calc_trip_days, random_chubb_policy
 from services.insurance.prompts import build_grok_prompt
 from services.insurance.pdf_engine import _extract_fields_from_pdf, _build_extraction_summary, _apply_changes_to_pdf
 
@@ -74,6 +75,8 @@ def insurance_extract():
         period_from = data.get("period_from", "")
         period_to = data.get("period_to", "")
         destination = data.get("destination", "Worldwide")
+        policy_type = data.get("policy_type", "AMT") # "AMT" (Annual) or "SIT" (Single)
+        cover_type = data.get("cover_type", "CT.IND")
         adults = int(data.get("adults", 1))
         children = int(data.get("children", 0))
 
@@ -91,24 +94,61 @@ def insurance_extract():
         summary = _build_extraction_summary(full_data)
 
         # ── Auto-generate fields ──────────────────────────────────
-        auto_fields = {
-            "policy_no": random_policy_no(),
-            "customer_code": random_customer_code(),
-            "membership_no": random_membership_no(),
-            "plan": "Classic",           # Fixed
-            "nationality": "Vietnamese", # Fixed
-            "region": "Worldwide",       # Fixed
-        }
+        if template_key == "standard":
+            # Chubb specific fields
+            auto_fields = {
+                "policy_no": random_chubb_policy(),
+                "plan": "GOLD",
+                "category": "Individual" if cover_type == "CT.IND" else "Family",
+                "region": "Worldwide" if destination == "Toàn Cầu" else "South East Asia",
+                "issued_date": datetime.now().strftime("%d/%m/%Y"),
+            }
+        else:
+            # Liberty specific fields
+            auto_fields = {
+                "policy_no": random_policy_no(),
+                "customer_code": random_customer_code(),
+                "membership_no": random_membership_no(),
+                "plan": "Classic",           # Fixed
+                "nationality": "Vietnamese", # Fixed
+                "region": "Worldwide",       # Fixed
+            }
 
         # Calculate trip days if dates provided
         if period_from and period_to:
             trip_days = calc_trip_days(period_from, period_to)
-            auto_fields["period_from"] = period_from
-            auto_fields["period_to"] = period_to
-            auto_fields["length_of_trip"] = str(trip_days)
+            if template_key == "standard":
+                auto_fields["total_days"] = str(trip_days)
+            else:
+                auto_fields["period_from"] = period_from
+                auto_fields["period_to"] = period_to
+                auto_fields["length_of_trip"] = str(trip_days)
 
-            # Fetch real premium from Liberty API
-            premium = fetch_liberty_premium(trip_days, destination, adults, children)
+            # Convert DD/MM/YYYY to start/end dates for API
+            try:
+                dt_from = datetime.strptime(period_from, "%d/%m/%Y")
+                dt_to = datetime.strptime(period_to, "%d/%m/%Y")
+            except:
+                dt_from = datetime.now()
+                dt_to = datetime.now() + timedelta(days=trip_days)
+
+            fetch_start = dt_from.strftime("%Y-%m-%d")
+            fetch_end = dt_to.strftime("%Y-%m-%d")
+
+            # Fetch real premium from API
+            if template_key == "standard":
+                premium = fetch_chubb_premium(
+                    start_date=fetch_start,
+                    end_date=fetch_end,
+                    policy_type=policy_type,
+                    cover_type=cover_type,
+                    region=destination,
+                    adults=adults,
+                    children=children
+                )
+            else:
+                premium = fetch_liberty_premium(trip_days, destination, adults, children)
+
             if premium:
                 auto_fields["total_premium"] = premium
         else:
@@ -170,6 +210,11 @@ def insurance_apply():
             "period_from": "period_from",
             "period_to": "period_to",
             "total_premium": "total_premium",
+            "plan": "plan",
+            "category": "category",
+            "region": "region",
+            "issued_date": "issued_date",
+            "total_days": "total_days",
         }
         for af_key, orig_key in auto_field_map.items():
             new_val = auto_fields.get(af_key, "")

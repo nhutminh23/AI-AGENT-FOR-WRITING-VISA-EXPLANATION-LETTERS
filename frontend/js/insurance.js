@@ -55,9 +55,30 @@ function initInsuranceUI() {
   // Auto-calculate trip days when dates change
   const fromInput = document.getElementById("insPeriodFrom");
   const toInput = document.getElementById("insPeriodTo");
+  const policyTypeSelect = document.getElementById("insPolicyType");
   if (fromInput && toInput) {
     fromInput.addEventListener("change", _insUpdateTripDays);
     toInput.addEventListener("change", _insUpdateTripDays);
+  }
+  if (policyTypeSelect) {
+    policyTypeSelect.addEventListener("change", _insUpdateTripDays);
+  }
+  
+  const coverTypeSelect = document.getElementById("insCoverType");
+  if (coverTypeSelect) {
+    coverTypeSelect.addEventListener("change", () => {
+      const adultCountInput = document.getElementById("insAdultCount");
+      if (adultCountInput) {
+        if (coverTypeSelect.value === "CT.IND") {
+          adultCountInput.value = "1";
+          adultCountInput.disabled = true;
+          adultCountInput.style.opacity = "0.7";
+        } else {
+          adultCountInput.disabled = false;
+          adultCountInput.style.opacity = "1";
+        }
+      }
+    });
   }
 
   // Extract button (after filling dates)
@@ -80,10 +101,45 @@ function _insSelectTemplate(templateKey) {
   const dateForm = document.getElementById("insDateForm");
   if (dateForm) dateForm.style.display = "block";
 
+  // Show/Hide Chubb specific fields and handle Destination generic vs customized
+  const chubbFields = document.getElementById("chubbSpecificFields");
+  const destInput = document.getElementById("insDestination");
+  const isChubb = templateKey === "standard";
+  
+  if (chubbFields) {
+    chubbFields.style.display = isChubb ? "grid" : "none";
+  }
+
+  // Update Destination dropdown options based on template
+  if (destInput) {
+    if (isChubb) {
+      destInput.innerHTML = `
+        <option value="Toàn Cầu">🌐 Toàn Cầu</option>
+        <option value="Châu Á">🌏 Châu Á</option>
+      `;
+    } else {
+      destInput.innerHTML = `
+        <option value="Worldwide">🌐 Worldwide</option>
+        <option value="Singapore">🇸🇬 Singapore</option>
+        <option value="Thailand">🇹🇭 Thailand</option>
+        <option value="Japan">🇯🇵 Japan</option>
+        <option value="Korea">🇰🇷 Korea</option>
+        <option value="Australia">🇦🇺 Australia</option>
+        <option value="USA">🇺🇸 USA</option>
+        <option value="France">🇫🇷 France</option>
+        <option value="UK">🇬🇧 UK</option>
+        <option value="Canada">🇨🇦 Canada</option>
+      `;
+    }
+  }
+
   // Reset later steps
   document.getElementById("insStep2").style.display = "none";
   document.getElementById("insStep3").style.display = "none";
   document.getElementById("insResultSection").style.display = "none";
+
+  // Trigger update trip days to reflect template specific logic (e.g. read-only To Date for Chubb AMT)
+  _insUpdateTripDays();
 
   // Scroll to date form
   dateForm.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -91,15 +147,37 @@ function _insSelectTemplate(templateKey) {
 
 // Calculate trip days from date inputs
 function _insUpdateTripDays() {
-  const fromStr = document.getElementById("insPeriodFrom").value;
-  const toStr = document.getElementById("insPeriodTo").value;
+  const fromInput = document.getElementById("insPeriodFrom");
+  const toInput = document.getElementById("insPeriodTo");
   const daysEl = document.getElementById("insTripDays");
+  const policyTypeSelect = document.getElementById("insPolicyType");
+
+  if (!fromInput || !toInput) return;
+
+  const isChubb = _insCurrentTemplate === "standard";
+  const isAMT = isChubb && policyTypeSelect && policyTypeSelect.value === "AMT";
+
+  // Auto-fill To date if it's Annual Multi-Trip and From date is picked
+  if (isAMT && fromInput.value) {
+    const from = new Date(fromInput.value);
+    // Add 364 days to get exactly 365 total days including start date
+    const to = new Date(from.getTime() + (364 * 24 * 60 * 60 * 1000));
+    toInput.value = to.toISOString().split("T")[0];
+    toInput.disabled = true; // Use disabled rather than readonly to block completely
+    toInput.style.opacity = "0.7";
+  } else {
+    toInput.disabled = false;
+    toInput.style.opacity = "1";
+  }
+
+  const fromStr = fromInput.value;
+  const toStr = toInput.value;
 
   if (fromStr && toStr) {
     const from = new Date(fromStr);
     const to = new Date(toStr);
     const diffMs = to - from;
-    const days = Math.max(Math.ceil(diffMs / (1000 * 60 * 60 * 24)), 1);
+    const days = Math.max(Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1, 1);
     daysEl.textContent = `📅 ${days} ngày`;
     daysEl.style.color = "#4ade80";
   } else {
@@ -127,6 +205,15 @@ async function _insExtractData() {
   const fmtTo = _formatDateForApi(periodTo);
   const destination = destInput ? destInput.value : "Worldwide";
 
+  // Chubb specific fields
+  const policyTypeSelect = document.getElementById("insPolicyType");
+  const coverTypeSelect = document.getElementById("insCoverType");
+  const adultCountInput = document.getElementById("insAdultCount");
+  
+  const policyType = policyTypeSelect ? policyTypeSelect.value : "AMT";
+  const coverType = coverTypeSelect ? coverTypeSelect.value : "CT.IND";
+  const adults = adultCountInput ? parseInt(adultCountInput.value, 10) : 1;
+
   // Show loading
   const step2 = document.getElementById("insStep2");
   const step3 = document.getElementById("insStep3");
@@ -151,6 +238,9 @@ async function _insExtractData() {
         period_from: fmtFrom,
         period_to: fmtTo,
         destination: destination,
+        policy_type: policyType,
+        cover_type: coverType,
+        adults: adults,
       }),
     });
 

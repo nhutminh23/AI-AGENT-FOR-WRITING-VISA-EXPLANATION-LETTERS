@@ -1139,6 +1139,28 @@
                 <span id="insTripDays" style="font-size:16px; font-weight:600;"></span>
               </div>
             </div>
+            
+            <!-- NEW: Chubb Specific Fields -->
+            <div id="chubbSpecificFields" style="display:none; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:16px;">
+              <div>
+                <label style="display:block; font-size:13px; color:#94a3b8; margin-bottom:6px;">Chương trình</label>
+                <select id="insPolicyType" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; font-size:14px;">
+                  <option value="AMT">Năm - Nhiều chuyến</option>
+                  <option value="SIT">Chuyến đi đơn lẻ</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block; font-size:13px; color:#94a3b8; margin-bottom:6px;">Loại hình bảo hiểm</label>
+                <select id="insCoverType" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; font-size:14px;">
+                  <option value="CT.IND">Cá nhân Tôi</option>
+                  <option value="CT.FAM">Tôi & Gia đình</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block; font-size:13px; color:#94a3b8; margin-bottom:6px;">Số người lớn</label>
+                <input type="number" id="insAdultCount" value="1" min="1" max="9" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; font-size:14px;" disabled />
+              </div>
+            </div>
             <div style="margin-top:16px; display:flex; gap:12px; align-items:center;">
               <button id="insExtractBtn" class="btn" style="background:#7c3aed; color:white; border:none; padding:12px 28px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600;">🔍 Trích Xuất & Lấy Giá</button>
               <span id="insExtractStatus" style="font-size:13px;"></span>
