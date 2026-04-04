@@ -28,6 +28,7 @@ dich/html
 pdf/
 test_dir/
 scan_splitter_outputs/
+insurance_outputs/
 
 # ===== Database =====
 visa_app.db

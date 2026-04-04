@@ -9,13 +9,16 @@ AUTO_FIELDS = {
 }
 
 # Fields Grok needs to generate for a new person
-GROK_FIELDS = {"insured_name", "dob", "passport_no", "address"}
+GROK_FIELDS = {"insured_name", "dob", "passport_no", "address", "gender"}
 
 
 def build_grok_prompt(summary: dict, template_key: str) -> str:
     """Build a prompt the user can paste into Grok.
     Only includes fields that actually need AI generation (name, DOB, passport, address).
     Auto-generated fields (policy_no, dates, premium, etc.) are excluded.
+
+    The prompt instructs Grok to USE the person data from the applicant's
+    documents (which the user already has), NOT to invent new people.
     """
     # Filter: only send fields Grok should fill
     grok_data = {}
@@ -25,24 +28,36 @@ def build_grok_prompt(summary: dict, template_key: str) -> str:
         grok_data[key] = val
 
     json_str = json.dumps(grok_data, indent=2, ensure_ascii=False)
-    prompt = f"""I have a travel insurance certificate. Generate NEW personal details for a different person.
+    prompt = f"""I have a travel insurance certificate. I need to fill it with a SPECIFIC person's data from their visa application documents.
 
-Here are the fields I need you to fill:
+Here is the current template data (this is sample data from the template, NOT the real person):
 
 ```json
 {json_str}
 ```
 
+📋 YOUR TASK:
+Using the applicant's ACTUAL documents (passport, ID card, application form) that I provide below, extract and fill the following fields with their REAL information:
+- **insured_name**: The applicant's REAL full name in UPPERCASE without diacritics
+- **dob**: The applicant's REAL date of birth in DD/MM/YYYY format
+- **passport_no**: The applicant's REAL passport number
+- **address**: The applicant's REAL address in English without diacritics
+
 ⚠️ STRICT RULES — MUST FOLLOW ALL:
-1. **ALL TEXT MUST BE IN ENGLISH** — absolutely NO Vietnamese characters (no ă, â, ê, ô, ơ, ư, đ, diacritics, etc.)
-2. **insured_name**: Vietnamese name in UPPERCASE without diacritics. Example: "NGUYEN VAN A", NOT "Nguyễn Văn A"
-3. **address**: MUST be in English. Use format: "192 Tran Quang Khai, Tan Dinh Ward, Ho Chi Minh". NO Vietnamese diacritics
-4. **dob**: DD/MM/YYYY format (e.g. 21/08/2002)
-5. **passport_no**: 1 uppercase letter + 7-8 digits (e.g. P01828868)
-6. Return ONLY pure JSON with the EXACT same keys, no explanation
+1. **USE THE REAL PERSON'S DATA** from the documents I provide — do NOT invent or generate fake data
+2. **ALL TEXT MUST BE IN ENGLISH** — absolutely NO Vietnamese characters (no ă, â, ê, ô, ơ, ư, đ, diacritics, etc.)
+3. **insured_name**: Vietnamese name in UPPERCASE without diacritics. Example: "NGUYEN VAN A", NOT "Nguyễn Văn A"
+4. **address**: MUST be in English. Use format: "192 Tran Quang Khai, Tan Dinh Ward, Ho Chi Minh City, 70000, Viet Nam". NO Vietnamese diacritics
+5. **dob**: DD/MM/YYYY format (e.g. 21/08/2002)
+6. **passport_no**: Copy EXACTLY from the person's passport (1 uppercase letter + 7-8 digits)
+7. Return ONLY pure JSON with the EXACT same keys, no explanation
 
 ⛔ FORBIDDEN: Any character with diacritics (ả, ã, á, à, ạ, ắ, etc.)
 ✅ ALLOWED: Only ASCII characters (A-Z, a-z, 0-9, spaces, punctuation)
+
+Now here are the applicant's documents:
+
+[PASTE APPLICANT DOCUMENTS HERE]
 
 Return JSON:"""
     return prompt

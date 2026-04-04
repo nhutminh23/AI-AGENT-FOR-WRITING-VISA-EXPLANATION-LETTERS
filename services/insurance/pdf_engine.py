@@ -259,6 +259,57 @@ def _build_extraction_summary(full_data: dict) -> dict:
                     summary["length_of_trip"] = t
                     break
 
+    # ── Strategy 3: Tabular column matching (Chubb page 2 insured table) ──
+    # In tabular PDFs, the header "Date of Birth" and value "11/11/1985"
+    # are in different rows but the SAME X-column.
+    # We find the header's X-range, then look for a date value in a data row
+    # that falls within the same X-column.
+    if full_data and "pages" in full_data:
+        for page_data in full_data["pages"]:
+            page_spans = page_data.get("spans", [])
+
+            # --- DOB from table ---
+            if not summary.get("dob"):
+                dob_header = None
+                for sp in page_spans:
+                    if re.match(r"^Date of Birth", sp.get("text", ""), re.IGNORECASE):
+                        dob_header = sp
+                        break
+                if dob_header:
+                    hx0 = dob_header["bbox"][0]
+                    hx1 = dob_header["bbox"][2]
+                    hy1 = dob_header["bbox"][3]
+                    for sp in page_spans:
+                        t = sp.get("text", "").strip()
+                        sx0 = sp["bbox"][0]
+                        sy0 = sp["bbox"][1]
+                        # Value must be BELOW the header and within the X-column
+                        if (re.match(r"^\d{1,2}/\d{1,2}/\d{4}$", t)
+                                and sy0 > hy1
+                                and abs(sx0 - hx0) < 40):
+                            summary["dob"] = t
+                            break
+
+            # --- Gender from table ---
+            if not summary.get("gender"):
+                gender_header = None
+                for sp in page_spans:
+                    if sp.get("text", "").strip() == "Gender":
+                        gender_header = sp
+                        break
+                if gender_header:
+                    hx0 = gender_header["bbox"][0]
+                    hy1 = gender_header["bbox"][3]
+                    for sp in page_spans:
+                        t = sp.get("text", "").strip()
+                        sx0 = sp["bbox"][0]
+                        sy0 = sp["bbox"][1]
+                        if (t in ("Mr", "Ms", "Mrs")
+                                and sy0 > hy1
+                                and abs(sx0 - hx0) < 40):
+                            summary["gender"] = t
+                            break
+
     return summary
 
 
