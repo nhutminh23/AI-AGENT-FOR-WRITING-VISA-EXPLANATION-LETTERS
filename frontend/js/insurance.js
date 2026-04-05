@@ -269,6 +269,10 @@ async function _insExtractData() {
         period_to: "📅 Ngày về",
         length_of_trip: "⏱️ Số ngày",
         total_premium: "💰 Phí bảo hiểm",
+        // Chubb-specific
+        issued_date: "📅 Ngày cấp",
+        total_days: "⏱️ Tổng ngày",
+        category: "📋 Loại hình",
       };
       for (const [key, label] of Object.entries(fieldLabels)) {
         const val = data.auto_fields[key];

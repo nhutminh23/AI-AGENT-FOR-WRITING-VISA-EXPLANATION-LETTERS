@@ -119,6 +119,8 @@ def insurance_extract():
             trip_days = calc_trip_days(period_from, period_to)
             if template_key == "standard":
                 auto_fields["total_days"] = str(trip_days)
+                auto_fields["period_from"] = period_from
+                auto_fields["period_to"] = period_to
             else:
                 auto_fields["period_from"] = period_from
                 auto_fields["period_to"] = period_to

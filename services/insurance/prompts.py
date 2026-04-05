@@ -6,6 +6,8 @@ AUTO_FIELDS = {
     "plan", "nationality", "region",
     "period_from", "period_to", "length_of_trip",
     "total_premium",
+    # Chubb-specific auto fields
+    "issued_date", "total_days", "category",
 }
 
 # Fields Grok needs to generate for a new person

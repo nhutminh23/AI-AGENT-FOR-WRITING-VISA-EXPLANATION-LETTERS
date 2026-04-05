@@ -310,6 +310,49 @@ def _build_extraction_summary(full_data: dict) -> dict:
                             summary["gender"] = t
                             break
 
+            # --- Period dates from label+column (Chubb template) ---
+            # "From" at x0=111.9, y0=382.7 and "19/02/2026" at x0=111.9, y0=396.7
+            # Same X-column, ~14px below — span adjacency misses this
+            if not summary.get("period_from"):
+                from_label = None
+                for sp in page_spans:
+                    if sp.get("text", "").strip() == "From":
+                        from_label = sp
+                        break
+                if from_label:
+                    lx0 = from_label["bbox"][0]
+                    ly1 = from_label["bbox"][3]
+                    for sp in page_spans:
+                        t = sp.get("text", "").strip()
+                        sx0 = sp["bbox"][0]
+                        sy0 = sp["bbox"][1]
+                        if (re.match(r"^\d{2}/\d{2}/\d{4}$", t)
+                                and sy0 > ly1
+                                and sy0 - ly1 < 25
+                                and abs(sx0 - lx0) < 30):
+                            summary["period_from"] = t
+                            break
+
+            if not summary.get("period_to"):
+                to_label = None
+                for sp in page_spans:
+                    if sp.get("text", "").strip() == "To":
+                        to_label = sp
+                        break
+                if to_label:
+                    lx0 = to_label["bbox"][0]
+                    ly1 = to_label["bbox"][3]
+                    for sp in page_spans:
+                        t = sp.get("text", "").strip()
+                        sx0 = sp["bbox"][0]
+                        sy0 = sp["bbox"][1]
+                        if (re.match(r"^\d{2}/\d{2}/\d{4}$", t)
+                                and sy0 > ly1
+                                and sy0 - ly1 < 25
+                                and abs(sx0 - lx0) < 30):
+                            summary["period_to"] = t
+                            break
+
     return summary
 
 
@@ -505,22 +548,21 @@ def _apply_changes_to_pdf(template_path: str, changes: dict, output_path: str) -
         fi = occurrences[0] if occurrences else None
         success = False
 
-        # ── Safety: short values (≤4 chars) are prone to false matches ──
-        # e.g. "23" (trip length) also appears inside phone number "(+84) 3512 2324"
-        # For short values: only replace on the EXACT page+position where we found the span
-        is_short = len(old_val) <= 4
-
-        if is_short and occurrences:
-            # Only replace at the known span positions (page + bbox proximity)
+        # ── ALWAYS use position-aware replacement when font_map has data ──
+        # This prevents redaction from eating into adjacent text spans.
+        # Without expected_rect, page.search_for() can return wider rects
+        # that overlap neighboring text (e.g. "Issued04/04/2026áp" garble).
+        if occurrences:
             for occ in occurrences:
                 pg_idx = occ["page"]
                 page = doc[pg_idx]
                 expected = fitz.Rect(occ["bbox"])
-                if _find_and_replace_text(page, old_val, new_val, fi, template_path,
+                # Use this occurrence's own font info for accurate rendering
+                if _find_and_replace_text(page, old_val, new_val, occ, template_path,
                                           expected_rect=expected, page_idx=pg_idx):
                     success = True
         else:
-            # Long values are safe — search every page
+            # Fallback: no font_map data, search every page unrestricted
             for page_idx in range(len(doc)):
                 page = doc[page_idx]
                 if _find_and_replace_text(page, old_val, new_val, fi, template_path,
