@@ -364,35 +364,30 @@ def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict =
                             template_path: str = "chubb", expected_rect=None,
                             page_idx: int = 0):
     """
-    Find old_text on a page, redact (erase) it, and insert new_text
-    at the exact same position with matching font/size/color.
+    Replace old_text on a page using OVERLAY approach (not redaction).
 
-    font_info: optional dict with {font, size, color} to override
-    template_path: helps determine the accurate background color (white vs beige)
-    expected_rect: optional fitz.Rect — if provided, only replace instances
-                   whose Y-position is within 30px of this rect (prevents
-                   collateral damage to phone numbers, dates, etc.)
-    page_idx: page number (0-indexed) — only page 0 of Chubb uses beige bg
+    Why overlay instead of redaction?
+    - apply_redactions() destroys ALL text in the same content stream segment
+      that overlaps the redaction rect, including adjacent labels like
+      "Issued Date / Ngày cấp" when redacting "04/02/2026" nearby.
+    - Overlay draws a filled rectangle OVER the old text to hide it,
+      then inserts new text on top. No content stream modification = no collateral damage.
+
+    font_info: dict with {font, size, color, bbox} from font_map
+    expected_rect: fitz.Rect from span bbox — used for precise targeting
     """
-    text_instances = page.search_for(old_text)
-    if not text_instances:
-        return False
-
-    # ── Filter: if expected_rect is given, only keep rects near it ──
+    # ── Determine the rect to cover ──
+    # Priority: use expected_rect (from font_map span bbox) when available
     if expected_rect is not None:
-        TOLERANCE = 30  # pixels
-        filtered = [r for r in text_instances
-                    if abs(r.y0 - expected_rect.y0) < TOLERANCE
-                    and abs(r.x0 - expected_rect.x0) < TOLERANCE]
-        if not filtered:
+        cover_rect = fitz.Rect(expected_rect)
+    else:
+        # Fallback: search for text on the page
+        text_instances = page.search_for(old_text)
+        if not text_instances:
             return False
-        text_instances = filtered
+        cover_rect = text_instances[0]
 
-    replaced = False
-    
     # ── Background Color Config ──
-    # Mã màu HEX. Nếu sau này PDF đổi màu, anh chỉ cần sửa chuỗi HEX ở đây
-    # Ví dụ: màu cam nhạt của Chubb là "#ffdfbf", trắng là "#ffffff"
     CHUBB_BG_HEX = "#ffdfbf"
     STANDARD_BG_HEX = "#ffffff"
 
@@ -400,80 +395,64 @@ def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict =
         hex_str = hex_str.lstrip('#')
         return tuple(int(hex_str[i:i+2], 16) / 255.0 for i in (0, 2, 4))
 
-    for rect in text_instances:
-        # ── Strategy: Hardcoded precise background colors per template ──
-        # Chubb page 0 (certificate) has beige bg in the data fields area (y < 400)
-        # Page 1+ (confirmation letter, etc.) always has WHITE background
-        if "chubb" in template_path.lower() and page_idx == 0 and rect.y0 < 400:
-            fill_color = hex_to_rgb(CHUBB_BG_HEX)
-        else:
-            fill_color = hex_to_rgb(STANDARD_BG_HEX)
+    # Determine background color based on template + page + position
+    if "standard" in template_path.lower() and page_idx == 0 and cover_rect.y0 < 430:
+        fill_color = hex_to_rgb(CHUBB_BG_HEX)
+    else:
+        fill_color = hex_to_rgb(STANDARD_BG_HEX)
 
-        # Determine font properties for this location
-        target_font = "Times-Roman"
-        target_size = 10.0
-        target_color = (0, 0, 0)
+    # ── Determine font properties ──
+    target_font = "Times-Roman"
+    target_size = 10.0
+    target_color = (0, 0, 0)
 
-        if font_info:
-            target_font = font_info.get("font", target_font)
-            target_size = font_info.get("size", target_size)
-            color_int = font_info.get("color", 0)
-            if isinstance(color_int, int):
-                r = ((color_int >> 16) & 0xFF) / 255.0
-                g = ((color_int >> 8) & 0xFF) / 255.0
-                b = (color_int & 0xFF) / 255.0
-                target_color = (r, g, b)
-        else:
-            # Try to detect font from the span at this location
-            blocks = page.get_text("dict")["blocks"]
-            for block in blocks:
-                if "lines" not in block:
-                    continue
-                for line in block["lines"]:
-                    for span in line["spans"]:
-                        if old_text in span["text"]:
-                            target_font = span["font"]
-                            target_size = span["size"]
-                            color_int = span["color"]
-                            r = ((color_int >> 16) & 0xFF) / 255.0
-                            g = ((color_int >> 8) & 0xFF) / 255.0
-                            b = (color_int & 0xFF) / 255.0
-                            target_color = (r, g, b)
-                            break
+    if font_info:
+        target_font = font_info.get("font", target_font)
+        target_size = font_info.get("size", target_size)
+        color_int = font_info.get("color", 0)
+        if isinstance(color_int, int):
+            r = ((color_int >> 16) & 0xFF) / 255.0
+            g = ((color_int >> 8) & 0xFF) / 255.0
+            b = (color_int & 0xFF) / 255.0
+            target_color = (r, g, b)
 
-        # Map PDF font name to a usable fontname for insertion
-        insert_fontname = _map_font_name(target_font)
+    insert_fontname = _map_font_name(target_font)
 
-        # Redact (erase) old text with matching background fill
-        annot = page.add_redact_annot(rect, fill=fill_color)
-        page.apply_redactions()
+    # ── Step 1: Draw filled rectangle to COVER old text ──
+    # Expand rect slightly (1px padding) to fully cover any anti-aliased edges
+    cover = fitz.Rect(
+        cover_rect.x0 - 0.5,
+        cover_rect.y0 - 0.5,
+        cover_rect.x1 + 0.5,
+        cover_rect.y1 + 0.5,
+    )
+    shape = page.new_shape()
+    shape.draw_rect(cover)
+    shape.finish(color=fill_color, fill=fill_color)
+    shape.commit()
 
-        # Step 2: Calculate text position
-        # Check if new text fits in original bounding box
-        text_width = fitz.get_text_length(new_text, fontname=insert_fontname, fontsize=target_size)
-        box_width = rect.x1 - rect.x0
+    # ── Step 2: Calculate text position & size ──
+    text_width = fitz.get_text_length(new_text, fontname=insert_fontname, fontsize=target_size)
+    box_width = cover_rect.x1 - cover_rect.x0
 
-        adjusted_size = target_size
-        if text_width > box_width and box_width > 0:
-            # Shrink font to fit
-            ratio = box_width / text_width
-            adjusted_size = max(target_size * ratio, 4.0)  # minimum 4pt
+    adjusted_size = target_size
+    if text_width > box_width and box_width > 0:
+        ratio = box_width / text_width
+        adjusted_size = max(target_size * ratio, 4.0)
 
-        # Insert new text at baseline position
-        # baseline is approximately at y1 - descent (roughly y0 + ascent)
-        baseline_y = rect.y1 - (adjusted_size * 0.15)  # approximate descent
-        insert_point = fitz.Point(rect.x0, baseline_y)
+    # ── Step 3: Insert new text at baseline position ──
+    baseline_y = cover_rect.y1 - (adjusted_size * 0.15)
+    insert_point = fitz.Point(cover_rect.x0, baseline_y)
 
-        page.insert_text(
-            insert_point,
-            new_text,
-            fontname=insert_fontname,
-            fontsize=adjusted_size,
-            color=target_color,
-        )
-        replaced = True
+    page.insert_text(
+        insert_point,
+        new_text,
+        fontname=insert_fontname,
+        fontsize=adjusted_size,
+        color=target_color,
+    )
 
-    return replaced
+    return True
 
 
 def _map_font_name(pdf_font_name: str) -> str:
