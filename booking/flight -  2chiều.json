@@ -1,0 +1,1189 @@
+{
+    "search_metadata":
+    {
+    "id":
+    "69b3aa2a73d224d90285f598",
+    "status":
+    "Success",
+    "json_endpoint":
+    "https://serpapi.com/searches/L4qITpMSBM2waiT6PIZFpQ/69b3aa2a73d224d90285f598.json",
+    "created_at":
+    "2026-03-13 06:09:46 UTC",
+    "processed_at":
+    "2026-03-13 06:09:46 UTC",
+    "google_flights_url":
+    "https://www.google.com/travel/flights?hl=en&gl=vn&curr=VND&tfs=CBwQAhoeEgoyMDI2LTA1LTAxagcIARIDSEFOcgcIARIDU1lEGh4SCjIwMjYtMDUtMDhqBwgBEgNTWURyBwgBEgNIQU5CAgEBSAFwAZgBAQ&tfu=EgIIAQ",
+    "raw_html_file":
+    "https://serpapi.com/searches/L4qITpMSBM2waiT6PIZFpQ/69b3aa2a73d224d90285f598.html",
+    "prettify_html_file":
+    "https://serpapi.com/searches/L4qITpMSBM2waiT6PIZFpQ/69b3aa2a73d224d90285f598.prettify",
+    "total_time_taken":
+    0.65
+    },
+    "search_parameters":
+    {
+    "engine":
+    "google_flights",
+    "hl":
+    "en",
+    "gl":
+    "vn",
+    "type":
+    "1",
+    "departure_id":
+    "HAN",
+    "arrival_id":
+    "SYD",
+    "outbound_date":
+    "2026-05-01",
+    "return_date":
+    "2026-05-08",
+    "travel_class":
+    1,
+    "adults":
+    2,
+    "currency":
+    "VND",
+    "sort_by":
+    "1"
+    },
+    "best_flights":
+    [
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 20:15"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Singapore Changi Airport",
+    "id":
+    "SIN",
+    "time":
+    "2026-05-02 00:35"
+    },
+    "duration":
+    200,
+    "airplane":
+    "Boeing 787",
+    "airline":
+    "Scoot",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/TR.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "TR 533",
+    "legroom":
+    "30 in",
+    "extensions":
+    [
+    "Average legroom (30 in)",
+    "Wi-Fi for a fee",
+    "In-seat power outlet",
+    "Carbon emissions estimate: 305 kg"
+    ]
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Singapore Changi Airport",
+    "id":
+    "SIN",
+    "time":
+    "2026-05-02 02:10"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 11:45"
+    },
+    "duration":
+    455,
+    "airplane":
+    "Boeing 787",
+    "airline":
+    "Scoot",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/TR.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "TR 10",
+    "legroom":
+    "30 in",
+    "extensions":
+    [
+    "Average legroom (30 in)",
+    "Wi-Fi for a fee",
+    "In-seat power outlet",
+    "Carbon emissions estimate: 727 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    95,
+    "name":
+    "Singapore Changi Airport",
+    "id":
+    "SIN",
+    "overnight":
+    true
+    }
+    ],
+    "total_duration":
+    750,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1033000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    -5
+    },
+    "price":
+    24717930,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/TR.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3BVVWpVek0zeFVVakV3R2d3STZ0VGtDeEFBR2dOV1RrUTRISERoM2dVPSIsW1siSEFOIiwiMjAyNi0wNS0wMSIsIlNJTiIsbnVsbCwiVFIiLCI1MzMiXSxbIlNJTiIsIjIwMjYtMDUtMDIiLCJTWUQiLG51bGwsIlRSIiwiMTAiXV1d"
+    },
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 15:40"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Xiamen Gaoqi International Airport",
+    "id":
+    "XMN",
+    "time":
+    "2026-05-01 18:55"
+    },
+    "duration":
+    135,
+    "airplane":
+    "Boeing 737",
+    "airline":
+    "XiamenAir",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/MF.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "MF 870",
+    "legroom":
+    "31 in",
+    "extensions":
+    [
+    "Average legroom (31 in)",
+    "Carbon emissions estimate: 261 kg"
+    ]
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Xiamen Gaoqi International Airport",
+    "id":
+    "XMN",
+    "time":
+    "2026-05-01 22:00"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 09:20"
+    },
+    "duration":
+    560,
+    "airplane":
+    "Boeing 787",
+    "airline":
+    "XiamenAir",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/MF.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "MF 801",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Free Wi-Fi",
+    "In-seat power & USB outlets",
+    "On-demand video",
+    "Carbon emissions estimate: 979 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    185,
+    "name":
+    "Xiamen Gaoqi International Airport",
+    "id":
+    "XMN"
+    }
+    ],
+    "total_duration":
+    880,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1241000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    14
+    },
+    "price":
+    36192000,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/MF.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3ROUmpnM01IeE5Samd3TVJvTUNJRCtvQkVRQUJvRFZrNUVPQnh3NjdNSSIsW1siSEFOIiwiMjAyNi0wNS0wMSIsIlhNTiIsbnVsbCwiTUYiLCI4NzAiXSxbIlhNTiIsIjIwMjYtMDUtMDEiLCJTWUQiLG51bGwsIk1GIiwiODAxIl1dXQ=="
+    },
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 15:45"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Guangzhou Baiyun International Airport",
+    "id":
+    "CAN",
+    "time":
+    "2026-05-01 18:30"
+    },
+    "duration":
+    105,
+    "airplane":
+    "Airbus A320neo",
+    "airline":
+    "China Southern",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CZ.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "CZ 8316",
+    "legroom":
+    "30 in",
+    "extensions":
+    [
+    "Average legroom (30 in)",
+    "In-seat USB outlet",
+    "Carbon emissions estimate: 163 kg"
+    ]
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Guangzhou Baiyun International Airport",
+    "id":
+    "CAN",
+    "time":
+    "2026-05-01 20:50"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 08:25"
+    },
+    "duration":
+    575,
+    "airplane":
+    "Airbus A350",
+    "airline":
+    "China Southern",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CZ.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "CZ 325",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "In-seat USB outlet",
+    "On-demand video",
+    "Carbon emissions estimate: 986 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    140,
+    "name":
+    "Guangzhou Baiyun International Airport",
+    "id":
+    "CAN"
+    }
+    ],
+    "total_duration":
+    820,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1149000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    5
+    },
+    "price":
+    36518000,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CZ.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3hEV2pnek1UWjhRMW96TWpVYURBanc4TFFSRUFBYUExWk9SRGdjY01POUNBPT0iLFtbIkhBTiIsIjIwMjYtMDUtMDEiLCJDQU4iLG51bGwsIkNaIiwiODMxNiJdLFsiQ0FOIiwiMjAyNi0wNS0wMSIsIlNZRCIsbnVsbCwiQ1oiLCIzMjUiXV1d"
+    },
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 10:55"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Hong Kong International Airport",
+    "id":
+    "HKG",
+    "time":
+    "2026-05-01 14:05"
+    },
+    "duration":
+    130,
+    "airplane":
+    "Airbus A330",
+    "airline":
+    "Cathay Pacific",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CX.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "CX 740",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Wi-Fi for a fee",
+    "In-seat power outlet",
+    "On-demand video",
+    "Carbon emissions estimate: 192 kg"
+    ]
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Hong Kong International Airport",
+    "id":
+    "HKG",
+    "time":
+    "2026-05-01 19:05"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 06:10"
+    },
+    "duration":
+    545,
+    "airplane":
+    "Airbus A350",
+    "airline":
+    "Cathay Pacific",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CX.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "CX 111",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Wi-Fi for a fee",
+    "In-seat power & USB outlets",
+    "On-demand video",
+    "Carbon emissions estimate: 918 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    300,
+    "name":
+    "Hong Kong International Airport",
+    "id":
+    "HKG"
+    }
+    ],
+    "total_duration":
+    975,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1111000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    2
+    },
+    "price":
+    43316000,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CX.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3REV0RjME1IeERXREV4TVJvTUNLRG0weFFRQUJvRFZrNUVPQnh3elljSyIsW1siSEFOIiwiMjAyNi0wNS0wMSIsIkhLRyIsbnVsbCwiQ1giLCI3NDAiXSxbIkhLRyIsIjIwMjYtMDUtMDEiLCJTWUQiLG51bGwsIkNYIiwiMTExIl1dXQ=="
+    },
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 23:40"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 12:15"
+    },
+    "duration":
+    575,
+    "airplane":
+    "Airbus A350",
+    "airline":
+    "Vietnam Airlines",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/VN.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "VN 787",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "In-seat power & USB outlets",
+    "On-demand video",
+    "Carbon emissions estimate: 970 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "total_duration":
+    575,
+    "carbon_emissions":
+    {
+    "this_flight":
+    970000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    -11
+    },
+    "price":
+    46828000,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/VN.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ1ZXVGpjNE54b01DT0NUcWhZUUFCb0RWazVFT0J4dy8rOEsiLFtbIkhBTiIsIjIwMjYtMDUtMDEiLCJTWUQiLG51bGwsIlZOIiwiNzg3Il1dXQ=="
+    }
+    ],
+    "other_flights":
+    [
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 14:50"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Kuala Lumpur International Airport",
+    "id":
+    "KUL",
+    "time":
+    "2026-05-01 19:05"
+    },
+    "duration":
+    195,
+    "airplane":
+    "Airbus A320",
+    "airline":
+    "AirAsia",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/AK.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "AK 513",
+    "legroom":
+    "28 in",
+    "extensions":
+    [
+    "Below average legroom (28 in)",
+    "Carbon emissions estimate: 361 kg"
+    ],
+    "often_delayed_by_over_30_min":
+    true
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Kuala Lumpur International Airport",
+    "id":
+    "KUL",
+    "time":
+    "2026-05-01 22:00"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 08:20"
+    },
+    "duration":
+    500,
+    "airplane":
+    "Airbus A330",
+    "airline":
+    "AirAsia X",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/D7.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "D7 222",
+    "legroom":
+    "31 in",
+    "extensions":
+    [
+    "Average legroom (31 in)",
+    "Carbon emissions estimate: 713 kg"
+    ],
+    "overnight":
+    true,
+    "often_delayed_by_over_30_min":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    175,
+    "name":
+    "Kuala Lumpur International Airport",
+    "id":
+    "KUL"
+    }
+    ],
+    "total_duration":
+    870,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1076000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    -1
+    },
+    "price":
+    38067030,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/multi.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3RCU3pVeE0zeEVOekl5TWhvTUNOYTJreElRQUJvRFZrNUVPQnh3eWVzSSIsW1siSEFOIiwiMjAyNi0wNS0wMSIsIktVTCIsbnVsbCwiQUsiLCI1MTMiXSxbIktVTCIsIjIwMjYtMDUtMDEiLCJTWUQiLG51bGwsIkQ3IiwiMjIyIl1dXQ=="
+    },
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 13:05"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Kuala Lumpur International Airport",
+    "id":
+    "KUL",
+    "time":
+    "2026-05-01 17:30"
+    },
+    "duration":
+    205,
+    "airplane":
+    "Boeing 737",
+    "airline":
+    "Malaysia Airlines",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/MH.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "MH 753",
+    "legroom":
+    "30 in",
+    "extensions":
+    [
+    "Average legroom (30 in)",
+    "In-seat USB outlet",
+    "Stream media to your device",
+    "Carbon emissions estimate: 361 kg"
+    ]
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Kuala Lumpur International Airport",
+    "id":
+    "KUL",
+    "time":
+    "2026-05-01 20:00"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 07:00"
+    },
+    "duration":
+    540,
+    "airplane":
+    "Airbus A330-900neo",
+    "airline":
+    "Malaysia Airlines",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/MH.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "MH 251",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Free Wi-Fi",
+    "In-seat USB outlet",
+    "On-demand video",
+    "Carbon emissions estimate: 781 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    150,
+    "name":
+    "Kuala Lumpur International Airport",
+    "id":
+    "KUL"
+    }
+    ],
+    "total_duration":
+    895,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1142000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    5
+    },
+    "price":
+    47074000,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/MH.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3ROU0RjMU0zeE5TREkxTVJvTUNOQ1Z1UllRQUJvRFZrNUVPQnh3cC9jSyIsW1siSEFOIiwiMjAyNi0wNS0wMSIsIktVTCIsbnVsbCwiTUgiLCI3NTMiXSxbIktVTCIsIjIwMjYtMDUtMDEiLCJTWUQiLG51bGwsIk1IIiwiMjUxIl1dXQ=="
+    },
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 19:10"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Hong Kong International Airport",
+    "id":
+    "HKG",
+    "time":
+    "2026-05-01 22:15"
+    },
+    "duration":
+    125,
+    "airplane":
+    "Boeing 777",
+    "airline":
+    "Cathay Pacific",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CX.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "CX 742",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Wi-Fi for a fee",
+    "In-seat power & USB outlets",
+    "On-demand video",
+    "Carbon emissions estimate: 210 kg"
+    ],
+    "often_delayed_by_over_30_min":
+    true
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Hong Kong International Airport",
+    "id":
+    "HKG",
+    "time":
+    "2026-05-02 00:45"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 11:45"
+    },
+    "duration":
+    540,
+    "airplane":
+    "Boeing 777",
+    "airline":
+    "Cathay Pacific",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CX.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "CX 181",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Wi-Fi for a fee",
+    "In-seat power & USB outlets",
+    "On-demand video",
+    "Carbon emissions estimate: 985 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    150,
+    "name":
+    "Hong Kong International Airport",
+    "id":
+    "HKG"
+    }
+    ],
+    "total_duration":
+    815,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1195000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    10
+    },
+    "price":
+    48578000,
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/CX.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3REV0RjME1ueERXREU0TVJvTUNORDdsQmNRQUJvRFZrNUVPQnh3Z3FRTCIsW1siSEFOIiwiMjAyNi0wNS0wMSIsIkhLRyIsbnVsbCwiQ1giLCI3NDIiXSxbIkhLRyIsIjIwMjYtMDUtMDIiLCJTWUQiLG51bGwsIkNYIiwiMTgxIl1dXQ=="
+    },
+    {
+    "flights":
+    [
+    {
+    "departure_airport":
+    {
+    "name":
+    "Noi Bai International Airport",
+    "id":
+    "HAN",
+    "time":
+    "2026-05-01 18:35"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Singapore Changi Airport",
+    "id":
+    "SIN",
+    "time":
+    "2026-05-01 23:05"
+    },
+    "duration":
+    210,
+    "airplane":
+    "Airbus A350",
+    "airline":
+    "Singapore Airlines",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/SQ.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "SQ 193",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Free Wi-Fi",
+    "In-seat power & USB outlets",
+    "On-demand video",
+    "Carbon emissions estimate: 309 kg"
+    ]
+    },
+    {
+    "departure_airport":
+    {
+    "name":
+    "Singapore Changi Airport",
+    "id":
+    "SIN",
+    "time":
+    "2026-05-02 00:45"
+    },
+    "arrival_airport":
+    {
+    "name":
+    "Sydney Airport",
+    "id":
+    "SYD",
+    "time":
+    "2026-05-02 10:25"
+    },
+    "duration":
+    460,
+    "airplane":
+    "Airbus A380",
+    "airline":
+    "Singapore Airlines",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/SQ.png",
+    "travel_class":
+    "Economy",
+    "flight_number":
+    "SQ 231",
+    "legroom":
+    "32 in",
+    "extensions":
+    [
+    "Above average legroom (32 in)",
+    "Free Wi-Fi",
+    "In-seat power & USB outlets",
+    "On-demand video",
+    "Carbon emissions estimate: 910 kg"
+    ],
+    "overnight":
+    true
+    }
+    ],
+    "layovers":
+    [
+    {
+    "duration":
+    100,
+    "name":
+    "Singapore Changi Airport",
+    "id":
+    "SIN"
+    }
+    ],
+    "total_duration":
+    770,
+    "carbon_emissions":
+    {
+    "this_flight":
+    1220000,
+    "typical_for_this_route":
+    1090000,
+    "difference_percent":
+    12
+    },
+    "type":
+    "Round trip",
+    "airline_logo":
+    "https://www.gstatic.com/flights/airline_logos/70px/SQ.png",
+    "departure_token":
+    "WyJDalJJWTBKWlVYVXpNVzlTVXpoQlFsbzBVMEZDUnkwdExTMHRMUzB0TFhaMGMyVXhOMEZCUVVGQlIyMTZjV2x2VDBwVVZrMUJFZ3RUVVRFNU0zeFRVVEl6TVRnYyIsW1siSEFOIiwiMjAyNi0wNS0wMSIsIlNJTiIsbnVsbCwiU1EiLCIxOTMiXSxbIlNJTiIsIjIwMjYtMDUtMDIiLCJTWUQiLG51bGwsIlNRIiwiMjMxIl1dXQ=="
+    }
+    ],
+    "price_insights":
+    {
+    "lowest_price":
+    24717930,
+    "price_level":
+    "typical",
+    "typical_price_range":
+    [
+    19500000,
+    28500000
+    ]
+    },
+    "airports":
+    [
+    {
+    "departure":
+    [
+    {
+    "airport":
+    {
+    "id":
+    "HAN",
+    "name":
+    "Noi Bai International Airport"
+    },
+    "city":
+    "Hanoi",
+    "country":
+    "Vietnam",
+    "country_code":
+    "VN",
+    "image":
+    "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRvDbDxEE5BwSWOQ4RT-zoeXTYdYLnTb4Gt1ahDi3E0q04xKuf9DS500eH9GIyeJE0Svpe855zZFnrEmg",
+    "thumbnail":
+    "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRnEUNunPtZ_EOUhfwUEBdG4cQAjtpv0gn9pcszbV-7s2_vfkv5HSXrQHTmJEmBOFmL6dDszrpqZqCxLMObS9wRYGN2AdDh-11WxIpSWmk"
+    }
+    ],
+    "arrival":
+    [
+    {
+    "airport":
+    {
+    "id":
+    "SYD",
+    "name":
+    "Sydney Airport"
+    },
+    "city":
+    "Sydney",
+    "country":
+    "Australia",
+    "country_code":
+    "AU",
+    "image":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSv_5yBmtOWwa08eIbTc_RUZQ9vSh__CE8_fkK8-LyVB29mB5FtdOjIaE_xLri4REMijNrBd1XGW7MUNA",
+    "thumbnail":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPdsoXNsip15P8UZRTG3U7kaduxFjaMb01CcKiLeWVx6qTHF0_o43H4KQFFHIgbyLKBnkNTh-4ofS1X2iuG1FEB8TAtoeVgqD9ZUApr4s"
+    }
+    ]
+    },
+    {
+    "departure":
+    [
+    {
+    "airport":
+    {
+    "id":
+    "SYD",
+    "name":
+    "Sydney Airport"
+    },
+    "city":
+    "Sydney",
+    "country":
+    "Australia",
+    "country_code":
+    "AU",
+    "image":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSv_5yBmtOWwa08eIbTc_RUZQ9vSh__CE8_fkK8-LyVB29mB5FtdOjIaE_xLri4REMijNrBd1XGW7MUNA",
+    "thumbnail":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPdsoXNsip15P8UZRTG3U7kaduxFjaMb01CcKiLeWVx6qTHF0_o43H4KQFFHIgbyLKBnkNTh-4ofS1X2iuG1FEB8TAtoeVgqD9ZUApr4s"
+    }
+    ],
+    "arrival":
+    [
+    {
+    "airport":
+    {
+    "id":
+    "HAN",
+    "name":
+    "Noi Bai International Airport"
+    },
+    "city":
+    "Hanoi",
+    "country":
+    "Vietnam",
+    "country_code":
+    "VN",
+    "image":
+    "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRvDbDxEE5BwSWOQ4RT-zoeXTYdYLnTb4Gt1ahDi3E0q04xKuf9DS500eH9GIyeJE0Svpe855zZFnrEmg",
+    "thumbnail":
+    "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRnEUNunPtZ_EOUhfwUEBdG4cQAjtpv0gn9pcszbV-7s2_vfkv5HSXrQHTmJEmBOFmL6dDszrpqZqCxLMObS9wRYGN2AdDh-11WxIpSWmk"
+    }
+    ]
+    }
+    ]
+    }
