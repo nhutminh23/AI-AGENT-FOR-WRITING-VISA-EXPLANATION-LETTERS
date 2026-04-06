@@ -349,6 +349,7 @@ const bulkResultsBodyEl = document.getElementById("bulkResultsBody");
 const bulkResultSummaryEl = document.getElementById("bulkResultSummary");
 const bulkCreateStreamsBtn = document.getElementById("bulkCreateStreamsBtn");
 const bulkTranslateAllBtn = document.getElementById("bulkTranslateAllBtn");
+const bulkPrintAllPdfBtn = document.getElementById("bulkPrintAllPdfBtn");
 const bulkManualFallbackEl = document.getElementById("bulkManualFallback");
 
 let cachedFiles = [];

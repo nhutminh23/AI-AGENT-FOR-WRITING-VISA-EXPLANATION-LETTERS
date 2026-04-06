@@ -11,7 +11,6 @@ let _serpFlightUIInitialized = false;
 function initSerpFlightUI() {
   if (_serpFlightUIInitialized) return;
   _serpFlightUIInitialized = true;
-  console.log("[FLIGHTS] initSerpFlightUI called");
   if (!serpFlightTypeEl) return;
 
   if (tripOriginAirportEl?.value && serpDepartureIdEl && !serpDepartureIdEl.value) {
@@ -525,7 +524,6 @@ async function serpGenerateTicket() {
   const lastOutboundLeg = outboundFlights[outboundFlights.length - 1];
   if (lastOutboundLeg?.arrival_airport?.time) {
     window.flightArrivalDate = lastOutboundLeg.arrival_airport.time.split(" ")[0];
-    console.log("[FLIGHTS] Ngày đáp chuyến bay:", window.flightArrivalDate);
   } else if (serpOutboundDateEl?.value) {
     window.flightArrivalDate = serpOutboundDateEl.value;
   }
@@ -536,8 +534,7 @@ async function serpGenerateTicket() {
     const firstReturnLeg = retFlights[0];
     if (firstReturnLeg?.departure_airport?.time) {
       window.flightReturnDate = firstReturnLeg.departure_airport.time.split(" ")[0];
-      console.log("[FLIGHTS] Ngày khởi hành chuyến về:", window.flightReturnDate);
-    } else if (serpReturnDateEl?.value) {
+      } else if (serpReturnDateEl?.value) {
       window.flightReturnDate = serpReturnDateEl.value;
     }
   } else if (serpReturnDateEl?.value) {

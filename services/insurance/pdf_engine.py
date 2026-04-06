@@ -103,6 +103,21 @@ def _build_extraction_summary(full_data: dict) -> dict:
     summary = {}
 
     # ── Strategy 1: Direct span matching (most reliable) ──────────
+    _extract_by_direct_match(summary, all_spans)
+
+    # ── Strategy 1.5: Span adjacency (label→value pairs) ─────────
+    _extract_by_adjacency(summary, all_spans)
+
+    # ── Strategy 2: Contextual regex on full text ─────────────────
+    _extract_by_full_text(summary, joined, all_spans, full_data)
+
+    # ── Strategy 3: Tabular column matching (Chubb page 2 tabular) ──
+    _extract_by_tabular_layout(summary, full_data)
+
+    return summary
+
+
+def _extract_by_direct_match(summary: dict, all_spans: list):
     for span_text in all_spans:
         text = span_text.strip()
 
@@ -138,7 +153,7 @@ def _build_extraction_summary(full_data: dict) -> dict:
                         "Cá nhân", "Gia đình"):
                 summary["category"] = text
 
-    # ── Strategy 1.5: Span adjacency (label→value pairs) ─────────
+def _extract_by_adjacency(summary: dict, all_spans: list):
     # For PDFs where labels and values are sequential spans
     for i, span_text in enumerate(all_spans):
         text = span_text.strip()
@@ -183,7 +198,7 @@ def _build_extraction_summary(full_data: dict) -> dict:
                     summary["total_days"] = all_spans[j].strip()
                     break
 
-    # ── Strategy 2: Contextual regex on full text ─────────────────
+def _extract_by_full_text(summary: dict, joined: str, all_spans: list, full_data: dict):
     # DOB
     dob_match = re.search(r"Date of Birth\s*:?\s*(\d{2}/\d{2}/\d{4})", joined, re.IGNORECASE)
     if dob_match:
@@ -241,7 +256,6 @@ def _build_extraction_summary(full_data: dict) -> dict:
             break
 
     # Length of trip — use bounding box Y-proximity instead of span index
-    # "23" and "Length of trip" are on the same Y-line but far apart in span order
     if full_data and "pages" in full_data and full_data["pages"]:
         page0_spans = full_data["pages"][0].get("spans", [])
         label_y = None
@@ -259,99 +273,94 @@ def _build_extraction_summary(full_data: dict) -> dict:
                     summary["length_of_trip"] = t
                     break
 
-    # ── Strategy 3: Tabular column matching (Chubb page 2 insured table) ──
-    # In tabular PDFs, the header "Date of Birth" and value "11/11/1985"
-    # are in different rows but the SAME X-column.
-    # We find the header's X-range, then look for a date value in a data row
-    # that falls within the same X-column.
-    if full_data and "pages" in full_data:
-        for page_data in full_data["pages"]:
-            page_spans = page_data.get("spans", [])
+def _extract_by_tabular_layout(summary: dict, full_data: dict):
+    if not full_data or "pages" not in full_data:
+        return
 
-            # --- DOB from table ---
-            if not summary.get("dob"):
-                dob_header = None
-                for sp in page_spans:
-                    if re.match(r"^Date of Birth", sp.get("text", ""), re.IGNORECASE):
-                        dob_header = sp
-                        break
-                if dob_header:
-                    hx0 = dob_header["bbox"][0]
-                    hx1 = dob_header["bbox"][2]
-                    hy1 = dob_header["bbox"][3]
-                    for sp in page_spans:
-                        t = sp.get("text", "").strip()
-                        sx0 = sp["bbox"][0]
-                        sy0 = sp["bbox"][1]
-                        # Value must be BELOW the header and within the X-column
-                        if (re.match(r"^\d{1,2}/\d{1,2}/\d{4}$", t)
-                                and sy0 > hy1
-                                and abs(sx0 - hx0) < 40):
-                            summary["dob"] = t
-                            break
+    for page_data in full_data["pages"]:
+        page_spans = page_data.get("spans", [])
 
-            # --- Gender from table ---
-            if not summary.get("gender"):
-                gender_header = None
+        # --- DOB from table ---
+        if not summary.get("dob"):
+            dob_header = None
+            for sp in page_spans:
+                if re.match(r"^Date of Birth", sp.get("text", ""), re.IGNORECASE):
+                    dob_header = sp
+                    break
+            if dob_header:
+                hx0 = dob_header["bbox"][0]
+                hy1 = dob_header["bbox"][3]
                 for sp in page_spans:
-                    if sp.get("text", "").strip() == "Gender":
-                        gender_header = sp
+                    t = sp.get("text", "").strip()
+                    sx0 = sp["bbox"][0]
+                    sy0 = sp["bbox"][1]
+                    # Value must be BELOW the header and within the X-column
+                    if (re.match(r"^\d{1,2}/\d{1,2}/\d{4}$", t)
+                            and sy0 > hy1
+                            and abs(sx0 - hx0) < 40):
+                        summary["dob"] = t
                         break
-                if gender_header:
-                    hx0 = gender_header["bbox"][0]
-                    hy1 = gender_header["bbox"][3]
-                    for sp in page_spans:
-                        t = sp.get("text", "").strip()
-                        sx0 = sp["bbox"][0]
-                        sy0 = sp["bbox"][1]
-                        if (t in ("Mr", "Ms", "Mrs")
-                                and sy0 > hy1
-                                and abs(sx0 - hx0) < 40):
-                            summary["gender"] = t
-                            break
 
-            # --- Period dates from label+column (Chubb template) ---
-            # "From" at x0=111.9, y0=382.7 and "19/02/2026" at x0=111.9, y0=396.7
-            # Same X-column, ~14px below — span adjacency misses this
-            if not summary.get("period_from"):
-                from_label = None
+        # --- Gender from table ---
+        if not summary.get("gender"):
+            gender_header = None
+            for sp in page_spans:
+                if sp.get("text", "").strip() == "Gender":
+                    gender_header = sp
+                    break
+            if gender_header:
+                hx0 = gender_header["bbox"][0]
+                hy1 = gender_header["bbox"][3]
                 for sp in page_spans:
-                    if sp.get("text", "").strip() == "From":
-                        from_label = sp
+                    t = sp.get("text", "").strip()
+                    sx0 = sp["bbox"][0]
+                    sy0 = sp["bbox"][1]
+                    if (t in ("Mr", "Ms", "Mrs")
+                            and sy0 > hy1
+                            and abs(sx0 - hx0) < 40):
+                        summary["gender"] = t
                         break
-                if from_label:
-                    lx0 = from_label["bbox"][0]
-                    ly1 = from_label["bbox"][3]
-                    for sp in page_spans:
-                        t = sp.get("text", "").strip()
-                        sx0 = sp["bbox"][0]
-                        sy0 = sp["bbox"][1]
-                        if (re.match(r"^\d{2}/\d{2}/\d{4}$", t)
-                                and sy0 > ly1
-                                and sy0 - ly1 < 25
-                                and abs(sx0 - lx0) < 30):
-                            summary["period_from"] = t
-                            break
 
-            if not summary.get("period_to"):
-                to_label = None
+        # --- Period dates from label+column (Chubb template) ---
+        if not summary.get("period_from"):
+            from_label = None
+            for sp in page_spans:
+                if sp.get("text", "").strip() == "From":
+                    from_label = sp
+                    break
+            if from_label:
+                lx0 = from_label["bbox"][0]
+                ly1 = from_label["bbox"][3]
                 for sp in page_spans:
-                    if sp.get("text", "").strip() == "To":
-                        to_label = sp
+                    t = sp.get("text", "").strip()
+                    sx0 = sp["bbox"][0]
+                    sy0 = sp["bbox"][1]
+                    if (re.match(r"^\d{2}/\d{2}/\d{4}$", t)
+                            and sy0 > ly1
+                            and sy0 - ly1 < 25
+                            and abs(sx0 - lx0) < 30):
+                        summary["period_from"] = t
                         break
-                if to_label:
-                    lx0 = to_label["bbox"][0]
-                    ly1 = to_label["bbox"][3]
-                    for sp in page_spans:
-                        t = sp.get("text", "").strip()
-                        sx0 = sp["bbox"][0]
-                        sy0 = sp["bbox"][1]
-                        if (re.match(r"^\d{2}/\d{2}/\d{4}$", t)
-                                and sy0 > ly1
-                                and sy0 - ly1 < 25
-                                and abs(sx0 - lx0) < 30):
-                            summary["period_to"] = t
-                            break
+
+        if not summary.get("period_to"):
+            to_label = None
+            for sp in page_spans:
+                if sp.get("text", "").strip() == "To":
+                    to_label = sp
+                    break
+            if to_label:
+                lx0 = to_label["bbox"][0]
+                ly1 = to_label["bbox"][3]
+                for sp in page_spans:
+                    t = sp.get("text", "").strip()
+                    sx0 = sp["bbox"][0]
+                    sy0 = sp["bbox"][1]
+                    if (re.match(r"^\d{2}/\d{2}/\d{4}$", t)
+                            and sy0 > ly1
+                            and sy0 - ly1 < 25
+                            and abs(sx0 - lx0) < 30):
+                        summary["period_to"] = t
+                        break
 
     return summary
 
@@ -361,7 +370,7 @@ def _build_extraction_summary(full_data: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════
 
 def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict = None,
-                            template_path: str = "chubb", expected_rect=None,
+                            template_path: str = "liberty", expected_rect=None,
                             page_idx: int = 0):
     """
     Replace old_text on a page using OVERLAY approach (not redaction).
@@ -388,18 +397,35 @@ def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict =
         cover_rect = text_instances[0]
 
     # ── Background Color Config ──
-    CHUBB_BG_HEX = "#ffdfbf"
-    STANDARD_BG_HEX = "#ffffff"
+    # Liberty TravelCare (chubb.pdf): page 1 header area has yellow/orange bg
+    # Chubb Travel Insurance (standard.pdf): page 1 header area has orange bg
+    # Both need orange overlay in the header zone; rest is white.
+    LIBERTY_BG_HEX = "#fedc8a"   # Liberty gold/yellow header
+    CHUBB_BG_HEX = "#ffdfbf"     # Chubb orange header
+    WHITE_BG_HEX = "#ffffff"
 
     def hex_to_rgb(hex_str: str) -> tuple[float, float, float]:
         hex_str = hex_str.lstrip('#')
         return tuple(int(hex_str[i:i+2], 16) / 255.0 for i in (0, 2, 4))
 
-    # Determine background color based on template + page + position
-    if "standard" in template_path.lower() and page_idx == 0 and cover_rect.y0 < 430:
-        fill_color = hex_to_rgb(CHUBB_BG_HEX)
-    else:
-        fill_color = hex_to_rgb(STANDARD_BG_HEX)
+    # Smart background detection: sample the pixel color under the text
+    # to match the actual PDF background instead of guessing by template name
+    try:
+        clip = fitz.Rect(cover_rect.x0, cover_rect.y0, cover_rect.x0 + 2, cover_rect.y0 + 2)
+        pix = page.get_pixmap(clip=clip, dpi=72)
+        if pix.n >= 3:
+            r_val, g_val, b_val = pix.pixel(0, 0)[:3]
+            fill_color = (r_val / 255.0, g_val / 255.0, b_val / 255.0)
+        else:
+            fill_color = hex_to_rgb(WHITE_BG_HEX)
+    except Exception:
+        # Fallback: use template name heuristic
+        if "liberty" in template_path.lower() and page_idx == 0 and cover_rect.y0 < 500:
+            fill_color = hex_to_rgb(LIBERTY_BG_HEX)
+        elif "chubb" in template_path.lower() and page_idx == 0 and cover_rect.y0 < 430:
+            fill_color = hex_to_rgb(CHUBB_BG_HEX)
+        else:
+            fill_color = hex_to_rgb(WHITE_BG_HEX)
 
     # ── Determine font properties ──
     target_font = "Times-Roman"
@@ -419,7 +445,10 @@ def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict =
     insert_fontname = _map_font_name(target_font)
 
     # ── Step 1: Draw filled rectangle to COVER old text ──
-    # Expand rect slightly (1px padding) to fully cover any anti-aliased edges
+    # Cover rect stays EXACTLY the size of the old text.
+    # New text writes at original font size — if wider, it overflows into
+    # adjacent whitespace rather than extending the cover (which would eat
+    # into neighboring text in mid-sentence positions).
     cover = fitz.Rect(
         cover_rect.x0 - 0.5,
         cover_rect.y0 - 0.5,
@@ -431,24 +460,15 @@ def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict =
     shape.finish(color=fill_color, fill=fill_color)
     shape.commit()
 
-    # ── Step 2: Calculate text position & size ──
-    text_width = fitz.get_text_length(new_text, fontname=insert_fontname, fontsize=target_size)
-    box_width = cover_rect.x1 - cover_rect.x0
-
-    adjusted_size = target_size
-    if text_width > box_width and box_width > 0:
-        ratio = box_width / text_width
-        adjusted_size = max(target_size * ratio, 4.0)
-
-    # ── Step 3: Insert new text at baseline position ──
-    baseline_y = cover_rect.y1 - (adjusted_size * 0.15)
+    # ── Step 3: Insert new text at baseline position (original font size) ──
+    baseline_y = cover_rect.y1 - (target_size * 0.15)
     insert_point = fitz.Point(cover_rect.x0, baseline_y)
 
     page.insert_text(
         insert_point,
         new_text,
         fontname=insert_fontname,
-        fontsize=adjusted_size,
+        fontsize=target_size,
         color=target_color,
     )
 
@@ -527,21 +547,40 @@ def _apply_changes_to_pdf(template_path: str, changes: dict, output_path: str) -
         fi = occurrences[0] if occurrences else None
         success = False
 
-        # ── ALWAYS use position-aware replacement when font_map has data ──
-        # This prevents redaction from eating into adjacent text spans.
-        # Without expected_rect, page.search_for() can return wider rects
-        # that overlap neighboring text (e.g. "Issued04/04/2026áp" garble).
+        # ── Pass 1: Position-aware replacement using font_map (exact span match) ──
+        # Track which pages already had this value replaced
+        replaced_pages = set()
+
         if occurrences:
             for occ in occurrences:
                 pg_idx = occ["page"]
                 page = doc[pg_idx]
                 expected = fitz.Rect(occ["bbox"])
-                # Use this occurrence's own font info for accurate rendering
                 if _find_and_replace_text(page, old_val, new_val, occ, template_path,
                                           expected_rect=expected, page_idx=pg_idx):
                     success = True
-        else:
-            # Fallback: no font_map data, search every page unrestricted
+                    replaced_pages.add(pg_idx)
+
+        # ── Pass 2: search_for() sweep to catch text in longer spans ──
+        # ONLY on pages NOT already handled by Pass 1.
+        # Why skip entire pages? Because the overlay approach doesn't remove
+        # old text from the PDF content stream — it just draws over it.
+        # search_for() would re-find the old text on already-processed pages,
+        # causing double-replacement = garbled output.
+        for page_idx in range(len(doc)):
+            if page_idx in replaced_pages:
+                continue  # This page was already handled by font_map Pass 1
+
+            page = doc[page_idx]
+            search_hits = page.search_for(old_val)
+            for hit_rect in search_hits:
+                # Replace using search_for rect + font info from first occurrence
+                if _find_and_replace_text(page, old_val, new_val, fi, template_path,
+                                          expected_rect=hit_rect, page_idx=page_idx):
+                    success = True
+
+        if not success and not occurrences:
+            # Final fallback: no font_map AND no search hits; try unrestricted
             for page_idx in range(len(doc)):
                 page = doc[page_idx]
                 if _find_and_replace_text(page, old_val, new_val, fi, template_path,

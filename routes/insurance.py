@@ -23,8 +23,8 @@ insurance_bp = Blueprint("insurance_bp", __name__)
 # ── Paths to the two insurance templates ──────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSURANCE_TEMPLATES = {
+    "liberty": os.path.join(BASE_DIR, "templates", "insurance", "liberty.pdf"),
     "chubb": os.path.join(BASE_DIR, "templates", "insurance", "chubb.pdf"),
-    "standard": os.path.join(BASE_DIR, "templates", "insurance", "standard.pdf"),
 }
 INSURANCE_OUTPUT_DIR = os.path.join(BASE_DIR, "insurance_outputs")
 os.makedirs(INSURANCE_OUTPUT_DIR, exist_ok=True)
@@ -71,7 +71,7 @@ def insurance_extract():
     """
     try:
         data = request.get_json() or {}
-        template_key = data.get("template", "chubb")
+        template_key = data.get("template", "liberty")
         period_from = data.get("period_from", "")
         period_to = data.get("period_to", "")
         destination = data.get("destination", "Worldwide")
@@ -94,7 +94,7 @@ def insurance_extract():
         summary = _build_extraction_summary(full_data)
 
         # ── Auto-generate fields ──────────────────────────────────
-        if template_key == "standard":
+        if template_key == "chubb":
             # Chubb specific fields
             auto_fields = {
                 "policy_no": random_chubb_policy(),
@@ -117,7 +117,7 @@ def insurance_extract():
         # Calculate trip days if dates provided
         if period_from and period_to:
             trip_days = calc_trip_days(period_from, period_to)
-            if template_key == "standard":
+            if template_key == "chubb":
                 auto_fields["total_days"] = str(trip_days)
                 auto_fields["period_from"] = period_from
                 auto_fields["period_to"] = period_to
@@ -130,7 +130,8 @@ def insurance_extract():
             try:
                 dt_from = datetime.strptime(period_from, "%d/%m/%Y")
                 dt_to = datetime.strptime(period_to, "%d/%m/%Y")
-            except:
+            except ValueError:
+                logging.warning("Could not parse period dates: %s, %s", period_from, period_to)
                 dt_from = datetime.now()
                 dt_to = datetime.now() + timedelta(days=trip_days)
 
@@ -138,7 +139,7 @@ def insurance_extract():
             fetch_end = dt_to.strftime("%Y-%m-%d")
 
             # Fetch real premium from API
-            if template_key == "standard":
+            if template_key == "chubb":
                 premium = fetch_chubb_premium(
                     start_date=fetch_start,
                     end_date=fetch_end,
@@ -188,7 +189,7 @@ def insurance_apply():
     """
     try:
         data = request.get_json() or {}
-        template_key = data.get("template", "chubb")
+        template_key = data.get("template", "liberty")
         original = data.get("original", {})
         updated = data.get("updated", {})
         auto_fields = data.get("auto_fields", {})

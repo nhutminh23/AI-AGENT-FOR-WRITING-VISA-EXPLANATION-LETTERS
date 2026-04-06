@@ -771,6 +771,13 @@ def translate_original_pages():
 
     pages = []
     try:
+        # User requested: Automatically convert input images to A4 PDF
+        # so that the original page renders with correct A4 aspect ratio 
+        # for printing (preventing horizontal squashing).
+        if ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
+            tmp_path = _convert_image_to_a4_pdf(tmp_path)
+            ext = ".pdf"
+            
         if ext == ".pdf":
             import fitz  # PyMuPDF
             doc = fitz.open(tmp_path)
@@ -780,12 +787,6 @@ def translate_original_pages():
                 b64 = base64.b64encode(img_bytes).decode("ascii")
                 pages.append({"index": i, "data_url": f"data:image/png;base64,{b64}"})
             doc.close()
-        elif ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
-            with open(tmp_path, "rb") as fp:
-                img_bytes = fp.read()
-            mime = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext.lstrip('.')}"
-            b64 = base64.b64encode(img_bytes).decode("ascii")
-            pages.append({"index": 0, "data_url": f"data:{mime};base64,{b64}"})
         else:
             return jsonify({"error": "unsupported_format", "detail": f"Cannot render {ext} as images"}), 400
     except Exception as e:
@@ -821,6 +822,38 @@ def translate_certification_template():
 
     return jsonify({"html": html})
 
+def _convert_image_to_a4_pdf(image_path: str) -> str:
+    """Converts an image to an A4-sized PDF, centering the image to maintain aspect ratio."""
+    import fitz
+    import tempfile
+    
+    A4_WIDTH = 595.0
+    A4_HEIGHT = 842.0
+    
+    doc = fitz.open()
+    page = doc.new_page(width=A4_WIDTH, height=A4_HEIGHT)
+    
+    img_doc = fitz.open(image_path)
+    rect = img_doc[0].rect
+    img_w, img_h = rect.width, rect.height
+    img_doc.close()
+    
+    margin = 20
+    scale = min((A4_WIDTH - 2*margin) / img_w, (A4_HEIGHT - 2*margin) / img_h)
+    new_w, new_h = img_w * scale, img_h * scale
+    
+    x0, y0 = (A4_WIDTH - new_w) / 2, (A4_HEIGHT - new_h) / 2
+    target_rect = fitz.Rect(x0, y0, x0 + new_w, y0 + new_h)
+    
+    page.insert_image(target_rect, filename=image_path)
+    
+    fd, temp_pdf_path = tempfile.mkstemp(suffix=".pdf", prefix="img_to_a4_")
+    os.close(fd)
+    doc.save(temp_pdf_path)
+    doc.close()
+    return temp_pdf_path
+
+
 @splitter_translate_bp.post("/api/translate/run_stream")
 def run_translate_stream():
     payload = request.get_json(force=True) or {}
@@ -847,6 +880,17 @@ def run_translate_stream():
     source_path = _resolve_translate_source_path(input_dir, file_ref)
     if not source_path:
         return jsonify({"error": "file_not_found"}), 404
+        
+    # User requested: Automatically convert input images to A4 PDF
+    # so that the AI layout and HTML mapper don't overflow the page bounds.
+    ext = os.path.splitext(source_path)[1].lower()
+    if ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
+        try:
+            source_path = _convert_image_to_a4_pdf(source_path)
+        except Exception as e:
+            logging.exception("Failed to convert image to A4 PDF: %s", e)
+            # Proceeding with original image if it fails
+
     upload_token = ""
     if file_ref.startswith("upload_token:"):
         upload_token = file_ref.split(":", 1)[1].strip()

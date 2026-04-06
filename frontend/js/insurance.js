@@ -104,7 +104,7 @@ function _insSelectTemplate(templateKey) {
   // Show/Hide Chubb specific fields and handle Destination generic vs customized
   const chubbFields = document.getElementById("chubbSpecificFields");
   const destInput = document.getElementById("insDestination");
-  const isChubb = templateKey === "standard";
+  const isChubb = templateKey === "chubb";
   
   if (chubbFields) {
     chubbFields.style.display = isChubb ? "grid" : "none";
@@ -224,7 +224,7 @@ async function _insExtractData() {
   step2.style.display = "block";
   step3.style.display = "none";
   jsonDisplay.textContent = "⏳ Đang trích xuất dữ liệu & lấy giá bảo hiểm...";
-  templateName.textContent = _insCurrentTemplate === "chubb"
+  templateName.textContent = _insCurrentTemplate === "liberty"
     ? "📋 Liberty TravelCare" : "📋 Bảo Hiểm Du Lịch Chubb";
 
   statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang xử lý...</span>';

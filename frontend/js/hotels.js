@@ -61,7 +61,6 @@ async function serpSearchHotels() {
     if (!isNaN(sDate) && !isNaN(rDate) && rDate > sDate) {
       const calculatedNights = Math.ceil((rDate - sDate) / (1000 * 60 * 60 * 24));
       stops[0].nights = calculatedNights;
-      console.log(`[HOTEL] Auto-adjusting nights for 1 city based on flight dates: ${calculatedNights} nights`);
     } else if (tripNumNightsEl?.value && parseInt(tripNumNightsEl.value) > 0) {
       stops[0].nights = parseInt(tripNumNightsEl.value);
     }
@@ -335,7 +334,6 @@ if (serpHotelGenerateBtn) serpHotelGenerateBtn.addEventListener("click", serpGen
       const itinRes = await fetch(`/api/output/itinerary.html?_t=${_t}`);
       if (itinRes.ok) {
         itineraryResultEl.srcdoc = await itinRes.text();
-        console.log("[AUTO-LOAD] ✅ Itinerary loaded from disk");
       }
     }
 
@@ -348,14 +346,11 @@ if (serpHotelGenerateBtn) serpHotelGenerateBtn.addEventListener("click", serpGen
       const validHtmls = htmls.filter(h => h);
       if (validHtmls.length > 0) {
         renderHotelTabs(validHtmls);
-        console.log(`[AUTO-LOAD] ✅ ${validHtmls.length} hotel booking(s) loaded from disk`);
       }
     }
     // Sync combined previews (Kết quả tab) after loading
     syncCombinedPreviews();
-    console.log("[AUTO-LOAD] ✅ Combined previews synced");
   } catch (e) {
-    console.log("[AUTO-LOAD] ⚠️ Could not load saved outputs:", e.message);
   }
 })();
 

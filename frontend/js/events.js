@@ -416,6 +416,9 @@ if (bulkCreateStreamsBtn) {
 if (bulkTranslateAllBtn) {
   bulkTranslateAllBtn.addEventListener("click", () => runTranslateAll());
 }
+if (bulkPrintAllPdfBtn) {
+  bulkPrintAllPdfBtn.addEventListener("click", () => printAllTranslationFlows());
+}
 
 window.addEventListener("load", async () => {
   setActiveTab("precheck");

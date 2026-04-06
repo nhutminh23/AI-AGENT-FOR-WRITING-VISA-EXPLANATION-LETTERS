@@ -224,10 +224,8 @@ function createTranslateFlow() {
           const inputEl = document.getElementById(`transUpload-${flowId}`);
           if (inputEl && inputEl.files && inputEl.files[0]) {
             originalFile = inputEl.files[0];
-            console.log("[CombinedPDF] File from input fallback:", originalFile.name);
           }
         }
-        console.log("[CombinedPDF] originalFile:", originalFile ? originalFile.name : "NONE");
 
         // Fetch original pages (POST file directly) + certification template concurrently
         let origFetch = Promise.resolve(null);
@@ -245,7 +243,6 @@ function createTranslateFlow() {
         let originalPagesHtml = "";
         if (origRes && origRes.ok) {
           const origData = await origRes.json();
-          console.log("[CombinedPDF] Original pages received:", origData.pages ? origData.pages.length : 0);
           if (origData.pages && origData.pages.length > 0) {
             originalPagesHtml = origData.pages.map((p, i) => {
               return `<div class="original-page">
@@ -361,7 +358,6 @@ function createTranslateFlow() {
 </body>
 </html>`;
 
-        console.log("[CombinedPDF] Sections - original:", !!originalPagesHtml, "translated:", !!translatedHtml, "cert:", !!certHtml);
 
         const printWin = window.open("", "_blank");
         if (!printWin) {
@@ -374,7 +370,6 @@ function createTranslateFlow() {
 
         // Wait for ALL images to load before printing
         const allImgs = printWin.document.querySelectorAll("img");
-        console.log("[CombinedPDF] Total images to load:", allImgs.length);
         if (allImgs.length > 0) {
           let loaded = 0;
           const checkPrint = () => { if (++loaded >= allImgs.length) setTimeout(() => printWin.print(), 300); };
@@ -852,6 +847,7 @@ async function bulkCreateTranslateStreams() {
 
   // Show translate-all button
   if (bulkTranslateAllBtn) bulkTranslateAllBtn.style.display = "inline-block";
+  if (bulkPrintAllPdfBtn) bulkPrintAllPdfBtn.style.display = "inline-block";
   if (bulkCreateStreamsBtn) {
     bulkCreateStreamsBtn.textContent = `✅ Đã tạo ${needsTranslation.length} luồng`;
     bulkCreateStreamsBtn.disabled = true;
@@ -911,5 +907,213 @@ async function runTranslateAll() {
   if (bulkTranslateAllBtn) {
     bulkTranslateAllBtn.disabled = false;
     bulkTranslateAllBtn.textContent = `✅ Đã dịch xong ${doneCount}/${total} luồng`;
+  }
+
+  // Show print-all button after translation completes
+  if (bulkPrintAllPdfBtn) bulkPrintAllPdfBtn.style.display = "inline-block";
+}
+
+/**
+ * Print ALL translation flows in one go.
+ * For each flow: Original pages → Translated HTML → Certification page.
+ * All combined into a single print window.
+ */
+async function printAllTranslationFlows() {
+  const flowCards = translateFlowsContainerEl?.querySelectorAll(".translate-flow-card") || [];
+  if (flowCards.length === 0) {
+    alert("Chưa có luồng dịch nào.");
+    return;
+  }
+
+  if (bulkPrintAllPdfBtn) {
+    bulkPrintAllPdfBtn.disabled = true;
+    bulkPrintAllPdfBtn.textContent = "⏳ Đang chuẩn bị PDF...";
+  }
+
+  try {
+    // Fetch certification template once (shared across all flows)
+    let certHtml = "";
+    try {
+      const certRes = await fetch("/api/translate/certification_template");
+      if (certRes.ok) {
+        const certData = await certRes.json();
+        certHtml = certData.html || "";
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, "0");
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const yyyy = now.getFullYear();
+        certHtml = certHtml.replace(/Date:\s*\d{2}\/\d{2}\/\d{4}/, `Date: ${dd}/${mm}/${yyyy}`);
+      }
+    } catch (e) {
+      console.warn("[PrintAll] Cert template fetch failed:", e);
+    }
+
+    // Helper functions
+    const extractStyles = (html) => {
+      const styles = [];
+      const regex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+      let m;
+      while ((m = regex.exec(html)) !== null) styles.push(m[1]);
+      return styles.join("\n");
+    };
+    const extractBody = (html) => {
+      const m = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      return m ? m[1] : html;
+    };
+    const bodyStripProps = /\b(display|padding|margin|background[^:]*|justify-content|align-items|min-height|height|overflow)\s*:[^;]+;?/gi;
+    const scopeStyles = (css, scopeClass) => {
+      return css.replace(/([^{}@]+)\{([^{}]+)\}/g, (match, sel, body) => {
+        let isBodyRule = false;
+        const scopedSel = sel.split(",").map(s => {
+          s = s.trim();
+          if (!s || s.startsWith("@") || s.startsWith("/*")) return s;
+          if (s === "body" || s === "html") { isBodyRule = true; return "." + scopeClass; }
+          return "." + scopeClass + " " + s;
+        }).join(", ");
+        const cleanBody = isBodyRule ? body.replace(bodyStripProps, "") : body;
+        return scopedSel + "{" + cleanBody + "}";
+      });
+    };
+
+    let allStyles = "";
+    let allSections = "";
+    let flowIndex = 0;
+
+    for (const card of flowCards) {
+      const flowId = parseInt(card.id.replace("translateFlow-", ""), 10);
+      if (isNaN(flowId)) continue;
+
+      const previewEl = document.getElementById(`transPreview-${flowId}`);
+      const translatedHtml = previewEl?.srcdoc || "";
+      if (!translatedHtml) {
+        console.warn(`[PrintAll] Flow ${flowId}: no translated HTML, skipping`);
+        continue;
+      }
+
+      if (bulkPrintAllPdfBtn) {
+        bulkPrintAllPdfBtn.textContent = `⏳ Chuẩn bị luồng ${flowIndex + 1}/${flowCards.length}...`;
+      }
+
+      // --- Part 1: Original pages ---
+      let originalPagesHtml = "";
+      let originalFile = (window._transOriginalFiles || {})[flowId];
+      if (!originalFile) {
+        const inputEl = document.getElementById(`transUpload-${flowId}`);
+        if (inputEl?.files?.[0]) originalFile = inputEl.files[0];
+      }
+      if (originalFile) {
+        try {
+          const fd = new FormData();
+          fd.append("file", originalFile);
+          const origRes = await fetch("/api/translate/original_pages", { method: "POST", body: fd });
+          if (origRes.ok) {
+            const origData = await origRes.json();
+            if (origData.pages?.length > 0) {
+              originalPagesHtml = origData.pages.map(p =>
+                `<div class="original-page"><img src="${p.data_url}" style="width:100%;height:auto;display:block;" /></div>`
+              ).join("\n");
+            }
+          }
+        } catch (e) {
+          console.warn(`[PrintAll] Flow ${flowId}: original pages failed:`, e);
+        }
+      }
+
+      const flowScopeClass = `flow-trans-${flowIndex}`;
+      const flowCertScopeClass = `flow-cert-${flowIndex}`;
+
+      // --- Part 2: Translated HTML (scoped) ---
+      if (translatedHtml) {
+        const transStyles = extractStyles(translatedHtml);
+        const transBody = extractBody(translatedHtml);
+        allStyles += `/* Flow ${flowId} translated */\n${scopeStyles(transStyles, flowScopeClass)}\n`;
+        allStyles += `.${flowScopeClass} .a4, .${flowScopeClass} .a4-page { min-height: auto !important; height: auto !important; }\n`;
+      }
+
+      // --- Part 3: Certification (scoped) ---
+      if (certHtml) {
+        const certStyles = extractStyles(certHtml);
+        allStyles += `/* Flow ${flowId} cert */\n${scopeStyles(certStyles, flowCertScopeClass)}\n`;
+        allStyles += `.${flowCertScopeClass} .a4-page { min-height: auto !important; height: auto !important; }\n`;
+      }
+
+      // Build sections for this flow
+      if (originalPagesHtml) {
+        allSections += `<div class="doc-section doc-original">${originalPagesHtml}</div>\n`;
+      }
+      if (translatedHtml) {
+        allSections += `<div class="doc-section ${flowScopeClass}">${extractBody(translatedHtml)}</div>\n`;
+      }
+      if (certHtml) {
+        allSections += `<div class="doc-section ${flowCertScopeClass}">${extractBody(certHtml)}</div>\n`;
+      }
+
+      flowIndex++;
+    }
+
+    if (!allSections) {
+      alert("Không có luồng nào có bản dịch để in.");
+      return;
+    }
+
+    // Build final combined HTML
+    const combinedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>All Translations PDF</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; margin: 0; padding: 0; display: block !important; }
+    .doc-section { display: block !important; width: 100% !important; overflow: hidden; }
+    .doc-section + .doc-section { page-break-before: always; }
+    .original-page { display: block; width: 100%; }
+    .original-page + .original-page { page-break-before: always; }
+    .original-page img { width: 100%; height: auto; display: block; }
+    @media print {
+      @page { size: A4; margin: 0; }
+      .doc-section + .doc-section { page-break-before: always !important; }
+      .original-page + .original-page { page-break-before: always !important; }
+    }
+    ${allStyles}
+  </style>
+</head>
+<body>
+  ${allSections}
+</body>
+</html>`;
+
+
+    const printWin = window.open("", "_blank");
+    if (!printWin) {
+      alert("Trình duyệt chặn popup. Vui lòng cho phép popup rồi thử lại.");
+      return;
+    }
+    printWin.document.open();
+    printWin.document.write(combinedHtml);
+    printWin.document.close();
+
+    // Wait for all images to load before printing
+    const allImgs = printWin.document.querySelectorAll("img");
+    if (allImgs.length > 0) {
+      let loaded = 0;
+      const checkPrint = () => { if (++loaded >= allImgs.length) setTimeout(() => printWin.print(), 400); };
+      allImgs.forEach(img => {
+        if (img.complete) { checkPrint(); }
+        else { img.onload = checkPrint; img.onerror = checkPrint; }
+      });
+      setTimeout(() => { if (loaded < allImgs.length) printWin.print(); }, 8000);
+    } else {
+      setTimeout(() => printWin.print(), 600);
+    }
+
+  } catch (err) {
+    console.error("[PrintAll] Error:", err);
+    alert("Lỗi xuất PDF tổng: " + (err.message || err));
+  } finally {
+    if (bulkPrintAllPdfBtn) {
+      bulkPrintAllPdfBtn.disabled = false;
+      bulkPrintAllPdfBtn.textContent = "🖨️ In tất cả PDF";
+    }
   }
 }
