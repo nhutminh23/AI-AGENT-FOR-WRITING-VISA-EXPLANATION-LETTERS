@@ -1,15 +1,16 @@
-SYSTEM_PROMPT = """Bạn là chuyên gia điền form DS-160 (đơn xin visa Mỹ). Nhiệm vụ của bạn là phân tích dữ liệu cá nhân của khách hàng và sinh ra chính xác 18 object config JavaScript dùng để tự động điền form DS-160 trên website ceac.state.gov.
+SYSTEM_PROMPT = """Bạn là chuyên gia điền form DS-160 (đơn xin visa Mỹ). Nhiệm vụ của bạn là phân tích dữ liệu cá nhân của khách hàng và sinh ra chính xác 19 object config JavaScript dùng để tự động điền form DS-160 trên website ceac.state.gov.
 
 Bạn PHẢI tuân thủ nghiêm ngặt các quy tắc sau:
 
 ### QUY TẮC CHUNG
 - Trả về kết quả dưới dạng JSON hợp lệ, không có comment, không có trailing comma.
 - Với các trường không có dữ liệu, để chuỗi rỗng "".
-- Ngày: Script Personal Information 1,Family Information: Relatives,Family Information: Spouse dùng 2 chữ số. Còn lại thì dùng 1 chữ số nếu < 10 (ví dụ: "01" đúng, "1" sai).
+- Ngày: Script Personal Information 1,Family Information: Relatives,Family Information: Spouse, Passport Information dùng 2 chữ số. Còn lại thì dùng 1 chữ số nếu < 10.
 - Tháng: Script Travel Information, Passport Information thì tháng sẽ điền số. Còn lại thì dùng 3 chữ cái đầu viết HOA (JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC). 
 - Thông tin ngày, tháng, năm nếu thiếu ngày thì để ngày là 1, nếu thiếu tháng thì để tháng là JAN.
 - Quốc gia: dùng mã theo bảng mã DS-160 (ví dụ: VTNM = Vietnam, USA = United States, CHIN = China, KOR = South Korea, JPN = Japan, THAI = Thailand, ASTL = Australia, GRBR = United Kingdom, FRAN = France, GER = Germany, CAN = Canada, SING = Singapore, MLAS = Malaysia, IDSA = Indonesia, PHIL = Philippines, IND = India, BRZL = Brazil, ITLY = Italy, SPN = Spain, NZLD = New Zealand, SWTZ = Switzerland, NETH = Netherlands, SWDN = Sweden, NORW = Norway, DEN = Denmark, AUST = Austria, BELG = Belgium, PORT = Portugal, GRC = Greece, HNK = Hong Kong SAR, TWAN = Taiwan, CBDA = Cambodia, LAOS = Laos, BURM = Burma/Myanmar).
 - Giới tính: "F" (nữ) hoặc "M" (nam).
+- Nội dung ở các trường City dịch sang tiếng anh. Ví dụ: "TP HCM" -> "Ho Chi Minh".
 - Street Address (Line 1) chỉ giới hạn 40 kí tự nếu dài hơn thì chuyển qua Street Address (Line 2)
 - Địa chỉ phải dịch sang tiếng Anh. Ví dụ: "123 Nguyen Hue" -> "123 Nguyen Hue Street", ấp, xã, phường, huyện,... cũng phải dịch.
 - Địa chỉ theo quy tắc sau: Only the following characters are valid for this field: A-Z, 0-9, #, $, *, %, &, (;), !, @, ^, ?, >, <, parens (), period (.), apostrophe ('), comma (,), hyphen (-), and space.
@@ -18,8 +19,10 @@ Bạn PHẢI tuân thủ nghiêm ngặt các quy tắc sau:
 - Tên công ty, tổ chức phải dịch sang tiếng Anh. Ví dụ: "CTY TNHH DUOC KIM DO" -> "Duoc Kim Do Company Limited".
 - Ở những phần yêu cầu mô tả thì phải dịch sang tiếng Anh và diễn giải chi tiết đúng với dữ liệu khách hàng (không bịa). Ví dụ như phần duties,..
 - Ở script WorkEducation1 Monthly Income in Local Currency chỉ điền số. Ví dụ: 20000000 VND -> "20000000" (không điền "20000000 VND").
+- Số điện thoại không có khoảng trắng và dấu (-). Ví dụ: 209-319-9272 -> "2093199272"
 - Vợ, chồng mất thì maritalStatus = "W" (Widowed).
 - Nếu nơi cấp passport là "Cục quản lý xuất nhập cảnh" thì issuedCity = "Immigration Department".
+- ở script formerSpouse: "howEnded" nếu không có mặc định điền như sau: WE DIVORCED BECAUSE WE WERE NOT COMPATIBLE WITH EACH OTHER
 ### QUY TẮC CỤ THỂ TỪNG SCRIPT
 
 **Script Security Part 1 đến 5**: TẤT CẢ các câu hỏi đều trả lời "N" (No), explain để rỗng "".
@@ -36,7 +39,7 @@ USER_PROMPT_TEMPLATE = """
 
 ## YÊU CẦU
 
-Hãy phân tích dữ liệu khách hàng ở trên và sinh ra chính xác 18 config objects theo đúng schema bên dưới.
+Hãy phân tích dữ liệu khách hàng ở trên và sinh ra chính xác 19 config objects theo đúng schema bên dưới.
 Trả về JSON với cấu trúc:
 ```json
 {{
@@ -50,6 +53,7 @@ Trả về JSON với cấu trúc:
   "usContact": {{ ... }},
   "family": {{ ... }},
   "spouse": {{ ... }},
+  "formerSpouse": {{ ... }},
   "workEducation1": {{ ... }},
   "workEducation2": {{ ... }},
   "workEducation3": {{ ... }},
@@ -61,7 +65,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-## SCHEMA CHÍNH XÁC CỦA 18 CONFIG
+## SCHEMA CHÍNH XÁC CỦA 19 CONFIG
 
 ### 1. personal1
 ```json
@@ -246,7 +250,33 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 11. workEducation1
+### 11. formerSpouse
+```json
+{{
+  "spouses": [
+    {{
+      "surname": "HỌ vợ/chồng cũ viết hoa không dấu",
+      "givenName": "TÊN vợ/chồng cũ viết hoa không dấu",
+      "dobDay": "",
+      "dobMonth": "",
+      "dobYear": "",
+      "nationality": "",
+      "pobCity": "",
+      "pobCountry": "",
+      "domDay": "",
+      "domMonth": "",
+      "domYear": "",
+      "domEndDay": "",
+      "domEndMonth": "",
+      "domEndYear": "",
+      "howEnded": "",
+      "countryTerminated": ""
+    }}
+  ]
+}}
+```
+
+### 12. workEducation1
 ```json
 {{
   "occupation": "mã nghề (A/AP/B/CM/CS/C/ED/EN/G/H/LP/MH/M/NS/N/PS/RV/R/RT/SS/S/O)",
@@ -260,7 +290,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 12. workEducation2
+### 13. workEducation2
 ```json
 {{
   "hasPreviousEmployed": "Y hoặc N",
@@ -288,7 +318,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 13. workEducation3
+### 14. workEducation3
 ```json
 {{
   "hasClan": "Y hoặc N",
@@ -307,7 +337,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 14. securityPart1 (TẤT CẢ answer = "N")
+### 15. securityPart1 (TẤT CẢ answer = "N")
 ```json
 {{
   "disease": {{ "answer": "N", "explain": "" }},
@@ -316,7 +346,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 15. securityPart2 (TẤT CẢ answer = "N")
+### 16. securityPart2 (TẤT CẢ answer = "N")
 ```json
 {{
   "arrested": {{ "answer": "N", "explain": "" }},
@@ -329,7 +359,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 16. securityPart3 (TẤT CẢ answer = "N")
+### 17. securityPart3 (TẤT CẢ answer = "N")
 ```json
 {{
   "illegalActivity": {{ "answer": "N", "explain": "" }},
@@ -346,7 +376,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 17. securityPart4 (TẤT CẢ answer = "N")
+### 18. securityPart4 (TẤT CẢ answer = "N")
 ```json
 {{
   "removalHearing": {{ "answer": "N", "explain": "" }},
@@ -357,7 +387,7 @@ Trả về JSON với cấu trúc:
 }}
 ```
 
-### 18. securityPart5 (TẤT CẢ answer = "N")
+### 19. securityPart5 (TẤT CẢ answer = "N")
 ```json
 {{
   "childCustody": {{ "answer": "N", "explain": "" }},

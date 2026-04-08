@@ -13,6 +13,7 @@ SCRIPT_ORDER = [
     ("8. DS 160 - U.S. Point of Contact.js", "usContact", "8. U.S. Point of Contact"),
     ("9. DS 160 - Family Information.js", "family", "9. Family Information"),
     ("9.1. DS 160 - Spouse.js", "spouse", "9.1. Spouse"),
+    ("9.2 DS 160 Widowed.js", "formerSpouse", "9.2. Former Spouse"),
     ("10. DS 160 Work-Education 1.js", "workEducation1", "10. Work/Education 1"),
     ("11. DS 160 Work-Education 2 .js", "workEducation2", "11. Work/Education 2"),
     ("12. DS 160 Work-Education 3-2026-03-05-v6.4.user.js", "workEducation3", "12. Work/Education 3"),

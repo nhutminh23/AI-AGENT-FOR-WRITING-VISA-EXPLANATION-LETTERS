@@ -1,0 +1,102 @@
+{
+  "application_type": "visitor",
+  "applicant": {
+    "name": "DINH THI LAN ANH",
+    "dob": "1977-10-19",
+    "country_of_birth": "Viet Nam",
+    "address": "39 Nguyen Thi Minh Khai, Nam Giang Group, Xuong Giang Ward, Bac Giang City, Bac Giang Province, Viet Nam",
+    "occupation": "Manager",
+    "marital_status": "Married"
+  },
+  "spouse": {
+    "name": "NGUYEN THANH BANG",
+    "dob": "1977-12-22",
+    "country_of_birth": "Viet Nam",
+    "address": "39 Nguyen Thi Minh Khai, Nam Giang Group, Xuong Giang Ward, Bac Giang City, Bac Giang Province, Viet Nam",
+    "occupation": "Factory Machine Operator",
+    "marital_status": "Married",
+    "accompanying": false
+  },
+  "mother": {
+    "name": "SU THI TI",
+    "dob": "1951-01-01",
+    "country_of_birth": "Viet Nam",
+    "address": "Phuc Trach Commune, Huong Khe District, Ha Tinh Province, Viet Nam",
+    "occupation": "Retired",
+    "marital_status": "Married",
+    "accompanying": false
+  },
+  "father": {
+    "name": "DINH CONG ANH",
+    "dob": "1928-01-01",
+    "country_of_birth": "Viet Nam",
+    "address": "Phuc Trach Commune, Huong Khe District, Ha Tinh Province, Viet Nam",
+    "occupation": "Retired",
+    "marital_status": "Married",
+    "accompanying": false
+  },
+  "children": [
+    {
+      "name": "NGUYEN THANH THANH",
+      "relationship": "Son",
+      "dob": "2009-09-09",
+      "country_of_birth": "Viet Nam",
+      "address": "39 Nguyen Thi Minh Khai, Nam Giang Group, Xuong Giang Ward, Bac Giang City, Bac Giang Province, Viet Nam",
+      "occupation": "Student",
+      "marital_status": "Single",
+      "accompanying": false
+    },
+    {
+      "name": "NGUYEN THANH HA GIANG",
+      "relationship": "Daughter",
+      "dob": "2018-02-08",
+      "country_of_birth": "Viet Nam",
+      "address": "39 Nguyen Thi Minh Khai, Nam Giang Group, Xuong Giang Ward, Bac Giang City, Bac Giang Province, Viet Nam",
+      "occupation": "Student",
+      "marital_status": "Single",
+      "accompanying": false
+    }
+  ],
+  "siblings": [
+    {
+      "name": "DINH CONG DUNG",
+      "relationship": "Brother",
+      "dob": "1972-01-01",
+      "country_of_birth": "Viet Nam",
+      "address": "Phuc Trach Commune, Huong Khe District, Ha Tinh Province, Viet Nam",
+      "occupation": "Self-employed Trader",
+      "marital_status": "Married",
+      "accompanying": false
+    },
+    {
+      "name": "DINH CONG TUAN",
+      "relationship": "Brother",
+      "dob": "1975-01-01",
+      "country_of_birth": "Viet Nam",
+      "address": "Phuc Trach Commune, Huong Khe District, Ha Tinh Province, Viet Nam",
+      "occupation": "Agarwood Production Business",
+      "marital_status": "Married",
+      "accompanying": false
+    },
+    {
+      "name": "DINH THI LAN HUONG",
+      "relationship": "Sister",
+      "dob": "1982-01-01",
+      "country_of_birth": "Viet Nam",
+      "address": "Phuc Trach Commune, Huong Khe District, Ha Tinh Province, Viet Nam",
+      "occupation": "Self-employed Trader",
+      "marital_status": "Married",
+      "accompanying": false
+    },
+    {
+      "name": "DINH CONG DUC",
+      "relationship": "Brother",
+      "dob": "1987-01-01",
+      "country_of_birth": "Viet Nam",
+      "address": "Phuc Trach Commune, Huong Khe District, Ha Tinh Province, Viet Nam",
+      "occupation": "Self-employed Trader",
+      "marital_status": "Married",
+      "accompanying": false
+    }
+  ]
+}

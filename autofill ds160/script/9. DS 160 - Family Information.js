@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         09. DS 160 - Family Information
 // @namespace    http://tampermonkey.net/
-// @version      2026-03-06-v7.0
-// @description  Fix hoàn toàn: relatives array tự động Add Another + hỗ trợ dobMonth số hoặc chữ
+// @version      2026-03-06-v7.1
+// @description  Fix hoàn toàn: cho phép chỉ nhập năm sinh (không tự tick Do Not Know)
 // @author       Mỹ
 // @match        https://ceac.state.gov/GenNIV/General/complete/complete_family1.aspx?node=Relatives
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=state.gov
@@ -18,9 +18,9 @@
         father: {
             surname: "Nguyen",
             givenName: "Van A",
-            dobDay: "15",
-            dobMonth: "6",           // ← "6" hoặc "JUN" đều được
-            dobYear: "1970",
+            dobDay: "",              // ← Để trống nếu không biết
+            dobMonth: "",            // ← Để trống nếu không biết
+            dobYear: "1970",         // ← Chỉ điền năm thì form vẫn nhận
             inUS: "N"
         },
         // Mother
@@ -28,7 +28,7 @@
             surname: "Tran",
             givenName: "Thi B",
             dobDay: "20",
-            dobMonth: "8",           // ← "8" hoặc "AUG" đều được
+            dobMonth: "8",           
             dobYear: "1975",
             inUS: "N"
         },
@@ -47,13 +47,13 @@
                 relationship: "CHILD",
                 status: "LPR"
             }
-            // Thêm người thứ 3: , { surname: "...", ... }
         ],
         hasOtherRelatives: "N"
     };
     // =================================================================
 
     function normalizeMonth(m) {
+        if (!m) return ""; // Xử lý an toàn khi để trống tháng
         const map = {"1":"JAN","2":"FEB","3":"MAR","4":"APR","5":"MAY","6":"JUN",
                      "7":"JUL","8":"AUG","9":"SEP","10":"OCT","11":"NOV","12":"DEC"};
         m = String(m).trim().toUpperCase();
@@ -101,31 +101,39 @@
     }
 
     async function fillForm() {
-        console.log("%c🚀 BẮT ĐẦU ONE-CLICK FULL FAMILY (v7.0)", "color:#0066cc;font-weight:bold");
+        console.log("%c🚀 BẮT ĐẦU ONE-CLICK FULL FAMILY (v7.1)", "color:#0066cc;font-weight:bold");
 
         // ================== FATHER ==================
         document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxFATHER_SURNAME").value = config.father.surname;
         document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxFATHER_GIVEN_NAME").value = config.father.givenName;
-        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_ddlFathersDOBDay").value = config.father.dobDay;
+        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_ddlFathersDOBDay").value = config.father.dobDay || "";
         document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_ddlFathersDOBMonth").value = normalizeMonth(config.father.dobMonth);
-        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxFathersDOBYear").value = config.father.dobYear;
+        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxFathersDOBYear").value = config.father.dobYear || "";
         setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxFATHER_SURNAME_UNK_IND", !config.father.surname);
         setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxFATHER_GIVEN_NAME_UNK_IND", !config.father.givenName);
-        setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxFATHER_DOB_UNK_IND", !config.father.dobDay || !config.father.dobMonth || !config.father.dobYear);
+        
+        // Chỉ tick Do Not Know nếu cả Ngày, Tháng, Năm đều trống
+        const isFatherDobUnknown = !config.father.dobDay && !config.father.dobMonth && !config.father.dobYear;
+        setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxFATHER_DOB_UNK_IND", isFatherDobUnknown);
+        
         triggerRadio("FATHER_LIVE_IN_US_IND", config.father.inUS);
 
         // ================== MOTHER ==================
         document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxMOTHER_SURNAME").value = config.mother.surname;
         document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxMOTHER_GIVEN_NAME").value = config.mother.givenName;
-        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_ddlMothersDOBDay").value = config.mother.dobDay;
+        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_ddlMothersDOBDay").value = config.mother.dobDay || "";
         document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_ddlMothersDOBMonth").value = normalizeMonth(config.mother.dobMonth);
-        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxMothersDOBYear").value = config.mother.dobYear;
+        document.getElementById("ctl00_SiteContentPlaceHolder_FormView1_tbxMothersDOBYear").value = config.mother.dobYear || "";
         setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxMOTHER_SURNAME_UNK_IND", !config.mother.surname);
         setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxMOTHER_GIVEN_NAME_UNK_IND", !config.mother.givenName);
-        setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxMOTHER_DOB_UNK_IND", !config.mother.dobDay || !config.mother.dobMonth || !config.mother.dobYear);
+        
+        // Chỉ tick Do Not Know nếu cả Ngày, Tháng, Năm đều trống
+        const isMotherDobUnknown = !config.mother.dobDay && !config.mother.dobMonth && !config.mother.dobYear;
+        setCheckbox("ctl00_SiteContentPlaceHolder_FormView1_cbxMOTHER_DOB_UNK_IND", isMotherDobUnknown);
+        
         triggerRadio("MOTHER_LIVE_IN_US_IND", config.mother.inUS);
 
-        // ================== IMMEDIATE RELATIVES (FIX ADD ANOTHER) ==================
+        // ================== IMMEDIATE RELATIVES ==================
         triggerRadio("US_IMMED_RELATIVE_IND", config.hasImmediateRelatives);
 
         if (config.hasImmediateRelatives === "Y") {
@@ -134,12 +142,11 @@
             for (let i = 0; i < config.relatives.length; i++) {
                 const rel = config.relatives[i];
 
-                // Nếu không phải người đầu tiên → click Add Another
                 if (i > 0) {
                     const addBtn = document.getElementById(`ctl00_SiteContentPlaceHolder_FormView1_dlUSRelatives_ctl0${i-1}_InsertButtonUSRelative`);
                     if (addBtn) {
                         addBtn.click();
-                        await sleep(800); // chờ dòng mới xuất hiện
+                        await sleep(800); 
                     }
                 }
 
@@ -165,15 +172,15 @@
     }
 
     function finish() {
-        console.log("%c🎉 HOÀN TẤT ONE-CLICK FULL FAMILY v7.0!", "color:green;font-weight:bold;font-size:16px");
-        alert("✅ ĐÃ ĐIỀN XONG FAMILY (v7.0)!\n• Relatives tự động Add Another\n• Tự tick Do Not Know khi để trống\nKiểm tra lại rồi Next nhé Paul!");
+        console.log("%c🎉 HOÀN TẤT ONE-CLICK FULL FAMILY v7.1!", "color:green;font-weight:bold;font-size:16px");
+        alert("✅ ĐÃ ĐIỀN XONG FAMILY (v7.1)!\n• Đã hỗ trợ điền riêng Năm sinh (bỏ trống Ngày/Tháng)\n• Relatives tự động Add Another\nKiểm tra lại rồi Next nhé Paul!");
     }
 
     function addButton() {
-        if (document.getElementById("autoFillFamilyv70")) return;
+        if (document.getElementById("autoFillFamilyv71")) return;
         const btn = document.createElement("button");
-        btn.id = "autoFillFamilyv70";
-        btn.textContent = "🛠 AUTO FILL FAMILY (1 CLICK v7.0)";
+        btn.id = "autoFillFamilyv71";
+        btn.textContent = "🛠 AUTO FILL FAMILY (1 CLICK v7.1)";
         btn.style.cssText = "position:fixed;top:15px;right:15px;z-index:99999;padding:14px 24px;background:#0066cc;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:15px;box-shadow:0 6px 15px rgba(0,0,0,0.4);";
         document.body.appendChild(btn);
         btn.addEventListener("click", fillForm);
