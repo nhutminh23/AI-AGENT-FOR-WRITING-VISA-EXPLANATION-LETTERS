@@ -100,6 +100,16 @@ async function letterGenApplyJson() {
     return;
   }
 
+  // Check if it's a dictionary of profiles (e.g. {"applicant_1": {...}, "applicant_2": {...}})
+  // instead of a flat profile or an array.
+  if (letterGenProfile && typeof letterGenProfile === 'object' && !Array.isArray(letterGenProfile) && !letterGenProfile.applicant) {
+    const values = Object.values(letterGenProfile);
+    // If all children seem to be profile objects
+    if (values.length > 0 && values[0] && typeof values[0] === 'object' && values[0].applicant) {
+      letterGenProfile = values;
+    }
+  }
+
   // Handle array of multiple applicants
   if (Array.isArray(letterGenProfile)) {
     if (letterGenProfile.length === 0) {

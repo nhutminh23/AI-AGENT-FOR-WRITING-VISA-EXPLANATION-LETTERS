@@ -114,6 +114,24 @@ class MergedPdf(Base):
     created_at = Column(DateTime, default=func.now())
 
 
+class TranslationFlow(Base):
+    """Standalone translation flow record — persists across page reloads."""
+    __tablename__ = "translation_flows"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    filename = Column(String(500), default="")         # Original uploaded filename
+    file_ref = Column(String(500), default="")         # Server-side file reference
+    template_name = Column(String(200), default="auto")
+    source_lang = Column(String(10), default="vi")
+    ocr_text = Column(Text, default="")
+    translated_text = Column(Text, default="")
+    html_content = Column(Text, default="")            # HTML source (may be edited)
+    save_name = Column(String(500), default="")        # Suggested save filename
+    status = Column(String(50), default="pending")     # pending / done / error
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+
 # ==================== INIT ====================
 
 def init_db():
@@ -585,6 +603,114 @@ def _merged_pdf_to_dict(r: MergedPdf) -> Dict[str, Any]:
         "total_pages": r.total_pages,
         "file_size": r.file_size,
         "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+# ==================== TRANSLATION FLOWS ====================
+
+def save_translation_flow(**kwargs) -> Dict[str, Any]:
+    """Create a new translation flow record."""
+    session = get_session()
+    try:
+        flow = TranslationFlow(
+            filename=kwargs.get("filename", ""),
+            file_ref=kwargs.get("file_ref", ""),
+            template_name=kwargs.get("template_name", "auto"),
+            source_lang=kwargs.get("source_lang", "vi"),
+            ocr_text=kwargs.get("ocr_text", ""),
+            translated_text=kwargs.get("translated_text", ""),
+            html_content=kwargs.get("html_content", ""),
+            save_name=kwargs.get("save_name", ""),
+            status=kwargs.get("status", "pending"),
+        )
+        session.add(flow)
+        session.commit()
+        session.refresh(flow)
+        return _translation_flow_to_dict(flow)
+    finally:
+        session.close()
+
+
+def list_translation_flows() -> List[Dict[str, Any]]:
+    """List all translation flows, oldest first (creation order)."""
+    session = get_session()
+    try:
+        flows = session.query(TranslationFlow).order_by(TranslationFlow.id).all()
+        return [_translation_flow_to_dict(f) for f in flows]
+    finally:
+        session.close()
+
+
+def get_translation_flow(flow_id: int) -> Optional[Dict[str, Any]]:
+    """Get a single translation flow by ID."""
+    session = get_session()
+    try:
+        flow = session.query(TranslationFlow).filter_by(id=flow_id).first()
+        if not flow:
+            return None
+        return _translation_flow_to_dict(flow)
+    finally:
+        session.close()
+
+
+def update_translation_flow(flow_id: int, **kwargs) -> Optional[Dict[str, Any]]:
+    """Update an existing translation flow."""
+    session = get_session()
+    try:
+        flow = session.query(TranslationFlow).filter_by(id=flow_id).first()
+        if not flow:
+            return None
+        for key, value in kwargs.items():
+            if hasattr(flow, key) and key not in ("id", "created_at"):
+                setattr(flow, key, value)
+        flow.updated_at = datetime.utcnow()
+        session.commit()
+        session.refresh(flow)
+        return _translation_flow_to_dict(flow)
+    finally:
+        session.close()
+
+
+def delete_translation_flow(flow_id: int) -> bool:
+    """Delete a single translation flow by ID."""
+    session = get_session()
+    try:
+        flow = session.query(TranslationFlow).filter_by(id=flow_id).first()
+        if not flow:
+            return False
+        session.delete(flow)
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
+def delete_all_translation_flows() -> int:
+    """Delete all translation flows. Returns count deleted."""
+    session = get_session()
+    try:
+        count = session.query(TranslationFlow).count()
+        session.query(TranslationFlow).delete()
+        session.commit()
+        return count
+    finally:
+        session.close()
+
+
+def _translation_flow_to_dict(f: TranslationFlow) -> Dict[str, Any]:
+    return {
+        "id": f.id,
+        "filename": f.filename or "",
+        "file_ref": f.file_ref or "",
+        "template_name": f.template_name or "auto",
+        "source_lang": f.source_lang or "vi",
+        "ocr_text": f.ocr_text or "",
+        "translated_text": f.translated_text or "",
+        "html_content": f.html_content or "",
+        "save_name": f.save_name or "",
+        "status": f.status or "pending",
+        "created_at": f.created_at.isoformat() if f.created_at else None,
+        "updated_at": f.updated_at.isoformat() if f.updated_at else None,
     }
 
 

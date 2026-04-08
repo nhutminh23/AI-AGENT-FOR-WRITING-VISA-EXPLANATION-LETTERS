@@ -20,6 +20,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.errors import QuotaExhaustedError, is_quota_error
 from config import Config
+import database as db
 
 splitter_translate_bp = Blueprint("splitter_translate", __name__)
 
@@ -34,6 +35,10 @@ TRANSLATE_HTML_SAVE_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_HTML_S
 
 # In-memory cache for uploaded translation files
 translation_upload_cache: Dict[str, Dict] = {}
+
+# Persistent storage for original uploaded files (survives F5 + server restart)
+TRANSLATION_ORIGINALS_DIR = os.path.join(str(_BASE_DIR), "uploads", "translation_originals")
+os.makedirs(TRANSLATION_ORIGINALS_DIR, exist_ok=True)
 
 _is_quota_error = is_quota_error
 
@@ -56,9 +61,19 @@ def _resolve_translate_source_path(input_dir: str, file_ref: str) -> Optional[st
     """
     if file_ref.startswith("upload_token:"):
         token = file_ref.split(":", 1)[1].strip()
+        # Try in-memory cache first (fast path)
         meta = translation_upload_cache.get(token)
         if meta and os.path.isfile(meta.get("temp_path", "")):
             return meta["temp_path"]
+        # Fallback: scan persistent directory for file with this token in name
+        # (handles server restart where in-memory cache is lost)
+        for fname in os.listdir(TRANSLATION_ORIGINALS_DIR):
+            if token in fname:
+                disk_path = os.path.join(TRANSLATION_ORIGINALS_DIR, fname)
+                if os.path.isfile(disk_path):
+                    # Re-populate in-memory cache for future calls
+                    translation_upload_cache[token] = {"temp_path": disk_path, "filename": fname}
+                    return disk_path
         return None
     
     # Try as relative path under input_dir
@@ -713,7 +728,7 @@ def list_translate_templates():
 
 @splitter_translate_bp.post("/api/translate/upload")
 def translate_upload_file():
-    """Upload a file for translation flow (temporary, auto-clean)."""
+    """Upload a file for translation flow — persisted to uploads/translation_originals/."""
     if "file" not in request.files:
         return jsonify({"error": "missing_file"}), 400
     f = request.files["file"]
@@ -730,7 +745,8 @@ def translate_upload_file():
     ext = ext or ".bin"
     token = uuid.uuid4().hex
     out_name = f"translate_{token}{ext}"
-    out_path = os.path.join(tempfile.gettempdir(), out_name)
+    # Save to persistent directory (survives F5 + server restart)
+    out_path = os.path.join(TRANSLATION_ORIGINALS_DIR, out_name)
 
     try:
         f.save(out_path)
@@ -738,6 +754,7 @@ def translate_upload_file():
         logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
         return jsonify({"error": "save_failed", "detail": str(e)}), 500
 
+    # Keep in-memory cache for backwards compat with existing code paths
     translation_upload_cache[token] = {"temp_path": out_path, "filename": safe_name}
     file_ref = f"upload_token:{token}"
     return jsonify(
@@ -745,9 +762,10 @@ def translate_upload_file():
             "status": "success",
             "file_ref": file_ref,
             "filename": safe_name,
-            "temporary": True,
+            "persistent_path": out_path,
         }
     )
+
 
 
 @splitter_translate_bp.post("/api/translate/original_pages")
@@ -798,6 +816,52 @@ def translate_original_pages():
             os.remove(tmp_path)
         except OSError:
             pass
+
+    return jsonify({"pages": pages})
+
+
+@splitter_translate_bp.post("/api/translate/original_pages_by_ref")
+def translate_original_pages_by_ref():
+    """Render original file pages as base64 PNG images using file_ref (for restored flows)."""
+    payload = request.get_json(force=True, silent=True) or {}
+    file_ref = (payload.get("file_ref") or "").strip()
+    if not file_ref:
+        return jsonify({"error": "missing_file_ref"}), 400
+
+    input_dir = current_app.config.get("UPLOAD_FOLDER", "uploads")
+    source_path = _resolve_translate_source_path(input_dir, file_ref)
+    if not source_path:
+        return jsonify({"error": "file_not_found", "detail": f"Cannot resolve: {file_ref}"}), 404
+
+    ext = os.path.splitext(source_path)[1].lower()
+    pages = []
+    tmp_path = None
+    try:
+        if ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
+            tmp_path = _convert_image_to_a4_pdf(source_path)
+            render_path = tmp_path
+        elif ext == ".pdf":
+            render_path = source_path
+        else:
+            return jsonify({"error": "unsupported_format", "detail": f"Cannot render {ext}"}), 400
+
+        import fitz
+        doc = fitz.open(render_path)
+        for i, page in enumerate(doc):
+            pix = page.get_pixmap(dpi=200)
+            img_bytes = pix.tobytes("png")
+            b64 = base64.b64encode(img_bytes).decode("ascii")
+            pages.append({"index": i, "data_url": f"data:image/png;base64,{b64}"})
+        doc.close()
+    except Exception as e:
+        logging.exception("[Safe Log] original_pages_by_ref error: %s", e)
+        return jsonify({"error": "render_failed", "detail": str(e)}), 500
+    finally:
+        if tmp_path and tmp_path != source_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
     return jsonify({"pages": pages})
 
@@ -1164,4 +1228,97 @@ def list_output_files():
         files["hotel_bookings"] = hotel_files
     return jsonify(files)
 
+
+# ==================== TRANSLATION FLOW PERSISTENCE ====================
+
+@splitter_translate_bp.get("/api/translate/flows")
+def list_translate_flows():
+    """List all saved translation flows."""
+    flows = db.list_translation_flows()
+    return jsonify({"flows": flows})
+
+
+@splitter_translate_bp.post("/api/translate/flows")
+def create_translate_flow():
+    """Create (save) a new translation flow."""
+    data = request.get_json(force=True, silent=True) or {}
+    flow = db.save_translation_flow(
+        filename=data.get("filename", ""),
+        file_ref=data.get("file_ref", ""),
+        template_name=data.get("template_name", "auto"),
+        source_lang=data.get("source_lang", "vi"),
+        ocr_text=data.get("ocr_text", ""),
+        translated_text=data.get("translated_text", ""),
+        html_content=data.get("html_content", ""),
+        save_name=data.get("save_name", ""),
+        status=data.get("status", "done"),
+    )
+    return jsonify(flow), 201
+
+
+@splitter_translate_bp.put("/api/translate/flows/<int:flow_id>")
+def update_translate_flow(flow_id):
+    """Update an existing translation flow (e.g. after editing HTML)."""
+    data = request.get_json(force=True, silent=True) or {}
+    # Only allow updating specific fields
+    allowed = {"filename", "file_ref", "template_name", "source_lang",
+               "ocr_text", "translated_text", "html_content", "save_name", "status"}
+    updates = {k: v for k, v in data.items() if k in allowed}
+    result = db.update_translation_flow(flow_id, **updates)
+    if result is None:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify(result)
+
+
+@splitter_translate_bp.delete("/api/translate/flows/<int:flow_id>")
+def delete_translate_flow(flow_id):
+    """Delete a single translation flow + clean up original file on disk."""
+    # Get flow data before deletion to find the file_ref
+    flow_data = db.get_translation_flow(flow_id)
+    if flow_data:
+        _cleanup_original_file(flow_data.get("file_ref", ""))
+    ok = db.delete_translation_flow(flow_id)
+    if not ok:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"deleted": True, "id": flow_id})
+
+
+@splitter_translate_bp.delete("/api/translate/flows")
+def delete_all_translate_flows():
+    """Delete all translation flows + clean up ALL original files on disk."""
+    # Get all flows to clean up their files
+    all_flows = db.list_translation_flows()
+    for f in all_flows:
+        _cleanup_original_file(f.get("file_ref", ""))
+    count = db.delete_all_translation_flows()
+    return jsonify({"deleted": True, "count": count})
+
+
+def _cleanup_original_file(file_ref: str):
+    """Remove the original uploaded file from disk given a file_ref."""
+    if not file_ref:
+        return
+    if file_ref.startswith("upload_token:"):
+        token = file_ref.split(":", 1)[1].strip()
+        # Remove from in-memory cache
+        meta = translation_upload_cache.pop(token, None)
+        if meta:
+            path = meta.get("temp_path", "")
+            if path and os.path.isfile(path):
+                try:
+                    os.remove(path)
+                    logging.info("[Cleanup] Removed original file: %s", path)
+                except OSError as e:
+                    logging.warning("[Cleanup] Failed to remove %s: %s", path, e)
+                return
+        # Fallback: scan persistent directory
+        for fname in os.listdir(TRANSLATION_ORIGINALS_DIR):
+            if token in fname:
+                disk_path = os.path.join(TRANSLATION_ORIGINALS_DIR, fname)
+                try:
+                    os.remove(disk_path)
+                    logging.info("[Cleanup] Removed original file: %s", disk_path)
+                except OSError as e:
+                    logging.warning("[Cleanup] Failed to remove %s: %s", disk_path, e)
+                break
 

@@ -363,6 +363,7 @@ let currentProjectId = null;
 let translationTemplatesCache = [];
 let translationSourceFilesCache = [];
 let translationFlowCounter = 0;
+const _flowDbIds = {};  // Map: flowId (frontend) → db record id (backend)
 
 
 // ==================== MODULES LOADED FROM js/ ====================

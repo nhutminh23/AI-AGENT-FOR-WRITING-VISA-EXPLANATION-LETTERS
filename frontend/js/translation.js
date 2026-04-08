@@ -1,7 +1,178 @@
+/**
+ * Inject print-preview CSS so the iframe looks like the actual printed output.
+ * Shows paginated A4 pages with visible boundaries, gaps between pages,
+ * and page-break behavior identical to the browser's print dialog.
+ */
+function wrapForPrintPreview(html) {
+  if (!html) return html;
+  // These MUST match the @page content-page margin in the print functions
+  // @page content-page { margin: 15mm 18mm; size: A4; }
+  const PAGE_MARGIN_TB = '15mm';  // top/bottom @page margin
+  const PAGE_MARGIN_LR = '18mm';  // left/right @page margin
+  const printPreviewCSS = `<style data-print-preview>
+    /* ===== PAGINATED A4 PREVIEW (synced with print output) ===== */
+    body {
+      background: #d1d5db !important;
+      margin: 0 !important;
+      padding: 20px 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+    }
+    .a4-page, .a4 {
+      width: 210mm !important;
+      min-height: 297mm !important;
+      height: auto !important;
+      margin: 0 auto 24px auto !important;
+      /*
+       * CRITICAL: padding MUST match the @page content-page margin.
+       * In print, @page handles per-page margins and .a4-page padding = 0.
+       * In preview, we simulate it with padding so vùng nội dung = y hệt.
+       */
+      padding: ${PAGE_MARGIN_TB} ${PAGE_MARGIN_LR} !important;
+
+      background-color: #fff !important;
+      /* Draw a red line every 297mm to show exact physical page breaks */
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent calc(297mm - 2px),
+        #ef4444 calc(297mm - 2px),
+        #ef4444 297mm
+      ) !important;
+
+      box-sizing: border-box !important;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18) !important;
+      overflow: visible !important;
+      position: relative !important;
+      page-break-after: always !important;
+      break-after: page !important;
+    }
+    .a4-page:last-child, .a4:last-child {
+      margin-bottom: 20px !important;
+    }
+  </style>`;
+  // Insert right before </head> if exists, otherwise before </html> or at end
+  if (html.includes('</head>')) {
+    return html.replace('</head>', printPreviewCSS + '\n</head>');
+  } else if (html.includes('</html>')) {
+    return html.replace('</html>', printPreviewCSS + '\n</html>');
+  }
+  return html + printPreviewCSS;
+}
+
 async function loadTranslationTemplates() {
   const res = await fetch("/api/translate/templates");
   const data = await res.json();
   translationTemplatesCache = data.templates || [];
+}
+
+// ==================== DB PERSISTENCE HELPERS ====================
+
+/** Save or update a translation flow to the database. */
+async function autoSaveTranslationFlow(flowId) {
+  try {
+    const filename = document.getElementById(`transUploadedName-${flowId}`)?.value || "";
+    const fileRef = document.getElementById(`transUploadedRef-${flowId}`)?.value || "";
+    const templateName = document.getElementById(`transTemplate-${flowId}`)?.value || "auto";
+    const sourceLang = document.getElementById(`transSourceLang-${flowId}`)?.value || "vi";
+    const ocrText = document.getElementById(`transOcr-${flowId}`)?.value || "";
+    const translatedText = document.getElementById(`transTranslated-${flowId}`)?.value || "";
+    const htmlContent = document.getElementById(`transHtmlSource-${flowId}`)?.value || "";
+    const saveName = document.getElementById(`transSaveName-${flowId}`)?.value || "";
+    const payload = { filename, file_ref: fileRef, template_name: templateName,
+      source_lang: sourceLang, ocr_text: ocrText, translated_text: translatedText,
+      html_content: htmlContent, save_name: saveName, status: "done" };
+
+    const dbId = _flowDbIds[flowId];
+    if (dbId) {
+      // Update existing
+      await fetch(`/api/translate/flows/${dbId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      // Create new
+      const res = await fetch("/api/translate/flows", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        _flowDbIds[flowId] = saved.id;
+      }
+    }
+  } catch (e) {
+    // Silent — don't block the user workflow for a save failure
+  }
+}
+
+/** Delete a single translation flow from UI and DB. */
+async function deleteTranslationFlow(flowId) {
+  const card = document.getElementById(`translateFlow-${flowId}`);
+  if (card) card.remove();
+  const dbId = _flowDbIds[flowId];
+  if (dbId) {
+    try { await fetch(`/api/translate/flows/${dbId}`, { method: "DELETE" }); } catch (_) {}
+    delete _flowDbIds[flowId];
+  }
+}
+
+/** Delete all translation flows from UI and DB. */
+async function deleteAllTranslationFlows() {
+  if (!confirm("Xóa tất cả luồng dịch? Hành động này không thể hoàn tác.")) return;
+  if (translateFlowsContainerEl) translateFlowsContainerEl.innerHTML = "";
+  try { await fetch("/api/translate/flows", { method: "DELETE" }); } catch (_) {}
+  Object.keys(_flowDbIds).forEach(k => delete _flowDbIds[k]);
+  translationFlowCounter = 0;  // Reset counter so next flow starts at #1
+}
+
+/** Restore saved flows from DB on page load. */
+async function restoreTranslationFlows() {
+  try {
+    const res = await fetch("/api/translate/flows");
+    if (!res.ok) return;
+    const { flows } = await res.json();
+    if (!flows || flows.length === 0) return;
+    for (const f of flows) {
+      // createTranslateFlow increments translationFlowCounter internally
+      createTranslateFlow();
+      const flowId = translationFlowCounter;  // grab the id it just created
+      _flowDbIds[flowId] = f.id;
+      // Populate fields from DB data
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      set(`transUploadedName-${flowId}`, f.filename);
+      set(`transUploadedRef-${flowId}`, f.file_ref);
+      set(`transTemplate-${flowId}`, f.template_name);
+      set(`transSourceLang-${flowId}`, f.source_lang);
+      set(`transOcr-${flowId}`, f.ocr_text);
+      set(`transTranslated-${flowId}`, f.translated_text);
+      set(`transHtmlSource-${flowId}`, f.html_content);
+      set(`transSaveName-${flowId}`, f.save_name);
+      // Show file info
+      if (f.filename) {
+        const fileInfoEl = document.getElementById(`transFileInfo-${flowId}`);
+        if (fileInfoEl) fileInfoEl.innerHTML = `📄 <b>${escapeHtml(f.filename)}</b> <span style="color:#16a34a;">✅ (đã lưu)</span>`;
+      }
+      // Render HTML preview
+      if (f.html_content) {
+        const previewEl = document.getElementById(`transPreview-${flowId}`);
+        if (previewEl) previewEl.srcdoc = wrapForPrintPreview(f.html_content);
+      }
+      // Update status indicator
+      const statusEl = document.getElementById(`transStatus-${flowId}`);
+      if (statusEl && f.status === "done") {
+        statusEl.innerHTML = `<span style="color:#16a34a;">✅ Đã khôi phục từ lần dịch trước.</span>`;
+      }
+      // Show reattach button (file object is always lost after F5)
+      if (f.filename) {
+        const reattachBtn = document.getElementById(`transReattachBtn-${flowId}`);
+        if (reattachBtn) reattachBtn.style.display = "inline-block";
+      }
+    }
+  } catch (e) {
+    // Silent — don't block init
+  }
 }
 
 async function loadTranslationSourceFiles() {
@@ -75,8 +246,9 @@ function createTranslateFlow() {
   const flowId = translationFlowCounter;
   const html = `
     <section class="translate-flow-card" id="translateFlow-${flowId}" style="border:1px solid #e2e8f0; border-radius:10px; padding:16px; margin-bottom:16px; background:#fff;">
-      <div class="card-header-row">
+      <div class="card-header-row" style="display:flex; justify-content:space-between; align-items:center;">
         <h3 style="margin:0;">Luồng dịch #${flowId}</h3>
+        <button id="transDeleteBtn-${flowId}" type="button" title="Xóa luồng dịch này" style="background:#ef4444; color:#fff; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.85em;">🗑️ Xóa</button>
       </div>
 
       <!-- Upload row -->
@@ -89,7 +261,11 @@ function createTranslateFlow() {
           </div>
           <input id="transUploadedRef-${flowId}" type="hidden" value="" />
           <input id="transUploadedName-${flowId}" type="hidden" value="" />
-          <div id="transFileInfo-${flowId}" style="margin-top:6px; font-size:0.85em; color:#64748b;"></div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+            <div id="transFileInfo-${flowId}" style="font-size:0.85em; color:#64748b;"></div>
+            <input id="transReattachInput-${flowId}" type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.webp" style="display:none;" />
+            <button id="transReattachBtn-${flowId}" type="button" title="Gắn lại file gốc (nếu bị mất sau F5)" style="display:none; background:#f59e0b; color:#fff; border:none; border-radius:4px; padding:3px 10px; cursor:pointer; font-size:0.8em;">🔄 Gắn lại file gốc</button>
+          </div>
         </div>
         <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
           <div>
@@ -155,6 +331,7 @@ function createTranslateFlow() {
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
           <label style="font-weight:600; font-size:0.9em;">✏️ Sửa HTML source code</label>
           <div style="display:flex; gap:6px;">
+            <button id="transCopyPromptBtn-${flowId}" type="button" style="background:#8b5cf6; padding:4px 12px; font-size:0.85em; color:#fff; border:none; border-radius:4px; cursor:pointer;" title="Copy Prompt + Code để check AI">🤖 Prompt Check AI</button>
             <button id="transApplyHtmlBtn-${flowId}" type="button" style="background:#0ea5e9; padding:4px 12px; font-size:0.85em;">▶️ Áp dụng</button>
             <button type="button" class="trans-copy-btn" data-target="transHtmlSource-${flowId}" style="padding:4px 12px; font-size:0.85em; background:#64748b; border:none; color:#fff; border-radius:4px; cursor:pointer;">📋 Copy</button>
           </div>
@@ -191,16 +368,86 @@ function createTranslateFlow() {
   const saveBtn = document.getElementById(`transSaveHtmlBtn-${flowId}`);
   if (saveBtn) saveBtn.addEventListener("click", () => saveTranslateHtml(flowId));
 
+  // Delete flow button
+  const deleteBtn = document.getElementById(`transDeleteBtn-${flowId}`);
+  if (deleteBtn) deleteBtn.addEventListener("click", () => deleteTranslationFlow(flowId));
 
+  // Reattach original file button (manual fallback)
+  const reattachBtn = document.getElementById(`transReattachBtn-${flowId}`);
+  const reattachInput = document.getElementById(`transReattachInput-${flowId}`);
+  if (reattachBtn && reattachInput) {
+    reattachBtn.addEventListener("click", () => reattachInput.click());
+    reattachInput.addEventListener("change", () => {
+      const file = reattachInput.files && reattachInput.files[0];
+      if (!file) return;
+      _transOriginalFiles[flowId] = file;
+      reattachBtn.style.display = "none";
+      const fileInfoEl = document.getElementById(`transFileInfo-${flowId}`);
+      if (fileInfoEl) {
+        fileInfoEl.innerHTML = `📄 <b>${escapeHtml(file.name)}</b> <span style="color:#16a34a;">✅ Đã gắn lại file gốc</span>`;
+      }
+    });
+  }
 
   const applyHtmlBtn = document.getElementById(`transApplyHtmlBtn-${flowId}`);
   if (applyHtmlBtn) {
     applyHtmlBtn.addEventListener("click", () => {
       const srcEl = document.getElementById(`transHtmlSource-${flowId}`);
       const previewEl = document.getElementById(`transPreview-${flowId}`);
-      if (srcEl && previewEl) previewEl.srcdoc = srcEl.value;
+      if (srcEl && previewEl) previewEl.srcdoc = wrapForPrintPreview(srcEl.value);
+      // Auto-save to DB after applying edits
+      autoSaveTranslationFlow(flowId);
     });
   }
+
+  // AI Prompt Double Check button
+  const copyPromptBtn = document.getElementById(`transCopyPromptBtn-${flowId}`);
+  if (copyPromptBtn) {
+    copyPromptBtn.addEventListener("click", () => {
+      const srcEl = document.getElementById(`transHtmlSource-${flowId}`);
+      if (!srcEl || !srcEl.value) {
+        alert("Chưa có code HTML để copy prompt.");
+        return;
+      }
+      
+      const promptText = `You are an Expert Translator and a Pixel-Perfect UI/UX Developer specializing in official government and legal documents. 
+
+My goal is to submit a translated document to the Consulate. It must be 100% accurate in content, meaning NO translation errors, NO omitted/missing text, and the layout must structurally mirror the original document perfectly so the Consulate officer can cross-reference it easily.
+
+I am attaching:
+1. The ORIGINAL DOCUMENT (Image/PDF).
+2. The CURRENT HTML DRAFT of the translation (pasted below).
+
+YOUR TASKS:
+Step 1: Deep Content Audit (Zero Data Loss)
+- Scan every single word, number, date, stamp, and signature in the original document.
+- Compare it against the HTML draft. 
+- Did the previous AI miss anything? (Headers, footers, microscopic text, stamps, table cells). If yes, TRANSLATE AND ADD IT BACK. Do not cut corners. Do not summarize. Maintain 100% completeness.
+- Are the translations of legal terms, names, and numbers entirely accurate? If not, fix them.
+
+Step 2: Structural & Layout Audit
+- Does the HTML layout visually match the original document? (e.g., tables, left/right alignments, bold/italic text, spacing).
+- Fix any broken table structures or misaligned text so the translated HTML looks like a carbon copy of the original PDF. Keep the existing CSS structure intact, just fix the HTML elements and inline alignment if necessary.
+
+Step 3: Final Output
+- Output the ENTIRE, fully corrected, full-page HTML code. 
+- Do not use placeholders like "<!-- rest of code here -->". I need the full copy-pasteable HTML.
+- Return the code strictly inside an \`\`\`html markup block.
+
+--- CURRENT HTML DRAFT ---
+${srcEl.value}`;
+
+      navigator.clipboard.writeText(promptText).then(() => {
+        const originalText = copyPromptBtn.innerText;
+        copyPromptBtn.innerText = "✔️ Đã copy Prompt!";
+        setTimeout(() => copyPromptBtn.innerText = originalText, 2000);
+      }).catch(err => {
+        console.error("Failed to copy:", err);
+        alert("Trình duyệt không hỗ trợ copy tự động, vui lòng tự dán ra.");
+      });
+    });
+  }
+
 
   const savePdfBtn = document.getElementById(`transSavePdfBtn-${flowId}`);
   if (savePdfBtn) {
@@ -233,6 +480,17 @@ function createTranslateFlow() {
           const fd = new FormData();
           fd.append("file", originalFile);
           origFetch = fetch("/api/translate/original_pages", { method: "POST", body: fd });
+        } else {
+          // Fallback: use file_ref (for restored flows after F5)
+          const fileRefEl = document.getElementById(`transUploadedRef-${flowId}`);
+          const fileRef = fileRefEl?.value?.trim();
+          if (fileRef) {
+            origFetch = fetch("/api/translate/original_pages_by_ref", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ file_ref: fileRef }),
+            });
+          }
         }
         const [origRes, certRes] = await Promise.all([
           origFetch,
@@ -250,12 +508,22 @@ function createTranslateFlow() {
               </div>`;
             }).join("\n");
           }
+        } else if (origRes && !origRes.ok) {
+          const errBody = await origRes.text().catch(() => "");
+          console.warn("[CombinedPDF] Original pages fetch failed:", origRes.status, errBody);
+          // Don't block PDF — just warn user
+          if (!confirm("⚠️ Không lấy được ảnh gốc (file có thể đã bị xóa hoặc server restart).\n\nBấm OK để tiếp tục xuất PDF chỉ có bản dịch + xác nhận.\nBấm Cancel để hủy.")) {
+            savePdfBtn.disabled = false;
+            savePdfBtn.textContent = origText;
+            return;
+          }
         } else {
-          console.warn("[CombinedPDF] Original pages fetch failed:", origRes ? origRes.status : "null response");
+          console.warn("[CombinedPDF] No original file available (null response). PDF will only contain translation + cert.");
         }
 
-        // --- Part 2: Translated HTML from preview iframe ---
-        const translatedHtml = previewEl.srcdoc || "";
+        // --- Part 2: Translated HTML — prefer textarea source (user may have edited) ---
+        const htmlSrcEl = document.getElementById(`transHtmlSource-${flowId}`);
+        const translatedHtml = (htmlSrcEl?.value?.trim()) || previewEl.srcdoc || "";
 
         // --- Part 3: Certification template with current date ---
         let certHtml = "";
@@ -288,9 +556,13 @@ function createTranslateFlow() {
         // Scope CSS to avoid conflicts
         const scopeStyles = (css, scopeClass) => {
           // Properties that must be stripped from body/html scoped rules
-          // (they break the parent .doc-section layout)
-          const bodyStripProps = /\b(display|padding|margin|background[^:]*|justify-content|align-items|min-height|height|overflow)\s*:[^;]+;?/gi;
-          return css.replace(/([^{}@]+)\{([^{}]+)\}/g, (match, sel, body) => {
+          const bodyStripProps = /\b(display|padding|margin|background[^:]*|justify-content|align-items|min-height|height|overflow|gap|flex-direction)\s*:[^;]+;?/gi;
+          // 1) Strip @page rules (outer container handles them)
+          let cleaned = css.replace(/@page\s*\{[^}]*\}/gi, "");
+          // 2) Strip @media print blocks (outer handles print; nested {} breaks regex)
+          cleaned = cleaned.replace(/@media\s+print\s*\{[\s\S]*?\}\s*\}/gi, "");
+          // 3) Scope remaining simple rules
+          return cleaned.replace(/([^{}@]+)\{([^{}]+)\}/g, (match, sel, body) => {
             let isBodyRule = false;
             const scopedSel = sel.split(",").map(s => {
               s = s.trim();
@@ -298,7 +570,6 @@ function createTranslateFlow() {
               if (s === "body" || s === "html") { isBodyRule = true; return "." + scopeClass; }
               return "." + scopeClass + " " + s;
             }).join(", ");
-            // Strip layout-breaking properties from body/html rules
             const cleanBody = isBodyRule ? body.replace(bodyStripProps, "") : body;
             return scopedSel + "{" + cleanBody + "}";
           });
@@ -338,17 +609,37 @@ function createTranslateFlow() {
   <meta charset="utf-8">
   <title>Combined Translation PDF</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #fff; margin: 0; padding: 0; display: block !important; }
-    .doc-section { display: block !important; width: 100% !important; overflow: hidden; }
+    html, body { background: #fff !important; margin: 0; padding: 0; }
+    body { display: block !important; }
+    .doc-section { display: block !important; width: 100% !important; background: #fff !important; }
     .doc-section + .doc-section { page-break-before: always; }
     .original-page { display: block; width: 100%; }
     .original-page + .original-page { page-break-before: always; }
     .original-page img { width: 100%; height: auto; display: block; }
+
+    /* Named page: only TRANSLATED docs get @page margins (cert keeps its own padding) */
+    @page { margin: 0; size: A4; }
+    @page content-page { margin: 15mm 18mm; size: A4; }
+    .doc-translated { page: content-page; }
+
     @media print {
-      @page { size: A4; margin: 0; }
-      .doc-section + .doc-section { page-break-before: always !important; }
-      .original-page + .original-page { page-break-before: always !important; }
+      body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .doc-section { background: #fff !important; }
+      .original-page { page-break-before: always; height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .original-page img { max-height: 100vh; max-width: 100vw; height: auto; width: auto; }
+      /* @page margin handles spacing for translated docs, so remove their padding */
+      .doc-translated .a4, .doc-translated .a4-page {
+        margin: 0 !important; padding: 0 !important; width: 100% !important;
+        box-shadow: none !important; border: none !important;
+        min-height: auto !important; height: auto !important;
+        overflow: visible !important; background: #fff !important;
+      }
+      /* Cert keeps its own padding — only strip visual chrome */
+      .doc-cert .a4, .doc-cert .a4-page {
+        margin: 0 !important; box-shadow: none !important; border: none !important;
+        min-height: auto !important; height: auto !important;
+        overflow: visible !important; background: #fff !important;
+      }
     }
     ${allStyles}
   </style>
@@ -560,9 +851,11 @@ async function rebuildTranslateHtml(flowId) {
       return;
     }
     const newHtml = data.html || "";
-    if (previewEl) previewEl.srcdoc = newHtml;
+    if (previewEl) previewEl.srcdoc = wrapForPrintPreview(newHtml);
     if (htmlSrcEl) htmlSrcEl.value = newHtml;
     if (rebuildStatusEl) rebuildStatusEl.innerHTML = `<span style="color:#16a34a;">✅ Đã tạo lại HTML thành công.</span>`;
+    // Auto-save to DB
+    autoSaveTranslationFlow(flowId);
   } catch (e) {
     if (rebuildStatusEl) rebuildStatusEl.innerHTML = `<span style="color:#dc2626;">❌ ${escapeHtml(e.message)}</span>`;
   } finally {
@@ -671,12 +964,14 @@ async function runTranslateFlow(flowId) {
       ocrEl.value = finalData.translated_text || "(OCR+Dịch gộp — xem bên phải)";
       translatedEl.value = finalData.translated_text || "Không có bản dịch.";
       const htmlContent = finalData.html || "<p>Không có HTML.</p>";
-      previewEl.srcdoc = htmlContent;
+      previewEl.srcdoc = wrapForPrintPreview(htmlContent);
       htmlSrcEl.value = htmlContent;
       const uploadedName = uploadedNameEl.value || "translated-document";
       const base = uploadedName.replace(/\.[^.]+$/, "");
       if (!saveNameEl.value) saveNameEl.value = `${base}.translated.html`;
       statusEl.innerHTML = `<span style="color:#16a34a;">✅ Hoàn tất. Sửa bản dịch/HTML rồi lưu PDF.</span>`;
+      // Auto-save to DB
+      autoSaveTranslationFlow(flowId);
     } else {
       statusEl.innerHTML = '<span style="color:#dc2626;">❌ Không nhận được kết quả từ server.</span>';
       updateTranslateFlowStep(flowId, 2, "error", "Không có dữ liệu trả về");
@@ -699,6 +994,8 @@ async function initTranslationSection() {
       console.warn("No translation templates found.");
     }
     // Don't auto-create a flow — user will use bulk upload or manual add
+    // Restore saved flows from DB
+    await restoreTranslationFlows();
     translateFlowsContainerEl.dataset.inited = "1";
   } catch (e) {
     translateFlowsContainerEl.innerHTML = `<div class="card" style="color:#dc2626;">❌ Không thể khởi tạo tab dịch: ${escapeHtml(e.message)}</div>`;
@@ -804,6 +1101,7 @@ async function bulkCreateTranslateStreams() {
   // Clear existing flows
   if (translateFlowsContainerEl) translateFlowsContainerEl.innerHTML = "";
   translationFlowCounter = 0;
+  Object.keys(_flowDbIds).forEach(k => delete _flowDbIds[k]);
 
   // Build a filename → File lookup from the bulk upload input
   const bulkFiles = bulkTranslateFilesEl ? Array.from(bulkTranslateFilesEl.files) : [];
@@ -960,9 +1258,16 @@ async function printAllTranslationFlows() {
       const m = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
       return m ? m[1] : html;
     };
-    const bodyStripProps = /\b(display|padding|margin|background[^:]*|justify-content|align-items|min-height|height|overflow)\s*:[^;]+;?/gi;
+    // Properties to strip from body/html rules (they break the combined layout)
+    const bodyStripProps = /\b(display|padding|margin|background[^:]*|justify-content|align-items|min-height|height|overflow|gap|flex-direction)\s*:[^;]+;?/gi;
     const scopeStyles = (css, scopeClass) => {
-      return css.replace(/([^{}@]+)\{([^{}]+)\}/g, (match, sel, body) => {
+      // 1) Strip @page rules entirely (the outer print container handles @page)
+      let cleaned = css.replace(/@page\s*\{[^}]*\}/gi, "");
+      // 2) Strip @media print blocks entirely (outer container handles print rules;
+      //    these nested blocks can't be parsed by simple regex and cause CSS leaks)
+      cleaned = cleaned.replace(/@media\s+print\s*\{[\s\S]*?\}\s*\}/gi, "");
+      // 3) Scope remaining simple rules
+      return cleaned.replace(/([^{}@]+)\{([^{}]+)\}/g, (match, sel, body) => {
         let isBodyRule = false;
         const scopedSel = sel.split(",").map(s => {
           s = s.trim();
@@ -984,7 +1289,12 @@ async function printAllTranslationFlows() {
       if (isNaN(flowId)) continue;
 
       const previewEl = document.getElementById(`transPreview-${flowId}`);
-      const translatedHtml = previewEl?.srcdoc || "";
+      // Auto-sync: if user edited HTML source, use that instead of stale srcdoc
+      const htmlSrcEl = document.getElementById(`transHtmlSource-${flowId}`);
+      if (htmlSrcEl && htmlSrcEl.value.trim()) {
+        previewEl.srcdoc = wrapForPrintPreview(htmlSrcEl.value);
+      }
+      const translatedHtml = htmlSrcEl?.value?.trim() || previewEl?.srcdoc || "";
       if (!translatedHtml) {
         console.warn(`[PrintAll] Flow ${flowId}: no translated HTML, skipping`);
         continue;
@@ -1016,6 +1326,29 @@ async function printAllTranslationFlows() {
           }
         } catch (e) {
           console.warn(`[PrintAll] Flow ${flowId}: original pages failed:`, e);
+        }
+      } else {
+        // Fallback: use file_ref (for restored flows after F5)
+        const fileRefEl = document.getElementById(`transUploadedRef-${flowId}`);
+        const fileRef = fileRefEl?.value?.trim();
+        if (fileRef) {
+          try {
+            const origRes = await fetch("/api/translate/original_pages_by_ref", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ file_ref: fileRef }),
+            });
+            if (origRes.ok) {
+              const origData = await origRes.json();
+              if (origData.pages?.length > 0) {
+                originalPagesHtml = origData.pages.map(p =>
+                  `<div class="original-page"><img src="${p.data_url}" style="width:100%;height:auto;display:block;" /></div>`
+                ).join("\n");
+              }
+            }
+          } catch (e) {
+            console.warn(`[PrintAll] Flow ${flowId}: original pages by ref failed:`, e);
+          }
         }
       }
 
@@ -1063,18 +1396,41 @@ async function printAllTranslationFlows() {
   <meta charset="utf-8">
   <title>All Translations PDF</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #fff; margin: 0; padding: 0; display: block !important; }
-    .doc-section { display: block !important; width: 100% !important; overflow: hidden; }
+    html, body { background: #fff !important; margin: 0; padding: 0; }
+    body { display: block !important; }
+    .doc-section { display: block !important; width: 100% !important; background: #fff !important; }
     .doc-section + .doc-section { page-break-before: always; }
     .original-page { display: block; width: 100%; }
     .original-page + .original-page { page-break-before: always; }
     .original-page img { width: 100%; height: auto; display: block; }
+
+    /* Named page: only TRANSLATED docs get @page margins (cert keeps its own padding) */
+    @page { margin: 0; size: A4; }
+    @page content-page { margin: 15mm 18mm; size: A4; }
+    .doc-translated, [class*='flow-trans-'] { page: content-page; }
+
     @media print {
-      @page { size: A4; margin: 0; }
-      .doc-section + .doc-section { page-break-before: always !important; }
-      .original-page + .original-page { page-break-before: always !important; }
+      body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .doc-section { background: #fff !important; }
+      .original-page { page-break-before: always; height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .original-page img { max-height: 100vh; max-width: 100vw; height: auto; width: auto; }
+      /* Only strip padding on translated docs (cert keeps its own layout) */
+      .doc-translated .a4, .doc-translated .a4-page,
+      [class*='flow-trans-'] .a4, [class*='flow-trans-'] .a4-page {
+        margin: 0 !important; padding: 0 !important; width: 100% !important;
+        box-shadow: none !important; border: none !important;
+        min-height: auto !important; height: auto !important;
+        overflow: visible !important; background: #fff !important;
+      }
+      /* Cert keeps its own padding — only strip visual chrome */
+      .doc-cert .a4, .doc-cert .a4-page,
+      [class*='flow-cert-'] .a4, [class*='flow-cert-'] .a4-page {
+        margin: 0 !important; box-shadow: none !important; border: none !important;
+        min-height: auto !important; height: auto !important;
+        overflow: visible !important; background: #fff !important;
+      }
     }
+    
     ${allStyles}
   </style>
 </head>

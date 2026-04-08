@@ -777,10 +777,15 @@
           </div>
 
           <!-- Show manual add button when no results yet -->
-          <div id="bulkManualFallback" style="margin-top:12px;">
+          <div id="bulkManualFallback" style="margin-top:12px; display:flex; gap:10px;">
             <button id="addTranslateFlowBtnFallback" type="button"
               style="background:#16a34a; padding:8px 16px;">
               ➕ Thêm luồng mới
+            </button>
+            <button id="deleteAllTranslateFlowsBtn" type="button"
+              onclick="deleteAllTranslationFlows()"
+              style="background:#ef4444; padding:8px 16px;">
+              🗑️ Xóa tất cả luồng dịch
             </button>
           </div>
         </section>
