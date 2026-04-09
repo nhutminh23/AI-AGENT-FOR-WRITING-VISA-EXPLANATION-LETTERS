@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **AI-AGENT-FOR-WRITING-VISA-EXPLANATION-LETTERS** (1812 symbols, 4415 relationships, 146 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **AI-AGENT-FOR-WRITING-VISA-EXPLANATION-LETTERS** (1814 symbols, 4390 relationships, 146 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

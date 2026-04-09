@@ -1,10 +1,13 @@
 // ==================== LETTER GEN V3 — Frontend Logic ====================
-// Replaces V1/V2 pipeline with: Copy Prompt → Paste JSON → AI Generate → Download DOCX
+// Workflow: Copy Prompt → Paste JSON → AI Generate → Download DOCX
+// With Group Application detection for ≥2 applicants
 
 // ---- State ----
 let letterGenCurrentStep = 1;
 let letterGenProfile = null;
 let letterGenResult = null;
+let letterGenAllProfiles = null;   // Keep original multi-profile data
+let letterGenGroupParticipants = null; // Detected group participants
 
 // ---- Elements ----
 function getLetterGenEl(id) { return document.getElementById(id); }
@@ -71,7 +74,7 @@ function letterGenCopyPrompt() {
   });
 }
 
-// ---- Step 2: Parse & Validate JSON ----
+// ---- Step 2: Parse & Validate JSON + Group Detection ----
 function letterGenParseJson(raw) {
   let text = raw.trim();
   // Strip markdown code block if present
@@ -80,6 +83,157 @@ function letterGenParseJson(raw) {
     text = jsonBlockMatch[1].trim();
   }
   return JSON.parse(text);
+}
+
+/**
+ * Detect group participants from parsed JSON data.
+ * Works with:
+ *  - Array of profiles: [{applicant: {...}}, {applicant: {...}}]
+ *  - Dict of profiles: {person_1: {applicant: {...}}, person_2: {applicant: {...}}}
+ *  - Single profile with accompanying_persons/group_members/co_applicants
+ */
+function letterGenDetectGroup(parsed) {
+  const participants = [];
+
+  if (Array.isArray(parsed)) {
+    for (const p of parsed) {
+      if (p && typeof p === 'object' && p.applicant) {
+        participants.push(_extractParticipant(p.applicant));
+      }
+    }
+  } else if (parsed && typeof parsed === 'object') {
+    if (parsed.applicant) {
+      // Single profile — check for group-related keys
+      participants.push(_extractParticipant(parsed.applicant));
+      for (const key of ['accompanying_persons', 'group_members', 'co_applicants']) {
+        const extras = parsed[key];
+        if (Array.isArray(extras)) {
+          for (const person of extras) {
+            if (person && typeof person === 'object') {
+              participants.push(_extractParticipant(person));
+            }
+          }
+        }
+      }
+    } else {
+      // Dict of profiles
+      const values = Object.values(parsed);
+      for (const v of values) {
+        if (v && typeof v === 'object' && v.applicant) {
+          participants.push(_extractParticipant(v.applicant));
+        }
+      }
+    }
+  }
+
+  return participants.length >= 2 ? participants : [];
+}
+
+function _extractParticipant(person) {
+  return {
+    full_name: person.full_name || '',
+    passport_no: person.passport_no || '',
+    dob: person.dob || '',
+    sex: person.sex || person.gender || '',
+    passport_expiry: person.passport_expiry || person.date_of_expiry || '',
+  };
+}
+
+/**
+ * Show group panel with participants table.
+ */
+function letterGenShowGroupPanel(participants) {
+  const panel = getLetterGenEl('letterGenGroupPanel');
+  const info = getLetterGenEl('letterGenGroupInfo');
+  const tableDiv = getLetterGenEl('letterGenGroupTable');
+
+  if (!panel || participants.length < 2) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+
+  info.innerHTML = `Phát hiện <strong>${participants.length}</strong> người trong hồ sơ. Nhập Group ID rồi bấm tạo thư.`;
+
+  // Build HTML table
+  let html = `<table style="width:100%; border-collapse:collapse; font-size:0.85em; background:#0f172a; border-radius:8px; overflow:hidden;">
+    <thead><tr style="background:#312e81; color:#c4b5fd;">
+      <th style="padding:6px 8px; text-align:center;">#</th>
+      <th style="padding:6px 8px; text-align:left;">Full Name</th>
+      <th style="padding:6px 8px; text-align:center;">Passport No.</th>
+      <th style="padding:6px 8px; text-align:center;">Date of Birth</th>
+      <th style="padding:6px 8px; text-align:center;">Sex</th>
+      <th style="padding:6px 8px; text-align:center;">Passport Expiry</th>
+    </tr></thead><tbody>`;
+
+  participants.forEach((p, i) => {
+    html += `<tr style="border-top:1px solid #334155;">
+      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${i + 1}</td>
+      <td style="padding:6px 8px; color:#e2e8f0; font-weight:600;">${p.full_name}</td>
+      <td style="padding:6px 8px; text-align:center; color:#e2e8f0;">${p.passport_no}</td>
+      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${p.dob}</td>
+      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${p.sex}</td>
+      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${p.passport_expiry}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  tableDiv.innerHTML = html;
+
+  panel.style.display = '';
+}
+
+function letterGenHideGroupPanel() {
+  const panel = getLetterGenEl('letterGenGroupPanel');
+  if (panel) panel.style.display = 'none';
+  letterGenGroupParticipants = null;
+}
+
+/**
+ * Download Group Participant List as DOCX.
+ */
+async function letterGenDownloadGroupDocx() {
+  if (!letterGenGroupParticipants || letterGenGroupParticipants.length < 2) return;
+
+  const groupId = (getLetterGenEl('letterGenGroupId')?.value || '').trim();
+  const statusEl = getLetterGenEl('letterGenGroupStatus');
+  statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang tạo DOCX...</span>';
+
+  try {
+    const res = await fetch('/api/letter-gen/build-group-docx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        participants: letterGenGroupParticipants,
+        group_id: groupId,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${data.error || 'Lỗi server'}</span>`;
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const cd = res.headers.get('content-disposition');
+    let filename = 'Group_Participant_List.docx';
+    if (cd && cd.includes('filename=')) {
+      filename = cd.split('filename=')[1].replace(/["']/g, '');
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải Group List DOCX!</span>';
+    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  }
 }
 
 async function letterGenApplyJson() {
@@ -93,48 +247,60 @@ async function letterGenApplyJson() {
   }
 
   // Parse JSON
+  let parsed;
   try {
-    letterGenProfile = letterGenParseJson(input.value);
+    parsed = letterGenParseJson(input.value);
   } catch(e) {
     status.innerHTML = `<span style="color:#dc2626;">❌ JSON không hợp lệ: ${e.message}</span>`;
     return;
   }
 
+  // Save original for group detection
+  letterGenAllProfiles = parsed;
+
+  // --- Group Detection ---
+  letterGenGroupParticipants = letterGenDetectGroup(parsed);
+  if (letterGenGroupParticipants.length >= 2) {
+    letterGenShowGroupPanel(letterGenGroupParticipants);
+  } else {
+    letterGenHideGroupPanel();
+  }
+
+  // --- Select single profile for letter generation ---
   // Check if it's a dictionary of profiles (e.g. {"applicant_1": {...}, "applicant_2": {...}})
-  // instead of a flat profile or an array.
-  if (letterGenProfile && typeof letterGenProfile === 'object' && !Array.isArray(letterGenProfile) && !letterGenProfile.applicant) {
-    const values = Object.values(letterGenProfile);
-    // If all children seem to be profile objects
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !parsed.applicant) {
+    const values = Object.values(parsed);
     if (values.length > 0 && values[0] && typeof values[0] === 'object' && values[0].applicant) {
-      letterGenProfile = values;
+      parsed = values;
     }
   }
 
   // Handle array of multiple applicants
-  if (Array.isArray(letterGenProfile)) {
-    if (letterGenProfile.length === 0) {
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) {
       status.innerHTML = '<span style="color:#dc2626;">❌ JSON mảng rỗng, không có dữ liệu.</span>';
       return;
     }
-    if (letterGenProfile.length === 1) {
-      // Single item in array — unwrap
-      letterGenProfile = letterGenProfile[0];
+    if (parsed.length === 1) {
+      letterGenProfile = parsed[0];
     } else {
       // Multiple applicants — show picker
-      const names = letterGenProfile.map((p, i) => 
+      const names = parsed.map((p, i) => 
         `${i + 1}. ${p.applicant?.full_name || 'Applicant ' + (i + 1)}`
       ).join('\n');
       const choice = prompt(
-        `JSON có ${letterGenProfile.length} người:\n${names}\n\nNhập số thứ tự (1-${letterGenProfile.length}) để chọn người tạo thư:`,
+        `JSON có ${parsed.length} người:\n${names}\n\nNhập số thứ tự (1-${parsed.length}) để chọn người tạo thư:`,
         '1'
       );
       const idx = parseInt(choice) - 1;
-      if (isNaN(idx) || idx < 0 || idx >= letterGenProfile.length) {
+      if (isNaN(idx) || idx < 0 || idx >= parsed.length) {
         status.innerHTML = '<span style="color:#dc2626;">❌ Lựa chọn không hợp lệ. Vui lòng thử lại.</span>';
         return;
       }
-      letterGenProfile = letterGenProfile[idx];
+      letterGenProfile = parsed[idx];
     }
+  } else {
+    letterGenProfile = parsed;
   }
 
   // Validate required fields
@@ -149,11 +315,25 @@ async function letterGenApplyJson() {
   btn.disabled = true;
   btn.textContent = '⏳ Đang sinh thư...';
 
+  // Build group_info if group detected
+  let groupInfo = null;
+  if (letterGenGroupParticipants && letterGenGroupParticipants.length >= 2) {
+    groupInfo = {
+      participants: letterGenGroupParticipants,
+      group_id: (getLetterGenEl('letterGenGroupId')?.value || '').trim(),
+      group_label: (getLetterGenEl('letterGenGroupLabel')?.value || '').trim(),
+    };
+  }
+
   try {
     const res = await fetch('/api/letter-gen/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile: letterGenProfile, additional_context: additionalContext }),
+      body: JSON.stringify({
+        profile: letterGenProfile,
+        additional_context: additionalContext,
+        group_info: groupInfo,
+      }),
     });
     const data = await res.json();
 
@@ -173,12 +353,14 @@ async function letterGenApplyJson() {
       getLetterGenEl('letterGenTabs').style.display = '';
       getLetterGenEl('letterGenDownloadRefusalBtn').style.display = '';
       getLetterGenEl('letterGenResultInfo').innerHTML = 
-        `✅ Đã sinh <strong>2 thư</strong> cho <strong>${data.applicant_name}</strong>: Thư giải trình + Thư giải thích từ chối.`;
+        `✅ Đã sinh <strong>2 thư</strong> cho <strong>${data.applicant_name}</strong>: Thư giải trình + Thư giải thích từ chối.` +
+        (data.is_group ? ` <span style="color:#c4b5fd;">👥 Group Application</span>` : '');
     } else {
       getLetterGenEl('letterGenTabs').style.display = 'none';
       getLetterGenEl('letterGenDownloadRefusalBtn').style.display = 'none';
       getLetterGenEl('letterGenResultInfo').innerHTML = 
-        `✅ Đã sinh <strong>1 thư</strong> cho <strong>${data.applicant_name}</strong>: Thư giải trình.`;
+        `✅ Đã sinh <strong>1 thư</strong> cho <strong>${data.applicant_name}</strong>: Thư giải trình.` +
+        (data.is_group ? ` <span style="color:#c4b5fd;">👥 Group Application</span>` : '');
     }
 
     // Show tabs correctly
@@ -281,6 +463,8 @@ async function letterGenDownloadDocx(type) {
 function letterGenStartOver() {
   letterGenProfile = null;
   letterGenResult = null;
+  letterGenAllProfiles = null;
+  letterGenGroupParticipants = null;
   getLetterGenEl('letterGenJsonInput').value = '';
   getLetterGenEl('letterGenAdditionalContext').value = '';
   getLetterGenEl('letterGenMainText').value = '';
@@ -288,6 +472,12 @@ function letterGenStartOver() {
   getLetterGenEl('letterGenJsonStatus').innerHTML = '';
   getLetterGenEl('letterGenDownloadStatus').innerHTML = '';
   getLetterGenEl('letterGenResultInfo').innerHTML = '';
+  // Reset group fields
+  const groupIdEl = getLetterGenEl('letterGenGroupId');
+  if (groupIdEl) groupIdEl.value = '';
+  const groupLabelEl = getLetterGenEl('letterGenGroupLabel');
+  if (groupLabelEl) groupLabelEl.value = '';
+  letterGenHideGroupPanel();
   letterGenSetStep(1);
 }
 
@@ -309,6 +499,10 @@ function initLetterGen() {
 
   const backStep1Btn = getLetterGenEl('letterGenBackStep1Btn');
   if (backStep1Btn) backStep1Btn.addEventListener('click', () => letterGenSetStep(1));
+
+  // Group DOCX download button
+  const groupDocxBtn = getLetterGenEl('letterGenDownloadGroupDocxBtn');
+  if (groupDocxBtn) groupDocxBtn.addEventListener('click', letterGenDownloadGroupDocx);
 
   // Step 3 tabs
   const tabMain = getLetterGenEl('letterGenTabMain');

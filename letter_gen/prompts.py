@@ -35,7 +35,7 @@ Date: 31 March 2026
 To: Department of Home Affairs Australian Government
 Dear Visa Officer,
 
-Applicant: Mrs. Ly Thi Hong (Date of birth: 10 June 1961)
+Applicant: LY THI HONG (Date of birth: 10 June 1961) Passport No.: E00438172
 
 I am writing to support my application for a Short Stay Visitor Visa (Subclass 600 – Tourist stream) and to confirm my genuine intention to visit Australia temporarily for tourism.
 
@@ -79,10 +79,17 @@ Address: Group 1, New Hamlet 1, My Hanh Nam Commune, Duc Hoa District, Long An P
 Write the letter now. Adapt the content to the applicant's destination country, visa type, and personal circumstances. Keep the same level of specificity and persuasive tone.
 
 CRITICAL RULES:
-1. COPY THE EXACT HEADER FORMAT: Start your letter exactly like the reference letter. DO NOT add the applicant's name, address, or phone number at the very top of the letter, because the reference letter does not have them there. 
+1. COPY THE EXACT HEADER FORMAT: Start your letter exactly like the reference letter. The "Applicant:" line MUST include full name in UPPERCASE, date of birth in parentheses, AND Passport No. Example: "Applicant: LY THI HONG (Date of birth: 10 June 1961) Passport No.: E00438172". DO NOT add the applicant's name, address, or phone number at the very top of the letter.
 2. BE CONCISE & USE BULLET POINTS: Write short, direct sentences. Use bullet points to list evidence, family members, or itinerary details so the visa officer can scan easily. Do not write long, overly formal filler text.
 3. AVOID REPETITION: If you listed the itinerary in 'Purpose of Visit', do NOT repeat it in 'Travel Arrangements' or 'Strong Ties'.
-4. FLEXIBLE SECTIONS: The reference letter is a GUIDE, not a rigid template. You MUST adapt based on the applicant's actual JSON data:
+4. VIETNAMESE PROPER NOUNS: When writing Vietnamese place names, temple names, or institutions, translate generic words into English while keeping proper names as-is. Examples:
+   - "Chua Phuc An" → "Phuc An Pagoda" (Chua = Pagoda)
+   - "Chua Tu Hue" → "Tu Hue Pagoda"
+   - "Quan 1" → "District 1"
+   - "Phuong Binh Trung Tay" → "Binh Trung Tay Ward"
+   - "Truong Wellspring" → "Wellspring International School"
+   Keep personal names and street names in romanized Vietnamese without diacritics (e.g., "NGUYEN VAN A", "No. 49 Street").
+5. FLEXIBLE SECTIONS: The reference letter is a GUIDE, not a rigid template. You MUST adapt based on the applicant's actual JSON data:
    - If the applicant HAS travel history → include a 'Travel History' section highlighting past compliance and timely returns.
    - If the applicant has NO travel history → either skip this section entirely OR write one short sentence acknowledging it.
    - If the applicant has additional strong evidence not in the reference (e.g., business ownership, property, sponsor) → mention it under the most relevant existing section.
@@ -186,6 +193,11 @@ CRITICAL RULES:
    - If the applicant has NO travel history → either skip this section entirely OR write one short sentence acknowledging it.
    - If the applicant has additional strong evidence not covered by the reference sections (e.g., business ownership, sponsor letter) → you MAY add a brief mention under the most relevant existing section. Do NOT create a new section header for it.
 7. NATURAL CLOSING: Only the final 'Strong Ties and Intention to Return' section should end with a brief summary sentence (e.g., 'These combined ties confirm my genuine temporary intent.'). Do NOT add 'In summary' sentences to every section — keep the letter natural and human.
+8. VIETNAMESE PROPER NOUNS: When writing Vietnamese place names, temple names, or institutions, translate generic words into English while keeping proper names as-is. Examples:
+   - "Chua Phuc An" → "Phuc An Pagoda" (Chua = Pagoda)
+   - "Quan 1" → "District 1"
+   - "Phuong Binh Trung Tay" → "Binh Trung Tay Ward"
+   Keep personal names and street names in romanized Vietnamese without diacritics.
 """
 # ---------------------------------------------------------------------------
 # Prompt 3: Separate Refusal Explanation Letter

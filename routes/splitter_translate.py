@@ -828,7 +828,7 @@ def translate_original_pages_by_ref():
     if not file_ref:
         return jsonify({"error": "missing_file_ref"}), 400
 
-    input_dir = current_app.config.get("UPLOAD_FOLDER", "uploads")
+    input_dir = "input"
     source_path = _resolve_translate_source_path(input_dir, file_ref)
     if not source_path:
         return jsonify({"error": "file_not_found", "detail": f"Cannot resolve: {file_ref}"}), 404
@@ -1092,16 +1092,10 @@ def run_translate_stream():
             else:
                 yield from send_event(-1, f"❌ Lỗi: {str(e)}")
         finally:
-            # Cleanup temporary uploaded file (if any)
+            # Clear in-memory cache entry (but do NOT delete persistent file on disk)
+            # File cleanup happens only when user explicitly deletes the flow
             if upload_token:
-                meta = translation_upload_cache.pop(upload_token, None) or {}
-                temp_path = meta.get("temp_path", "")
-                if temp_path and os.path.exists(temp_path):
-                    try:
-                        os.remove(temp_path)
-                    except Exception as e:
-                        logging.exception("[Safe Log] Unhandled exception in splitter_translate.py: %s", e)
-                        logging.debug("Ignored: %s", e)
+                translation_upload_cache.pop(upload_token, None)
 
     return Response(
         generate(),

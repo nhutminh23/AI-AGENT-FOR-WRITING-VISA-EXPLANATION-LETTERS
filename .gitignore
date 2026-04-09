@@ -29,6 +29,7 @@ pdf/
 test_dir/
 scan_splitter_outputs/
 insurance_outputs/
+translation_originals/
 
 # ===== Database =====
 visa_app.db

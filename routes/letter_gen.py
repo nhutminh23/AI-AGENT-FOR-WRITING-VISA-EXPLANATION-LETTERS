@@ -70,9 +70,12 @@ def letter_gen_generate():
     if not applicant or not applicant.get("full_name"):
         return jsonify({"error": "Profile must contain applicant.full_name"}), 400
 
+    # Group info (optional — sent by frontend when group detected)
+    group_info = data.get("group_info")  # {participants, group_id, group_label}
+
     try:
         from letter_gen.generator import generate_letters
-        result = generate_letters(profile, additional_context)
+        result = generate_letters(profile, additional_context, group_info=group_info)
         return jsonify(result)
     except Exception as exc:
         logging.exception("[Safe Log] Unhandled exception in letter_gen.py: %s", exc)
@@ -138,3 +141,63 @@ def letter_gen_download(filename: str):
         download_name=filename,
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
+
+
+# ---------------------------------------------------------------------------
+# API: Detect group participants from JSON profile(s)
+# ---------------------------------------------------------------------------
+@letter_gen_bp.post("/api/letter-gen/detect-group")
+def letter_gen_detect_group():
+    """
+    Detect group participants from one or more JSON profiles.
+    Returns participant list if ≥2 people detected.
+    """
+    data = request.get_json(silent=True) or {}
+    profiles = data.get("profiles")  # can be list or dict
+
+    if not profiles:
+        return jsonify({"is_group": False, "participants": []})
+
+    try:
+        from letter_gen.group_builder import detect_group_participants
+        participants = detect_group_participants(profiles)
+        return jsonify({
+            "is_group": len(participants) >= 2,
+            "participants": participants,
+            "count": len(participants),
+        })
+    except Exception as exc:
+        logger.exception("Group detection failed")
+        return jsonify({"error": f"Detection failed: {str(exc)}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Build Group Participant List DOCX
+# ---------------------------------------------------------------------------
+@letter_gen_bp.post("/api/letter-gen/build-group-docx")
+def letter_gen_build_group_docx():
+    """Build Group Tour Participant List DOCX and return for download."""
+    data = request.get_json(silent=True) or {}
+    participants = data.get("participants", [])
+    group_id = data.get("group_id", "")
+
+    if not participants or len(participants) < 2:
+        return jsonify({"error": "Need at least 2 participants for group list"}), 400
+
+    try:
+        from letter_gen.group_builder import build_group_docx
+        import uuid
+
+        file_stream = build_group_docx(participants, group_id)
+        session_id = str(uuid.uuid4())[:8]
+        filename = f"Group_Participant_List_{session_id}.docx"
+
+        return send_file(
+            file_stream,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    except Exception as exc:
+        logger.exception("Group DOCX build failed")
+        return jsonify({"error": f"Group DOCX build failed: {str(exc)}"}), 500

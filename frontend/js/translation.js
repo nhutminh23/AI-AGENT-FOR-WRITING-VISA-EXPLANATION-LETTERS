@@ -116,6 +116,10 @@ async function deleteTranslationFlow(flowId) {
     try { await fetch(`/api/translate/flows/${dbId}`, { method: "DELETE" }); } catch (_) {}
     delete _flowDbIds[flowId];
   }
+  // Reset counter when all flows are deleted individually
+  if (translateFlowsContainerEl && translateFlowsContainerEl.querySelectorAll(".translate-flow-card").length === 0) {
+    translationFlowCounter = 0;
+  }
 }
 
 /** Delete all translation flows from UI and DB. */
@@ -625,7 +629,8 @@ ${srcEl.value}`;
     @media print {
       body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .doc-section { background: #fff !important; }
-      .original-page { page-break-before: always; height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .original-page { height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .original-page + .original-page { page-break-before: always; }
       .original-page img { max-height: 100vh; max-width: 100vw; height: auto; width: auto; }
       /* @page margin handles spacing for translated docs, so remove their padding */
       .doc-translated .a4, .doc-translated .a4-page {
@@ -1412,7 +1417,8 @@ async function printAllTranslationFlows() {
     @media print {
       body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .doc-section { background: #fff !important; }
-      .original-page { page-break-before: always; height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .original-page { height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .original-page + .original-page { page-break-before: always; }
       .original-page img { max-height: 100vh; max-width: 100vw; height: auto; width: auto; }
       /* Only strip padding on translated docs (cert keeps its own layout) */
       .doc-translated .a4, .doc-translated .a4-page,

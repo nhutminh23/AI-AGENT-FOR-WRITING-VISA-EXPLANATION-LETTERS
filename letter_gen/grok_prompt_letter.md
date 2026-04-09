@@ -176,3 +176,35 @@ If you find ANY visa refusal documents (refusal letter, decision record, notific
 - If the applicant currently lives in a different country (e.g., on a work/study visa), include that in `applicant.current_visa` and `applicant.current_residence`
 - `previous_letter_summary`: If there's an old explanation letter, summarize its key arguments
 - `additional_context`: Any important facts that don't fit in other fields
+
+**SPECIAL INSTRUCTIONS FOR GROUP APPLICATIONS (2+ people):**
+
+If the documents contain information for MORE THAN ONE person (e.g., family group, couple, parent + child), you MUST add an `accompanying_persons` array to the JSON. Each person should have at minimum: `full_name`, `passport_no`, `dob`, `sex`, and `passport_expiry` (date of expiry of passport).
+
+Example:
+```json
+{
+  "applicant": { ... },
+  "accompanying_persons": [
+    {
+      "full_name": "NGO NGAN HA",
+      "passport_no": "C3980690",
+      "dob": "15 March 1985",
+      "sex": "Female",
+      "passport_expiry": "15 March 2035"
+    },
+    {
+      "full_name": "TRAN TRUNG GIA HUNG",
+      "passport_no": "P04067466",
+      "dob": "10 June 2018",
+      "sex": "Male",
+      "passport_expiry": "10 June 2028"
+    }
+  ],
+  "trip": { ... },
+  ...
+}
+```
+
+If there is only ONE person, do NOT include `accompanying_persons`.
+

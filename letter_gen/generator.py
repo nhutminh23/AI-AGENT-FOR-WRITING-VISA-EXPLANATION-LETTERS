@@ -52,9 +52,18 @@ def has_refusal_history(profile: Dict[str, Any]) -> bool:
 def generate_letters(
     profile: Dict[str, Any],
     additional_context: str = "",
+    group_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Generate explanation letter(s) from the applicant JSON profile.
+
+    Args:
+        profile: Single applicant JSON profile.
+        additional_context: Extra instructions for the AI.
+        group_info: Optional dict with keys:
+          - participants: list of {full_name, passport_no, ...}
+          - group_id: string (may be empty)
+          - group_label: string (may be empty)
 
     Returns:
         {
@@ -62,6 +71,8 @@ def generate_letters(
             "refusal_letter": str | None,        # Only if has refusal history
             "has_refusal": bool,
             "applicant_name": str,
+            "is_group": bool,
+            "group_participants": list | None,
         }
     """
     llm = _get_llm()
@@ -71,21 +82,46 @@ def generate_letters(
     applicant = profile.get("applicant", {})
     applicant_name = applicant.get("full_name", "Applicant")
 
+    # Build group header if applicable
+    group_header = ""
+    is_group = False
+    group_participants = None
+    if group_info and group_info.get("participants") and len(group_info["participants"]) >= 2:
+        from letter_gen.group_builder import build_group_header_text
+        is_group = True
+        group_participants = group_info["participants"]
+        group_header = build_group_header_text(
+            participants=group_participants,
+            group_id=group_info.get("group_id", ""),
+            group_label=group_info.get("group_label", ""),
+        )
+
     logger.info(
-        "Generating letter(s) for %s | has_refusal=%s | model=%s",
-        applicant_name, has_refusal, WRITER_MODEL,
+        "Generating letter(s) for %s | has_refusal=%s | is_group=%s | model=%s",
+        applicant_name, has_refusal, is_group, WRITER_MODEL,
     )
+
+    # Build additional context with group info
+    ctx = additional_context or "None"
+    if group_header:
+        ctx = (
+            f"IMPORTANT — This is a GROUP APPLICATION. "
+            f"You MUST include this group header block IMMEDIATELY after the visa type line "
+            f"(e.g. after 'Visitor Visa Application (Subclass 600 – Tourist stream)') "
+            f"and BEFORE the 'Date:' line:\n\n{group_header}\n\n"
+            f"Other additional context: {ctx}"
+        )
 
     # --- Generate main explanation letter ---
     if has_refusal:
         prompt = LETTER_WITH_REFUSAL_PROMPT.format(
             json_profile=json_str,
-            additional_context=additional_context or "None",
+            additional_context=ctx,
         )
     else:
         prompt = LETTER_NO_REFUSAL_PROMPT.format(
             json_profile=json_str,
-            additional_context=additional_context or "None",
+            additional_context=ctx,
         )
 
     explanation_letter = _call_llm(llm, LETTER_GEN_SYSTEM, prompt)
@@ -106,4 +142,6 @@ def generate_letters(
         "refusal_letter": refusal_letter,
         "has_refusal": has_refusal,
         "applicant_name": applicant_name,
+        "is_group": is_group,
+        "group_participants": group_participants,
     }
