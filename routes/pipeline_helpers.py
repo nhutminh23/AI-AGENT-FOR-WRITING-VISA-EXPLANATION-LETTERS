@@ -58,6 +58,11 @@ def _pdf_merge_pick_unique(dest_dir: str, stem: str, ext: str) -> str:
     return candidate
 
 
+# ── Canonical short aliases (used by classifier & splitter) ──────────
+_sanitize_name = _pdf_merge_sanitize_name
+_pick_unique = _pdf_merge_pick_unique
+
+
 # ── Quota error helper ───────────────────────────────────────────────
 
 _is_quota_error = is_quota_error

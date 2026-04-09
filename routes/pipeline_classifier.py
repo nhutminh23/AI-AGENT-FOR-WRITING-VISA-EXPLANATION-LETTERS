@@ -19,7 +19,7 @@ from core.helpers import get_vision_model, list_input_files
 from classifier.agent import classify_files_in_folder
 from config import Config
 
-from routes.pipeline_helpers import _safe_join
+from routes.pipeline_helpers import _safe_join, _sanitize_name, _pick_unique
 
 # Base directory (project root, one level up from routes/)
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -310,19 +310,6 @@ def split_manual():
 
     created: list[dict[str, Any]] = []
 
-    def _sanitize_name(value: str, fallback: str) -> str:
-        text = (value or "").strip()
-        text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
-        text = re.sub(r"\s+", " ", text).strip()
-        return text or fallback
-
-    def _pick_unique(dest_dir: str, stem: str, ext: str) -> str:
-        candidate = os.path.join(dest_dir, f"{stem}{ext}")
-        idx = 1
-        while os.path.exists(candidate):
-            candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
-            idx += 1
-        return candidate
 
     for seg in segments:
         if not isinstance(seg, dict):
@@ -397,21 +384,5 @@ def split_manual():
             "removed_original": removed_original,
         }
     )
-
-
-def _pdf_merge_sanitize_name(value: str, fallback: str) -> str:
-    text = (value or "").strip()
-    text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text or fallback
-
-
-def _pdf_merge_pick_unique(dest_dir: str, stem: str, ext: str) -> str:
-    candidate = os.path.join(dest_dir, f"{stem}{ext}")
-    idx = 1
-    while os.path.exists(candidate):
-        candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
-        idx += 1
-    return candidate
 
 

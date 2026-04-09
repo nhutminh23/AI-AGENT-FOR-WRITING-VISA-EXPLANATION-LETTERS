@@ -327,29 +327,7 @@ def generate_flight_booking(
     return booking
 
 
-def _split_address_for_template(address: str):
-    """Split an address string into up to 3 lines for the hotel template.
-    
-    The Agoda template has 3 positioned divs for the address.
-    We need to distribute the address text across these 3 lines.
-    """
-    if not address:
-        return "", "", ""
-    
-    parts = [p.strip() for p in address.split(',')]
-    
-    if len(parts) <= 1:
-        return address, "", ""
-    elif len(parts) == 2:
-        return parts[0] + ",", parts[1], ""
-    elif len(parts) == 3:
-        return parts[0] + ",", parts[1] + ",", parts[2]
-    else:
-        # 4+ parts: first on line 1, middle on line 2, last on line 3
-        line1 = parts[0] + ","
-        line3 = parts[-1]
-        line2 = ", ".join(parts[1:-1]) + ","
-        return line1, line2, line3
+
 
 
 def fill_hotel_template(template_path: str, booking_data: Dict) -> str:

@@ -20,6 +20,17 @@ from config import Config
 
 from routes.pipeline_helpers import _resolve_input_file_path, _cache_dir
 
+import re as _re_html
+
+
+def _html_to_text(html_str: str) -> str:
+    """Strip HTML tags, styles, scripts and collapse whitespace."""
+    text = _re_html.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=_re_html.DOTALL)
+    text = _re_html.sub(r'<script[^>]*>.*?</script>', '', text, flags=_re_html.DOTALL)
+    text = _re_html.sub(r'<[^>]+>', ' ', text)
+    text = _re_html.sub(r'\s+', ' ', text).strip()
+    return text
+
 
 
 STEP_ORDER = ["ingest", "summary", "writer"]
@@ -244,14 +255,6 @@ def run_itinerary():
         booking = db.get_latest_booking(int(project_id))
         if not booking:
             return jsonify({"error": "no_booking_in_db", "message": "Không tìm thấy booking trong database. Hãy tạo booking AI trước."}), 400
-        # Extract text from HTML (strip tags for AI processing)
-        import re as _re_it
-        def _html_to_text(html_str):
-            text = _re_it.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=_re_it.DOTALL)
-            text = _re_it.sub(r'<script[^>]*>.*?</script>', '', text, flags=_re_it.DOTALL)
-            text = _re_it.sub(r'<[^>]+>', ' ', text)
-            text = _re_it.sub(r'\s+', ' ', text).strip()
-            return text
 
         flight_text = _html_to_text(booking.get("flight_html", ""))
         # Combine all hotel HTMLs
@@ -355,13 +358,6 @@ def run_itinerary_stream():
             # Step 1: Load booking data
             yield from send_event(1, "⏳ Đang tải dữ liệu booking...")
 
-            import re as _re_it
-            def _html_to_text(html_str):
-                text = _re_it.sub(r'<style[^>]*>.*?</style>', '', html_str, flags=_re_it.DOTALL)
-                text = _re_it.sub(r'<script[^>]*>.*?</script>', '', text, flags=_re_it.DOTALL)
-                text = _re_it.sub(r'<[^>]+>', ' ', text)
-                text = _re_it.sub(r'\s+', ' ', text).strip()
-                return text
 
             if from_db and project_id:
                 booking = db.get_latest_booking(int(project_id))

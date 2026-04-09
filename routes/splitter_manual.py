@@ -18,6 +18,7 @@ from flask import Blueprint, jsonify, request
 
 from config import Config
 from pdf_tools.pdf_service import get_page_count
+from routes.pipeline_helpers import _sanitize_name, _pick_unique
 
 splitter_manual_bp = Blueprint("splitter_manual", __name__)
 
@@ -68,19 +69,6 @@ def manual_split_upload_and_split():
     total_pages = len(reader.pages)
     created: list[dict[str, Any]] = []
 
-    def _sanitize_name(value: str, fallback: str) -> str:
-        text = (value or "").strip()
-        text = re.sub(r"[\\/:*?\"<>|]+", " ", text)
-        text = re.sub(r"\s+", " ", text).strip()
-        return text or fallback
-
-    def _pick_unique(dest_dir: str, stem: str, ext: str) -> str:
-        candidate = os.path.join(dest_dir, f"{stem}{ext}")
-        idx = 1
-        while os.path.exists(candidate):
-            candidate = os.path.join(dest_dir, f"{stem} ({idx}){ext}")
-            idx += 1
-        return candidate
 
     for seg in segments:
         if not isinstance(seg, dict):

@@ -27,6 +27,10 @@ from core.helpers import get_text_model, get_vision_model, list_input_files, cac
 from core.state import GraphState
 from classifier.agent import classify_files_in_folder
 from config import Config
+from routes.pipeline_helpers import (
+    _resolve_input_file_path as _resolve_input_file_path,
+    _safe_join as _safe_join,
+)
 
 pipeline_bp = Blueprint("pipeline", __name__)
 
@@ -152,13 +156,7 @@ def _run_single_step(state: dict, step: str, **kwargs) -> dict:
     raise ValueError(f"Unknown step: {step}")
 
 
-def _resolve_input_file_path(input_dir: str, filename: str) -> str:
-    """Safely join input_dir + filename, preventing path traversal."""
-    base = os.path.abspath(input_dir)
-    full = os.path.abspath(os.path.join(input_dir, filename))
-    if not full.startswith(base):
-        raise ValueError(f"Path traversal detected: {filename}")
-    return full
+# _resolve_input_file_path → imported from routes.pipeline_helpers
 
 
 def _upsert_file_record(project_id: int, file_info: dict) -> None:
@@ -382,37 +380,9 @@ def pipeline_send_to_classifier():
 # and splits PDF at these boundaries.
 # ═══════════════════════════════════════════════════════════════════
 
-_scan_splitter_llm = None
-
-def _get_or_create_llm():
-    """Get or create a cached ChatOpenAI instance for vision tasks."""
-    global _scan_splitter_llm
-    if _scan_splitter_llm is None:
-        _scan_splitter_llm = ChatOpenAI(model=get_vision_model(), temperature=0)
-    return _scan_splitter_llm
-
+# _get_or_create_llm, _CERT_KEYWORDS, _is_certification_page_by_text → imported from routes.pipeline_helpers
 
 _scan_split_progress = {"total": 0, "done": 0, "current_page": "", "running": False, "results": [], "error": ""}
-
-# Keywords that identify a Passport Lounge translation certification page
-_CERT_KEYWORDS = [
-    "passport lounge",
-    "undertake to translate",
-    "cam đoan đã dịch chính xác",
-    "cam doan da dich chinh xac",
-    "signature of translator",
-    "chữ ký của người dịch",
-]
-
-
-def _is_certification_page_by_text(page_text: str) -> bool:
-    """Check if page text contains translation certification keywords."""
-    if not page_text or len(page_text.strip()) < 20:
-        return False
-    text_lower = page_text.lower()
-    # Must match at least 2 keywords to avoid false positives
-    matches = sum(1 for kw in _CERT_KEYWORDS if kw in text_lower)
-    return matches >= 2
 
 
 def _batch_detect_cert_pages_vision(llm, page_images_b64: list, page_numbers: list) -> list:
@@ -590,12 +560,7 @@ def pipeline_send_to_input():
 
     return jsonify({"status": "done", "copied": copied, "count": len(copied), "target_dir": target_dir})
 
-def _safe_join(base: str, rel_path: str) -> str:
-    base_abs = os.path.abspath(base)
-    candidate = os.path.abspath(os.path.join(base, rel_path))
-    if not candidate.startswith(base_abs):
-        raise ValueError("Invalid path")
-    return candidate
+# _safe_join → imported from routes.pipeline_helpers
 
 
 @pipeline_bp.get("/api/steps")
