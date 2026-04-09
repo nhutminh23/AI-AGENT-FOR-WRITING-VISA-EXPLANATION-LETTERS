@@ -7,7 +7,7 @@ SQLite for development, easily switchable to PostgreSQL for cloud deployment.
 import hashlib
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
@@ -185,7 +185,7 @@ def update_project(project_id: int, **kwargs) -> Optional[Dict[str, Any]]:
         for key, value in kwargs.items():
             if hasattr(project, key):
                 setattr(project, key, value)
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(timezone.utc)
         session.commit()
         session.refresh(project)
         return _project_to_dict(project)
@@ -250,7 +250,7 @@ def save_trip_info(project_id: int, data: Dict) -> Dict[str, Any]:
         # Touch project updated_at
         project = session.query(Project).filter_by(id=project_id).first()
         if project:
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(timezone.utc)
         session.commit()
         return {"id": trip.id, "version": version, "data": data}
     finally:
@@ -294,7 +294,7 @@ def save_booking(project_id: int, booking_data: Dict, hotel_htmls: List[str],
         session.add(booking)
         project = session.query(Project).filter_by(id=project_id).first()
         if project:
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(timezone.utc)
         session.commit()
         return {"id": booking.id, "version": 1}
     finally:
@@ -345,7 +345,7 @@ def save_itinerary_context(project_id: int, context: Dict) -> Dict[str, Any]:
         session.add(itinerary)
         project = session.query(Project).filter_by(id=project_id).first()
         if project:
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(timezone.utc)
         session.commit()
         return {"id": itinerary.id, "version": version}
     finally:
@@ -369,7 +369,7 @@ def save_itinerary_html(project_id: int, context: Dict, html_content: str) -> Di
         session.add(itinerary)
         project = session.query(Project).filter_by(id=project_id).first()
         if project:
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(timezone.utc)
         session.commit()
         return {"id": itinerary.id, "version": version}
     finally:
@@ -444,7 +444,7 @@ def save_letter_state(project_id: int, **kwargs) -> Dict[str, Any]:
             session.add(state)
             project = session.query(Project).filter_by(id=project_id).first()
             if project:
-                project.updated_at = datetime.utcnow()
+                project.updated_at = datetime.now(timezone.utc)
             session.commit()
             session.refresh(state)
             return _letter_state_to_dict(state)
@@ -663,7 +663,7 @@ def update_translation_flow(flow_id: int, **kwargs) -> Optional[Dict[str, Any]]:
         for key, value in kwargs.items():
             if hasattr(flow, key) and key not in ("id", "created_at"):
                 setattr(flow, key, value)
-        flow.updated_at = datetime.utcnow()
+        flow.updated_at = datetime.now(timezone.utc)
         session.commit()
         session.refresh(flow)
         return _translation_flow_to_dict(flow)
