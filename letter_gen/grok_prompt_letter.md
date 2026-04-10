@@ -179,32 +179,154 @@ If you find ANY visa refusal documents (refusal letter, decision record, notific
 
 **SPECIAL INSTRUCTIONS FOR GROUP APPLICATIONS (2+ people):**
 
-If the documents contain information for MORE THAN ONE person (e.g., family group, couple, parent + child), you MUST add an `accompanying_persons` array to the JSON. Each person should have at minimum: `full_name`, `passport_no`, `dob`, `sex`, and `passport_expiry` (date of expiry of passport).
+If the documents contain information for MORE THAN ONE applicant (e.g., husband + wife, parent + child — each with their own passport), you MUST:
 
-Example:
+1. **Output a JSON array** `[{person1}, {person2}, ...]` — each element is a COMPLETE profile
+2. Each person gets their OWN `applicant`, `employment`, `financial`, `trip`, `strong_ties`, `travel_history` sections
+3. Each person MUST include `accompanying_persons` listing ALL the OTHER people in the group
+4. Each person in `accompanying_persons` MUST have: `full_name`, `passport_no`, `dob`, `sex` (Male/Female), and `passport_expiry`
+
+**IMPORTANT:**
+- Output ONLY the JSON array — no extra text, no markdown headers
+- Even if 2 people share the same trip/flights/hotels, EACH profile must have the FULL trip info
+- `accompanying_persons` lists the OTHER people (NOT the applicant themselves)
+- `sex` and `passport_expiry` in `accompanying_persons` are REQUIRED — read from passport/CCCD
+- If a parent is deceased, use `"Deceased"` for their address fields
+
+**Example for 2 applicants (husband + wife):**
+
+```json
+[
+  {
+    "applicant": {
+      "full_name": "THAN VAN KHOAN",
+      "dob": "10 April 1953",
+      "passport_no": "E03124147",
+      "nationality": "Vietnamese",
+      "current_address": "383/11 Nguyen Van Cu, Tan Lap, Buon Ma Thuot, Dak Lak, Viet Nam",
+      "phone": "+84 905 050 699",
+      "email": null,
+      "marital_status": "Married",
+      "spouse_name": "THIEU THI PHAN",
+      "children": [],
+      "age": 72,
+      "occupation_status": "Self-employed",
+      "health_notes": null
+    },
+    "employment": { "type": "self-employed", "business_info": "..." },
+    "financial": { "bank_name": "...", "bank_balance": "..." },
+    "trip": { "destination_country": "Australia", "start_date": "...", "end_date": "..." },
+    "strong_ties": { "family_in_home_country": ["..."], "property": ["..."] },
+    "travel_history": { "countries_visited": [], "visa_compliance_summary": "..." },
+    "refusal_history": null,
+    "previous_letter_summary": null,
+    "additional_context": "Travelling with spouse THIEU THI PHAN...",
+    "accompanying_persons": [
+      {
+        "full_name": "THIEU THI PHAN",
+        "passport_no": "E03181723",
+        "dob": "02 April 1959",
+        "sex": "Female",
+        "passport_expiry": "07 May 2035"
+      }
+    ]
+  },
+  {
+    "applicant": {
+      "full_name": "THIEU THI PHAN",
+      "dob": "02 April 1959",
+      "passport_no": "E03181723",
+      "nationality": "Vietnamese",
+      "current_address": "383/11 Nguyen Van Cu, Tan Lap, Buon Ma Thuot, Dak Lak, Viet Nam",
+      "phone": null,
+      "email": null,
+      "marital_status": "Married",
+      "spouse_name": "THAN VAN KHOAN",
+      "children": [],
+      "age": 66,
+      "occupation_status": "Homemaker",
+      "health_notes": null
+    },
+    "employment": { "type": "homemaker" },
+    "financial": { "bank_name": "...", "bank_balance": "..." },
+    "trip": { "destination_country": "Australia", "start_date": "...", "end_date": "..." },
+    "strong_ties": { "family_in_home_country": ["..."], "property": ["..."] },
+    "travel_history": { "countries_visited": [], "visa_compliance_summary": "..." },
+    "refusal_history": null,
+    "previous_letter_summary": null,
+    "additional_context": "Travelling with spouse THAN VAN KHOAN...",
+    "accompanying_persons": [
+      {
+        "full_name": "THAN VAN KHOAN",
+        "passport_no": "E03124147",
+        "dob": "10 April 1953",
+        "sex": "Male",
+        "passport_expiry": "..."
+      }
+    ]
+  }
+]
+```
+
+If there is only ONE person, output a single JSON object `{...}` (NOT an array). Do NOT include `accompanying_persons` for single applicants.
+
+**SPECIAL INSTRUCTIONS FOR INVITATION LETTER (Family Visit to Australia):**
+
+If the applicant's trip purpose involves **visiting a relative/friend who LIVES in Australia** (e.g., visiting a sibling, child, parent, or sponsor in Australia), you MUST include an `invitation_data` object in the profile. This data will be used to auto-generate an Invitation Letter.
+
+**How to detect:** Look for clues such as:
+- Trip purpose mentions "family visit", "visiting brother/sister/mother/father/relative"
+- Itinerary includes visiting someone's home in Australia
+- Documents mention a sponsor or host in Australia
+- A relative's address in Australia is mentioned
+
+**Add this to each applicable applicant's profile:**
+
 ```json
 {
-  "applicant": { ... },
-  "accompanying_persons": [
-    {
-      "full_name": "NGO NGAN HA",
-      "passport_no": "C3980690",
-      "dob": "15 March 1985",
-      "sex": "Female",
-      "passport_expiry": "15 March 2035"
+  "invitation_data": {
+    "host": {
+      "full_name": "THI MY LINH TRAN",
+      "dob": "13 June 1997",
+      "nationality": "Vietnamese",
+      "passport_no": "C5776007",
+      "address": "Unit 5/15 High St, Swan Hill, VIC 3585",
+      "phone": "0448687329",
+      "occupation": "Slicer at a meat processing company",
+      "annual_income": "Approximately AUD 70,000",
+      "visa_status": "living and working in Australia",
+      "visa_note": "At present, I am in the process of transitioning from a temporary work visa to permanent residency in Australia."
     },
-    {
-      "full_name": "TRAN TRUNG GIA HUNG",
-      "passport_no": "P04067466",
-      "dob": "10 June 2018",
+    "guest": {
+      "full_name": "VU BAO MINH TRAN",
+      "dob": "4 September 2009",
+      "passport_no": "E03450389",
       "sex": "Male",
-      "passport_expiry": "10 June 2028"
-    }
-  ],
-  "trip": { ... },
-  ...
+      "relationship": "younger brother"
+    },
+    "trip": {
+      "start_date": "1 June 2026",
+      "end_date": "15 June 2026",
+      "purpose": "the purpose of family visit and tourism"
+    },
+    "accompanying": [
+      {
+        "full_name": "our mother: THI DAN VU",
+        "relationship": "mother",
+        "note": "who already holds a valid Australian visa"
+      }
+    ]
+  }
 }
 ```
 
-If there is only ONE person, do NOT include `accompanying_persons`.
+**IMPORTANT RULES for invitation_data:**
+- `host` = the person IN Australia who writes the invitation letter
+- `guest` = the applicant being invited (the visa applicant)
+- `relationship` = how the host refers to the guest (e.g., "younger brother", "mother", "friend")
+- `accompanying` = other people travelling with the guest (optional, can be empty array `[]`)
+- `visa_status` = host's current status in Australia (e.g., "living and working in Australia", "permanent resident of Australia")
+- `visa_note` = optional extra sentence about host's visa situation
+- If host info is incomplete (e.g., no income data), still include what you have — use `null` for missing fields
+- If NO family visit / NO host in Australia → do NOT include `invitation_data` at all (omit the key)
 

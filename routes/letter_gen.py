@@ -201,3 +201,137 @@ def letter_gen_build_group_docx():
     except Exception as exc:
         logger.exception("Group DOCX build failed")
         return jsonify({"error": f"Group DOCX build failed: {str(exc)}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Build Group Participant List PDF (direct download)
+# ---------------------------------------------------------------------------
+@letter_gen_bp.post("/api/letter-gen/build-group-pdf")
+def letter_gen_build_group_pdf():
+    """Build Group Tour Participant List as PDF and return for direct download."""
+    data = request.get_json(silent=True) or {}
+    participants = data.get("participants", [])
+    group_id = data.get("group_id", "")
+    group_label = data.get("group_label", "")
+
+    if not participants or len(participants) < 2:
+        return jsonify({"error": "Need at least 2 participants for group list"}), 400
+
+    try:
+        import io
+        import fitz  # PyMuPDF
+
+        doc = fitz.open()
+        page = doc.new_page(width=595, height=842)  # A4
+
+        # Title
+        title_rect = fitz.Rect(40, 40, 555, 70)
+        page.insert_textbox(
+            title_rect, "GROUP TOUR PARTICIPANT LIST",
+            fontsize=16, fontname="helv", align=fitz.TEXT_ALIGN_CENTER,
+            color=(0, 0, 0),
+        )
+
+        # Group ID line
+        id_text = f"GROUP ID: {group_id or '___________'}"
+        if group_label:
+            id_text += f" ({group_label})"
+        id_rect = fitz.Rect(40, 70, 555, 95)
+        page.insert_textbox(
+            id_rect, id_text,
+            fontsize=12, fontname="helv", align=fitz.TEXT_ALIGN_CENTER,
+            color=(0, 0, 0),
+        )
+
+        # Table
+        headers = ["No.", "Full Name", "Passport No.", "Date of Birth", "Sex", "Date of Expiry"]
+        col_x = [40, 75, 235, 340, 420, 475, 555]  # column boundaries
+        row_h = 22
+        table_y = 110
+
+        # Draw header row
+        for i, h in enumerate(headers):
+            rect = fitz.Rect(col_x[i], table_y, col_x[i + 1], table_y + row_h)
+            page.draw_rect(rect, color=(0, 0, 0), width=0.5)
+            shape = page.new_shape()
+            shape.draw_rect(rect)
+            shape.finish(fill=(0.9, 0.9, 0.9), color=None)
+            shape.commit()
+            page.draw_rect(rect, color=(0, 0, 0), width=0.5)
+            page.insert_textbox(
+                fitz.Rect(col_x[i] + 2, table_y + 2, col_x[i + 1] - 2, table_y + row_h - 2),
+                h, fontsize=9, fontname="helv", align=fitz.TEXT_ALIGN_CENTER,
+                color=(0, 0, 0),
+            )
+
+        # Draw data rows
+        for idx, p in enumerate(participants):
+            y = table_y + row_h * (idx + 1)
+            row_data = [
+                str(idx + 1),
+                p.get("full_name", ""),
+                p.get("passport_no", ""),
+                p.get("dob", ""),
+                p.get("sex", ""),
+                p.get("passport_expiry", ""),
+            ]
+            for i, val in enumerate(row_data):
+                rect = fitz.Rect(col_x[i], y, col_x[i + 1], y + row_h)
+                page.draw_rect(rect, color=(0, 0, 0), width=0.5)
+                align = fitz.TEXT_ALIGN_LEFT if i == 1 else fitz.TEXT_ALIGN_CENTER
+                page.insert_textbox(
+                    fitz.Rect(col_x[i] + 3, y + 3, col_x[i + 1] - 3, y + row_h - 3),
+                    val, fontsize=9, fontname="helv", align=align,
+                    color=(0, 0, 0),
+                )
+
+        # Save to buffer
+        buf = io.BytesIO()
+        doc.save(buf)
+        doc.close()
+        buf.seek(0)
+
+        safe_id = group_id.replace(" ", "_") if group_id else "DRAFT"
+        filename = f"Group_Participant_List_{safe_id}.pdf"
+
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/pdf",
+        )
+    except Exception as exc:
+        logger.exception("Group PDF build failed")
+        return jsonify({"error": f"Group PDF build failed: {str(exc)}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Build Invitation Letter DOCX
+# ---------------------------------------------------------------------------
+@letter_gen_bp.post("/api/letter-gen/build-invitation")
+def letter_gen_build_invitation():
+    """Build Invitation Letter DOCX and return for direct download."""
+    data = request.get_json(silent=True) or {}
+
+    host = data.get("host")
+    guest = data.get("guest")
+    if not host or not guest:
+        return jsonify({"error": "Missing host or guest data"}), 400
+
+    try:
+        from letter_gen.invitation_builder import build_invitation_letter_docx
+
+        file_stream = build_invitation_letter_docx(data)
+
+        guest_name = (guest.get("full_name") or "Guest").replace(" ", "_")
+        filename = f"Invitation_Letter_{guest_name}.docx"
+
+        return send_file(
+            file_stream,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    except Exception as exc:
+        logger.exception("Invitation letter build failed")
+        return jsonify({"error": f"Invitation letter build failed: {str(exc)}"}), 500

@@ -93,8 +93,16 @@ def australia_fill_54():
     # Output path
     AU_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    session_id = str(uuid.uuid4())[:8]
-    output_filename = f"Form54_filled_{session_id}.pdf"
+    # Build filename from applicant name
+    ap_family = (form_fields.get("ap_family_name") or "").strip()
+    ap_given = (form_fields.get("ap_given_name") or "").strip()
+    if ap_family or ap_given:
+        name_part = f"{ap_family}_{ap_given}".replace(" ", "_").upper()
+        # Remove any unsafe characters for filename
+        name_part = secure_filename(name_part) or str(uuid.uuid4())[:8]
+    else:
+        name_part = str(uuid.uuid4())[:8]
+    output_filename = f"Form54_filled_{name_part}.pdf"
     output_path = AU_OUTPUT_DIR / output_filename
 
     try:

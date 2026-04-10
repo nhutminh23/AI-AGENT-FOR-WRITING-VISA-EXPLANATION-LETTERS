@@ -137,6 +137,19 @@ def generate_letters(
         refusal_letter = _call_llm(llm, LETTER_GEN_SYSTEM, refusal_prompt)
         logger.info("Refusal letter generated: %d chars", len(refusal_letter))
 
+    # --- Auto-generate invitation letter (if invitation_data present) ---
+    has_invitation = False
+    invitation_data = profile.get("invitation_data")
+    if invitation_data and isinstance(invitation_data, dict):
+        host = invitation_data.get("host")
+        guest = invitation_data.get("guest")
+        if host and guest:
+            has_invitation = True
+            logger.info(
+                "Invitation data detected — host: %s, guest: %s",
+                host.get("full_name", "?"), guest.get("full_name", "?"),
+            )
+
     return {
         "explanation_letter": explanation_letter,
         "refusal_letter": refusal_letter,
@@ -144,4 +157,6 @@ def generate_letters(
         "applicant_name": applicant_name,
         "is_group": is_group,
         "group_participants": group_participants,
+        "has_invitation": has_invitation,
+        "invitation_data": invitation_data if has_invitation else None,
     }

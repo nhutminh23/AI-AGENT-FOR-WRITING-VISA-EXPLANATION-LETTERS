@@ -1,5 +1,5 @@
 // ==================== LETTER GEN V3 — Frontend Logic ====================
-// Workflow: Copy Prompt → Paste JSON → AI Generate → Download DOCX
+// Workflow: Copy Prompt → Paste JSON → Check Group → AI Generate → Download DOCX
 // With Group Application detection for ≥2 applicants
 
 // ---- State ----
@@ -8,6 +8,7 @@ let letterGenProfile = null;
 let letterGenResult = null;
 let letterGenAllProfiles = null;   // Keep original multi-profile data
 let letterGenGroupParticipants = null; // Detected group participants
+let letterGenParsedData = null;    // Parsed JSON for reuse
 
 // ---- Elements ----
 function getLetterGenEl(id) { return document.getElementById(id); }
@@ -62,7 +63,6 @@ function letterGenCopyPrompt() {
     status.innerHTML = '<span style="color:#16a34a;">✅ Đã copy prompt! Paste vào Grok cùng các file hồ sơ.</span>';
     setTimeout(() => { status.innerHTML = ''; }, 5000);
   }).catch(() => {
-    // Fallback for older browsers
     const ta = document.createElement('textarea');
     ta.value = display.textContent;
     document.body.appendChild(ta);
@@ -139,107 +139,12 @@ function _extractParticipant(person) {
   };
 }
 
-/**
- * Show group panel with participants table.
- */
-function letterGenShowGroupPanel(participants) {
-  const panel = getLetterGenEl('letterGenGroupPanel');
-  const info = getLetterGenEl('letterGenGroupInfo');
-  const tableDiv = getLetterGenEl('letterGenGroupTable');
-
-  if (!panel || participants.length < 2) {
-    if (panel) panel.style.display = 'none';
-    return;
-  }
-
-  info.innerHTML = `Phát hiện <strong>${participants.length}</strong> người trong hồ sơ. Nhập Group ID rồi bấm tạo thư.`;
-
-  // Build HTML table
-  let html = `<table style="width:100%; border-collapse:collapse; font-size:0.85em; background:#0f172a; border-radius:8px; overflow:hidden;">
-    <thead><tr style="background:#312e81; color:#c4b5fd;">
-      <th style="padding:6px 8px; text-align:center;">#</th>
-      <th style="padding:6px 8px; text-align:left;">Full Name</th>
-      <th style="padding:6px 8px; text-align:center;">Passport No.</th>
-      <th style="padding:6px 8px; text-align:center;">Date of Birth</th>
-      <th style="padding:6px 8px; text-align:center;">Sex</th>
-      <th style="padding:6px 8px; text-align:center;">Passport Expiry</th>
-    </tr></thead><tbody>`;
-
-  participants.forEach((p, i) => {
-    html += `<tr style="border-top:1px solid #334155;">
-      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${i + 1}</td>
-      <td style="padding:6px 8px; color:#e2e8f0; font-weight:600;">${p.full_name}</td>
-      <td style="padding:6px 8px; text-align:center; color:#e2e8f0;">${p.passport_no}</td>
-      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${p.dob}</td>
-      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${p.sex}</td>
-      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${p.passport_expiry}</td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  tableDiv.innerHTML = html;
-
-  panel.style.display = '';
-}
-
-function letterGenHideGroupPanel() {
-  const panel = getLetterGenEl('letterGenGroupPanel');
-  if (panel) panel.style.display = 'none';
-  letterGenGroupParticipants = null;
-}
-
-/**
- * Download Group Participant List as DOCX.
- */
-async function letterGenDownloadGroupDocx() {
-  if (!letterGenGroupParticipants || letterGenGroupParticipants.length < 2) return;
-
-  const groupId = (getLetterGenEl('letterGenGroupId')?.value || '').trim();
-  const statusEl = getLetterGenEl('letterGenGroupStatus');
-  statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang tạo DOCX...</span>';
-
-  try {
-    const res = await fetch('/api/letter-gen/build-group-docx', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        participants: letterGenGroupParticipants,
-        group_id: groupId,
-      }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${data.error || 'Lỗi server'}</span>`;
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const cd = res.headers.get('content-disposition');
-    let filename = 'Group_Participant_List.docx';
-    if (cd && cd.includes('filename=')) {
-      filename = cd.split('filename=')[1].replace(/["']/g, '');
-    }
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-
-    statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải Group List DOCX!</span>';
-    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
-  } catch(e) {
-    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
-  }
-}
-
-async function letterGenApplyJson() {
+// ==========================================
+// CHECK GROUP — new first step before generate
+// ==========================================
+function letterGenCheckGroup() {
   const input = getLetterGenEl('letterGenJsonInput');
   const status = getLetterGenEl('letterGenJsonStatus');
-  const additionalContext = getLetterGenEl('letterGenAdditionalContext')?.value || '';
 
   if (!input.value.trim()) {
     status.innerHTML = '<span style="color:#dc2626;">❌ Vui lòng paste JSON từ Grok.</span>';
@@ -255,19 +160,202 @@ async function letterGenApplyJson() {
     return;
   }
 
-  // Save original for group detection
+  // Save parsed data
+  letterGenParsedData = parsed;
   letterGenAllProfiles = parsed;
 
   // --- Group Detection ---
   letterGenGroupParticipants = letterGenDetectGroup(parsed);
+
   if (letterGenGroupParticipants.length >= 2) {
+    // Show group panel with editable table
     letterGenShowGroupPanel(letterGenGroupParticipants);
+    const noGroupPanel = getLetterGenEl('letterGenNoGroupPanel');
+    if (noGroupPanel) noGroupPanel.style.display = 'none';
+    status.innerHTML = `<span style="color:#16a34a;">✅ Phát hiện ${letterGenGroupParticipants.length} người — kiểm tra bảng Group bên dưới.</span>`;
   } else {
+    // No group
     letterGenHideGroupPanel();
+    const noGroupPanel = getLetterGenEl('letterGenNoGroupPanel');
+    if (noGroupPanel) noGroupPanel.style.display = '';
+    status.innerHTML = '<span style="color:#16a34a;">✅ JSON hợp lệ — 1 người, không cần Group.</span>';
+  }
+
+  // Show the generate panel
+  const genPanel = getLetterGenEl('letterGenGeneratePanel');
+  if (genPanel) genPanel.style.display = '';
+
+  // Show selected person info
+  _updateSelectedPersonInfo(parsed);
+}
+
+function _updateSelectedPersonInfo(parsed) {
+  const infoEl = getLetterGenEl('letterGenSelectedPerson');
+  if (!infoEl) return;
+
+  if (Array.isArray(parsed) && parsed.length > 1) {
+    const names = parsed.map((p, i) =>
+      `${i + 1}. ${p.applicant?.full_name || 'Applicant ' + (i + 1)}`
+    ).join(', ');
+    infoEl.innerHTML = `👥 Có ${parsed.length} người: ${names} — sẽ chọn khi bấm Tạo Thư`;
+  } else {
+    const name = Array.isArray(parsed)
+      ? parsed[0]?.applicant?.full_name
+      : parsed?.applicant?.full_name;
+    infoEl.innerHTML = name ? `👤 Tạo thư cho: <strong>${name}</strong>` : '';
+  }
+}
+
+/**
+ * Show group panel with EDITABLE participants table.
+ */
+function letterGenShowGroupPanel(participants) {
+  const panel = getLetterGenEl('letterGenGroupPanel');
+  const info = getLetterGenEl('letterGenGroupInfo');
+  const tableDiv = getLetterGenEl('letterGenGroupTable');
+
+  if (!panel || participants.length < 2) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+
+  info.innerHTML = `Phát hiện <strong>${participants.length}</strong> người trong hồ sơ. Kiểm tra & sửa thông tin nếu cần, nhập Group ID rồi xuất PDF.`;
+
+  // Build HTML table with EDITABLE cells (contenteditable)
+  let html = `<table id="letterGenGroupEditTable" style="width:100%; border-collapse:collapse; font-size:0.85em; background:#0f172a; border-radius:8px; overflow:hidden;">
+    <thead><tr style="background:#312e81; color:#c4b5fd;">
+      <th style="padding:6px 8px; text-align:center;">#</th>
+      <th style="padding:6px 8px; text-align:left;">Full Name</th>
+      <th style="padding:6px 8px; text-align:center;">Passport No.</th>
+      <th style="padding:6px 8px; text-align:center;">Date of Birth</th>
+      <th style="padding:6px 8px; text-align:center;">Sex</th>
+      <th style="padding:6px 8px; text-align:center;">Passport Expiry</th>
+    </tr></thead><tbody>`;
+
+  participants.forEach((p, i) => {
+    const missingStyle = 'background:#7f1d1d; color:#fca5a5; font-style:italic;';
+    const normalStyle = 'color:#e2e8f0;';
+    const editableAttr = 'contenteditable="true" style="padding:6px 8px; text-align:center; cursor:text; outline:none; min-width:60px;';
+
+    html += `<tr style="border-top:1px solid #334155;" data-idx="${i}">
+      <td style="padding:6px 8px; text-align:center; color:#94a3b8;">${i + 1}</td>
+      <td contenteditable="true" data-field="full_name" style="padding:6px 8px; color:#e2e8f0; font-weight:600; cursor:text; outline:none;">${p.full_name || '<em>— nhập tên —</em>'}</td>
+      <td contenteditable="true" data-field="passport_no" style="padding:6px 8px; text-align:center; cursor:text; outline:none; ${p.passport_no ? normalStyle : missingStyle}">${p.passport_no || '— nhập —'}</td>
+      <td contenteditable="true" data-field="dob" style="padding:6px 8px; text-align:center; cursor:text; outline:none; ${p.dob ? normalStyle : missingStyle}">${p.dob || '— nhập —'}</td>
+      <td contenteditable="true" data-field="sex" style="padding:6px 8px; text-align:center; cursor:text; outline:none; ${p.sex ? normalStyle : missingStyle}">${p.sex || '— nhập —'}</td>
+      <td contenteditable="true" data-field="passport_expiry" style="padding:6px 8px; text-align:center; cursor:text; outline:none; ${p.passport_expiry ? normalStyle : missingStyle}">${p.passport_expiry || '— nhập —'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  html += '<div style="margin-top:6px; font-size:0.8em; color:#94a3b8;">💡 Click vào ô để sửa trực tiếp. Ô <span style="color:#fca5a5;">đỏ</span> = thiếu dữ liệu.</div>';
+  tableDiv.innerHTML = html;
+
+  panel.style.display = '';
+}
+
+/**
+ * Read edited values from group table back into participants array.
+ */
+function _readGroupTableEdits() {
+  const table = document.getElementById('letterGenGroupEditTable');
+  if (!table) return;
+
+  const rows = table.querySelectorAll('tbody tr');
+  rows.forEach((row) => {
+    const idx = parseInt(row.dataset.idx);
+    if (isNaN(idx) || !letterGenGroupParticipants[idx]) return;
+
+    const cells = row.querySelectorAll('td[data-field]');
+    cells.forEach(cell => {
+      const field = cell.dataset.field;
+      let value = cell.textContent.trim();
+      // Clear placeholder text
+      if (value.startsWith('—') || value.startsWith('–')) value = '';
+      letterGenGroupParticipants[idx][field] = value;
+    });
+  });
+}
+
+function letterGenHideGroupPanel() {
+  const panel = getLetterGenEl('letterGenGroupPanel');
+  if (panel) panel.style.display = 'none';
+  letterGenGroupParticipants = null;
+}
+
+/**
+ * Export Group Participant List as PDF via backend API (direct download).
+ */
+async function letterGenExportGroupPdf() {
+  if (!letterGenGroupParticipants || letterGenGroupParticipants.length < 2) return;
+
+  // Read latest edits from table
+  _readGroupTableEdits();
+
+  const groupId = (getLetterGenEl('letterGenGroupId')?.value || '').trim();
+  const groupLabel = (getLetterGenEl('letterGenGroupLabel')?.value || '').trim();
+  const statusEl = getLetterGenEl('letterGenGroupStatus');
+  statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang tạo PDF...</span>';
+
+  try {
+    const res = await fetch('/api/letter-gen/build-group-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        participants: letterGenGroupParticipants,
+        group_id: groupId,
+        group_label: groupLabel,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${data.error || 'Lỗi server'}</span>`;
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const cd = res.headers.get('content-disposition');
+    let filename = 'Group_Participant_List.pdf';
+    if (cd && cd.includes('filename=')) {
+      filename = cd.split('filename=')[1].replace(/["']/g, '');
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải PDF Group List!</span>';
+    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  }
+}
+
+
+// ==========================================
+// GENERATE LETTER (now Step 2b, after group check)
+// ==========================================
+async function letterGenApplyJson() {
+  const status = getLetterGenEl('letterGenJsonStatus');
+  const additionalContext = getLetterGenEl('letterGenAdditionalContext')?.value || '';
+  let parsed = letterGenParsedData;
+
+  if (!parsed) {
+    status.innerHTML = '<span style="color:#dc2626;">❌ Vui lòng bấm "Kiểm Tra Group" trước.</span>';
+    return;
+  }
+
+  // Read latest group table edits
+  if (letterGenGroupParticipants && letterGenGroupParticipants.length >= 2) {
+    _readGroupTableEdits();
   }
 
   // --- Select single profile for letter generation ---
-  // Check if it's a dictionary of profiles (e.g. {"applicant_1": {...}, "applicant_2": {...}})
   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !parsed.applicant) {
     const values = Object.values(parsed);
     if (values.length > 0 && values[0] && typeof values[0] === 'object' && values[0].applicant) {
@@ -285,7 +373,7 @@ async function letterGenApplyJson() {
       letterGenProfile = parsed[0];
     } else {
       // Multiple applicants — show picker
-      const names = parsed.map((p, i) => 
+      const names = parsed.map((p, i) =>
         `${i + 1}. ${p.applicant?.full_name || 'Applicant ' + (i + 1)}`
       ).join('\n');
       const choice = prompt(
@@ -348,20 +436,33 @@ async function letterGenApplyJson() {
     getLetterGenEl('letterGenMainText').value = data.explanation_letter || '';
 
     const hasRefusal = data.has_refusal && data.refusal_letter;
+    const hasInvitation = data.has_invitation && data.invitation_data;
+
+    // Show/hide refusal
     if (hasRefusal) {
       getLetterGenEl('letterGenRefusalText').value = data.refusal_letter;
       getLetterGenEl('letterGenTabs').style.display = '';
       getLetterGenEl('letterGenDownloadRefusalBtn').style.display = '';
-      getLetterGenEl('letterGenResultInfo').innerHTML = 
-        `✅ Đã sinh <strong>2 thư</strong> cho <strong>${data.applicant_name}</strong>: Thư giải trình + Thư giải thích từ chối.` +
-        (data.is_group ? ` <span style="color:#c4b5fd;">👥 Group Application</span>` : '');
     } else {
       getLetterGenEl('letterGenTabs').style.display = 'none';
       getLetterGenEl('letterGenDownloadRefusalBtn').style.display = 'none';
-      getLetterGenEl('letterGenResultInfo').innerHTML = 
-        `✅ Đã sinh <strong>1 thư</strong> cho <strong>${data.applicant_name}</strong>: Thư giải trình.` +
-        (data.is_group ? ` <span style="color:#c4b5fd;">👥 Group Application</span>` : '');
     }
+
+    // Show/hide invitation button
+    const invBtn = getLetterGenEl('letterGenDownloadInvitationBtn');
+    if (invBtn) {
+      invBtn.style.display = hasInvitation ? '' : 'none';
+    }
+
+    // Build result info
+    let letterCount = 1;
+    let letterTypes = ['Thư giải trình'];
+    if (hasRefusal) { letterCount++; letterTypes.push('Thư giải thích từ chối'); }
+    if (hasInvitation) { letterCount++; letterTypes.push('Thư mời'); }
+    let infoHtml = `✅ Đã sinh <strong>${letterCount} thư</strong> cho <strong>${data.applicant_name}</strong>: ${letterTypes.join(' + ')}.`;
+    if (data.is_group) infoHtml += ` <span style="color:#c4b5fd;">👥 Group Application</span>`;
+    if (hasInvitation) infoHtml += ` <span style="color:#fbbf24;">✉️ Invitation Letter sẵn sàng</span>`;
+    getLetterGenEl('letterGenResultInfo').innerHTML = infoHtml;
 
     // Show tabs correctly
     letterGenShowMainTab();
@@ -424,24 +525,20 @@ async function letterGenDownloadDocx(type) {
       }),
     });
     if (!res.ok) {
-      // If error, it returns JSON
       const data = await res.json();
       status.innerHTML = `<span style="color:#dc2626;">❌ ${data.error || 'Server error'}</span>`;
       return;
     }
 
-    // Success -> it returns a Blob (DOCX file attachment)
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
-    
-    // Get filename from Content-Disposition if possible, fallback to custom
+
     const cd = res.headers.get('content-disposition');
     let filename = `${prefix}_${applicantName}.docx`;
     if (cd && cd.includes('filename=')) {
         filename = cd.split('filename=')[1].replace(/["']/g, '');
     }
 
-    // Trigger download via Blob URL (bypasses browser popup blockers completely)
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
@@ -451,7 +548,7 @@ async function letterGenDownloadDocx(type) {
     window.URL.revokeObjectURL(url);
 
     status.innerHTML = `<span style="color:#16a34a;">✅ Đã tải thành công (Không lưu rác trên hệ thống!)</span>`;
-    
+
     // Move to step 4
     letterGenSetStep(4);
   } catch(e) {
@@ -465,6 +562,7 @@ function letterGenStartOver() {
   letterGenResult = null;
   letterGenAllProfiles = null;
   letterGenGroupParticipants = null;
+  letterGenParsedData = null;
   getLetterGenEl('letterGenJsonInput').value = '';
   getLetterGenEl('letterGenAdditionalContext').value = '';
   getLetterGenEl('letterGenMainText').value = '';
@@ -478,6 +576,12 @@ function letterGenStartOver() {
   const groupLabelEl = getLetterGenEl('letterGenGroupLabel');
   if (groupLabelEl) groupLabelEl.value = '';
   letterGenHideGroupPanel();
+  const noGroupPanel = getLetterGenEl('letterGenNoGroupPanel');
+  if (noGroupPanel) noGroupPanel.style.display = 'none';
+  const genPanel = getLetterGenEl('letterGenGeneratePanel');
+  if (genPanel) genPanel.style.display = 'none';
+  const selectedEl = getLetterGenEl('letterGenSelectedPerson');
+  if (selectedEl) selectedEl.innerHTML = '';
   letterGenSetStep(1);
 }
 
@@ -493,16 +597,24 @@ function initLetterGen() {
   const goStep2Btn = getLetterGenEl('letterGenGoStep2Btn');
   if (goStep2Btn) goStep2Btn.addEventListener('click', () => letterGenSetStep(2));
 
-  // Step 2 buttons
+  // Step 2: Check Group button (new!)
+  const checkGroupBtn = getLetterGenEl('letterGenCheckGroupBtn');
+  if (checkGroupBtn) checkGroupBtn.addEventListener('click', letterGenCheckGroup);
+
+  // Step 2: Generate letter button
   const applyBtn = getLetterGenEl('letterGenApplyJsonBtn');
   if (applyBtn) applyBtn.addEventListener('click', letterGenApplyJson);
 
   const backStep1Btn = getLetterGenEl('letterGenBackStep1Btn');
   if (backStep1Btn) backStep1Btn.addEventListener('click', () => letterGenSetStep(1));
 
-  // Group DOCX download button
-  const groupDocxBtn = getLetterGenEl('letterGenDownloadGroupDocxBtn');
-  if (groupDocxBtn) groupDocxBtn.addEventListener('click', letterGenDownloadGroupDocx);
+  // Group PDF export button (replaces old DOCX download)
+  const groupPdfBtn = getLetterGenEl('letterGenExportGroupPdfBtn');
+  if (groupPdfBtn) groupPdfBtn.addEventListener('click', letterGenExportGroupPdf);
+
+  // Invitation letter auto-download (Step 3)
+  const invDlBtn = getLetterGenEl('letterGenDownloadInvitationBtn');
+  if (invDlBtn) invDlBtn.addEventListener('click', letterGenDownloadInvitation);
 
   // Step 3 tabs
   const tabMain = getLetterGenEl('letterGenTabMain');
@@ -529,10 +641,63 @@ function initLetterGen() {
   document.querySelectorAll('.letter-step').forEach(el => {
     el.addEventListener('click', () => {
       const s = parseInt(el.dataset.letterStep);
-      // Only allow going back, or forward if already visited
       if (s <= letterGenCurrentStep) {
         letterGenSetStep(s);
       }
     });
   });
+}
+
+// ==========================================
+// INVITATION LETTER — Auto-download from API
+// ==========================================
+
+/**
+ * Download invitation letter DOCX using invitation_data from the generate API response.
+ * Called when user clicks the "✉️ Tải DOCX — Thư Mời" button in Step 3.
+ */
+async function letterGenDownloadInvitation() {
+  const statusEl = getLetterGenEl('letterGenDownloadStatus');
+
+  if (!letterGenResult || !letterGenResult.invitation_data) {
+    statusEl.innerHTML = '<span style="color:#dc2626;">❌ Không có dữ liệu thư mời.</span>';
+    return;
+  }
+
+  statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang tạo Invitation Letter DOCX...</span>';
+
+  try {
+    const res = await fetch('/api/letter-gen/build-invitation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(letterGenResult.invitation_data),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${errData.error || 'Lỗi server'}</span>`;
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const cd = res.headers.get('content-disposition');
+    let filename = 'Invitation_Letter.docx';
+    if (cd && cd.includes('filename=')) {
+      filename = cd.split('filename=')[1].replace(/["']/g, '');
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải Invitation Letter DOCX!</span>';
+    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  }
 }

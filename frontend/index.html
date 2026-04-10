@@ -622,7 +622,14 @@
               <textarea id="letterGenAdditionalContext" rows="3" placeholder="VD: Nhấn mạnh tự túc tài chính, không ở lại nhà người thân qua đêm..." style="width:100%; margin-top:4px;"></textarea>
             </div>
 
-            <!-- Group Application Panel (auto-shown when ≥2 applicants detected) -->
+            <!-- Buttons: Check Group first, then Generate -->
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button id="letterGenCheckGroupBtn" style="background:#7c3aed; padding:10px 24px; font-size:14px; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600;">🔍 Kiểm Tra Group</button>
+              <button id="letterGenBackStep1Btn" style="background:#64748b; padding:10px 20px; font-size:14px;">← Quay lại</button>
+            </div>
+            <div id="letterGenJsonStatus" style="margin-top:8px; font-size:0.9em;"></div>
+
+            <!-- Group Application Panel (shown after Check Group) -->
             <div id="letterGenGroupPanel" style="display:none; margin-top:16px; background:#1e1b4b; border:2px solid #7c3aed; border-radius:12px; padding:16px;">
               <h3 style="margin:0 0 8px 0; color:#c4b5fd;">👥 Group Application Detected</h3>
               <div id="letterGenGroupInfo" style="font-size:0.9em; color:#e2e8f0; margin-bottom:12px;"></div>
@@ -637,17 +644,26 @@
                   <input id="letterGenGroupLabel" type="text" placeholder="VD: Ha Family, Nguyen Group" style="width:100%; margin-top:4px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:8px;" />
                 </div>
               </div>
-              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-                <button id="letterGenDownloadGroupDocxBtn" type="button" style="background:#7c3aed; padding:8px 18px; font-size:13px; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">📥 Tải DOCX — Group List</button>
+              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <button id="letterGenExportGroupPdfBtn" type="button" style="background:#0ea5e9; padding:8px 18px; font-size:13px; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">📄 Xuất PDF — Group List</button>
                 <div id="letterGenGroupStatus" style="font-size:0.85em; display:flex; align-items:center;"></div>
               </div>
             </div>
 
-            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-              <button id="letterGenApplyJsonBtn" style="background:#16a34a; padding:10px 24px; font-size:14px;">🚀 Tạo Thư Giải Trình</button>
-              <button id="letterGenBackStep1Btn" style="background:#64748b; padding:10px 20px; font-size:14px;">← Quay lại</button>
+            <!-- No group message (shown when only 1 person) -->
+            <div id="letterGenNoGroupPanel" style="display:none; margin-top:16px; background:#1e3a5f; border:1px solid #334155; border-radius:12px; padding:16px;">
+              <p style="color:#93c5fd; margin:0;">👤 Chỉ phát hiện <strong>1 người</strong> — không cần tạo Group List.</p>
             </div>
-            <div id="letterGenJsonStatus" style="margin-top:8px; font-size:0.9em;"></div>
+
+            <!-- Generate letter button (shown AFTER group check) -->
+            <div id="letterGenGeneratePanel" style="display:none; margin-top:16px; border-top:1px solid #334155; padding-top:16px;">
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <button id="letterGenApplyJsonBtn" style="background:#16a34a; padding:10px 24px; font-size:14px;">🚀 Tạo Thư Giải Trình</button>
+                <span id="letterGenSelectedPerson" style="color:#c4b5fd; font-size:0.9em;"></span>
+              </div>
+            </div>
+
+
           </section>
         </div>
 
@@ -678,6 +694,7 @@
             <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
               <button id="letterGenDownloadMainBtn" style="background:#16a34a; padding:10px 24px; font-size:14px;">📥 Tải DOCX — Thư Giải Trình</button>
               <button id="letterGenDownloadRefusalBtn" style="background:#0ea5e9; padding:10px 20px; font-size:14px; display:none;">📥 Tải DOCX — Thư Từ Chối</button>
+              <button id="letterGenDownloadInvitationBtn" style="background:#f59e0b; padding:10px 20px; font-size:14px; color:#000; border:none; border-radius:8px; cursor:pointer; font-weight:600; display:none;">✉️ Tải DOCX — Thư Mời</button>
               <button id="letterGenBackStep2Btn" style="background:#64748b; padding:10px 20px; font-size:14px;">← Sửa JSON</button>
               <button id="letterGenStartOverBtn" style="background:#dc2626; padding:10px 20px; font-size:14px;">🔄 Làm lại</button>
             </div>
