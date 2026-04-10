@@ -47,6 +47,7 @@ def precheck_scan():
 
     llm = ChatOpenAI(model=model, temperature=0)
 
+    import re
     # Collect files grouped by person subfolder (RECURSIVE with os.walk)
     folders_data = {}
     for item in sorted(os.listdir(input_dir)):
@@ -55,11 +56,22 @@ def precheck_scan():
             continue
         if item.startswith('.') or item.startswith('_'):
             continue
-        person_normalized = normalize_vietnamese_name(item)
+            
+        clean_item = re.sub(r'_[a-zA-Z0-9\-_]{20,}$', '', item)
+        person_normalized = normalize_vietnamese_name(clean_item)
         files_in_folder = []
         # Walk recursively into all subfolders
         for root, _dirs, filenames in os.walk(folder_path):
+            current_folder_name = os.path.basename(root)
+            if current_folder_name == item:
+                file_person_name = person_normalized
+            else:
+                display_name = re.sub(r'(?i)^(HỒ SƠ( CỦA)?|HOSO|HO SO)\s+', '', current_folder_name).strip()
+                file_person_name = normalize_vietnamese_name(display_name)
+                
             for fname in sorted(filenames):
+                if fname.startswith('.') or fname.startswith('_'):
+                    continue
                 fpath = os.path.join(root, fname)
                 if not os.path.isfile(fpath):
                     continue
@@ -72,6 +84,7 @@ def precheck_scan():
                     "rel_path": rel_path,
                     "sub_path": sub_path,
                     "ext": ext,
+                    "person_name": file_person_name,
                 })
         if files_in_folder:
             folders_data[item] = {
@@ -83,6 +96,8 @@ def precheck_scan():
     # Also collect files in root (not in any subfolder)
     root_files = []
     for fname in sorted(os.listdir(input_dir)):
+        if fname.startswith('.') or fname.startswith('_'):
+            continue
         fpath = os.path.join(input_dir, fname)
         if os.path.isfile(fpath):
             ext = os.path.splitext(fname)[1].lower()
@@ -92,6 +107,7 @@ def precheck_scan():
                 "rel_path": fname,
                 "sub_path": fname,
                 "ext": ext,
+                "person_name": "UNKNOWN",
             })
     if root_files:
         folders_data["__ROOT__"] = {
@@ -113,7 +129,8 @@ def precheck_scan():
     all_tasks = []
     for folder_key, folder_data in folders_data.items():
         for file_info in folder_data["files"]:
-            all_tasks.append((file_info, folder_data["person_name"], folder_key))
+            file_person_name = file_info.get("person_name", folder_data["person_name"])
+            all_tasks.append((file_info, file_person_name, folder_key))
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         future_map = {}

@@ -436,6 +436,7 @@ window.addEventListener("load", async () => {
   setBookingMode("hotel");
   syncCombinedPreviews();
   await loadOutputHistory();
+  checkDriveFolderStatus();  // Show Push-to-Drive button if Drive folders exist
 });
 
 
@@ -457,6 +458,10 @@ if (applyRenameBtn) {
 const sendMultiToSplitterBtn = document.getElementById("sendMultiToSplitterBtn");
 if (sendMultiToSplitterBtn) {
   sendMultiToSplitterBtn.addEventListener("click", sendMultiToSplitter);
+}
+const pushToDriveBtn = document.getElementById("pushToDriveBtn");
+if (pushToDriveBtn) {
+  pushToDriveBtn.addEventListener("click", pushToDrive);
 }
 
 // Restore last classifier result on page load

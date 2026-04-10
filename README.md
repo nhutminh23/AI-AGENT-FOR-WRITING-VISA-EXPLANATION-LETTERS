@@ -20,9 +20,14 @@ pip install -r requirements.txt
 
 # 3. Cấu hình
 copy .env.example .env
-# Mở .env và điền OPENAI_API_KEY
+# Mở .env và điền các api keys (OPENAI_API_KEY, v.v)
 
-# 4. Chạy server
+# 4. Cấp quyền Google Drive (Quan trọng cho Tính năng Đồng bộ)
+# Tải file client_secret.json (Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs (Desktop))
+# Bỏ file client_secret.json vào thư mục gốc của project ngang hàng với server.py. Lần đầu tiện chạy, hệ thống sẽ mở trình duyệt để xin quyền truy cập Drive và sinh ra file token.json.
+# Hãy lưu ý không bao giờ push client_secret.json và token.json lên github.
+
+# 5. Chạy server
 python server.py
 ```
 
@@ -40,6 +45,7 @@ Mở trình duyệt: **http://127.0.0.1:8000**
 | `GEMINI_API_KEY`      | API key Google Gemini (fallback khi OpenAI hết quota) | ❌   |
 | `GEMINI_MODEL`        | Model Gemini (mặc định: `gemini-1.5-flash`)      | ❌       |
 | `SERPAPI_KEY`         | API key SerpAPI cho tìm chuyến bay               | ❌       |
+| `GOOGLE_CREDENTIALS_PATH` | Đường dẫn tới file Google Credentials (mặc định: `client_secret.json`) | ❌ |
 
 > **Lưu ý:** `TEXT_MODEL` và `VISION_MODEL` vẫn được hỗ trợ như alias tương thích ngược, nhưng nên ưu tiên `OPENAI_MODEL` và `OPENAI_VISION_MODEL`.
 > Tất cả config được quản lý tập trung qua `config.py` → class `Config`. Không cần gọi `os.getenv()` trực tiếp trong code.

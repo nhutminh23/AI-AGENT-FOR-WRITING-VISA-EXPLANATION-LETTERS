@@ -18,6 +18,7 @@ def register_blueprints(app: Flask) -> None:
     from routes.splitter_translate import splitter_translate_bp
     from routes.precheck import precheck_bp
     from routes.precheck_processor import precheck_processor_bp
+    from routes.push_to_drive import push_to_drive_bp
     from routes.pipeline import pipeline_bp
     from routes.pipeline_classifier import pipeline_classifier_bp
     from routes.pipeline_scan import pipeline_scan_bp
@@ -37,6 +38,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(splitter_translate_bp)
     app.register_blueprint(precheck_bp)
     app.register_blueprint(precheck_processor_bp)
+    app.register_blueprint(push_to_drive_bp)
     app.register_blueprint(pipeline_bp)
     app.register_blueprint(pipeline_classifier_bp)
     app.register_blueprint(pipeline_scan_bp)

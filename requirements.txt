@@ -17,3 +17,5 @@ xhtml2pdf
 reportlab
 tiktoken
 flask-cors
+google-api-python-client
+google-auth

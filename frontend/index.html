@@ -66,6 +66,7 @@
           <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
             <button id="applyRenameBtn" style="background:#16a34a;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;display:none;">✅ Áp dụng đổi tên tất cả</button>
             <button id="sendMultiToSplitterBtn" style="background:#dc2626;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;display:none;">⚠️ Gửi file ghép → Tab ① Tách PDF (AI)</button>
+            <button id="pushToDriveBtn" style="background:#4f46e5;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;display:none;" title="Upload file đã xử lý lên lại Google Drive folder gốc">📤 Gửi lên Drive</button>
           </div>
           <div id="renameProgress" style="margin-top:10px; display:none;">
             <div style="display:flex; align-items:center; gap:8px;">
@@ -1277,6 +1278,7 @@ Ví dụ:
     <script src="js/ui-helpers.js"></script>
     <script src="js/projects.js"></script>
     <script src="js/precheck.js"></script>
+    <script src="js/push-to-drive.js"></script>
     <script src="js/manual-split.js"></script>
     <script src="js/scan-splitter.js"></script>
     <script src="js/pdf-tools.js"></script>

@@ -1,0 +1,164 @@
+{
+  "_description": "Bộ luật kiểm duyệt hồ sơ visa. Anh có thể mở file này và thêm từ lóng mới vào mảng aliases bất cứ lúc nào.",
+
+  "categories": {
+    "form_khai": {
+      "label": "Form Khai",
+      "aliases": [
+        "form", "khai", "to khai", "tokhai", "declaration",
+        "application form", "don", "form khai", "mau don",
+        "visa application form", "visa application",
+        "noi dung ho so", "noi dung thong tin",
+        "form thong tin", "thong tin visa"
+      ],
+      "extensions": [".docx", ".doc", ".pdf"],
+      "note": "File docx hoặc PDF chứa nội dung kê khai thông tin cá nhân"
+    },
+    "passport": {
+      "label": "Hộ Chiếu (Passport)",
+      "aliases": [
+        "passport", "ho chieu", "hochieu", "hc", "pp",
+        "pass port", "ho_chieu", "passports"
+      ],
+      "extensions": [".pdf", ".jpg", ".jpeg", ".png"],
+      "note": "Scan hoặc ảnh chụp hộ chiếu"
+    },
+    "id_card": {
+      "label": "CCCD / CMND",
+      "aliases": [
+        "cccd", "cmnd", "can cuoc", "cancuoc", "id card", "id",
+        "can cuoc cong dan", "chung minh", "chung minh nhan dan",
+        "cmtnd", "identity", "national id", "giay cmnd",
+        "mat truoc", "mat sau",
+        "citizen identity card", "citizen identity",
+        "citizen card", "identity card"
+      ],
+      "extensions": [".pdf", ".jpg", ".jpeg", ".png"],
+      "note": "Căn cước công dân hoặc chứng minh nhân dân"
+    },
+    "financial": {
+      "label": "Giấy tờ Tài chính",
+      "aliases": [
+        "land", "so do", "sổ đỏ", "so dat", "sổ đất",
+        "tai chinh", "tài chính", "bank", "ngan hang", "ngân hàng",
+        "sao ke", "sao kê", "tiet kiem", "tiết kiệm",
+        "so tiet kiem", "sổ tiết kiệm",
+        "giay to nha dat", "nha dat", "nhà đất",
+        "bds", "bat dong san", "bất động sản",
+        "bia hong", "bìa hồng", "giay chu quyen", "giấy chủ quyền",
+        "financial", "bank statement", "savings",
+        "xac nhan so du", "xác nhận số dư",
+        "giay xac nhan", "chung nhan",
+        "ho khau", "hộ khẩu", "so ho khau", "sổ hộ khẩu",
+        "savings passbook", "account statement",
+        "tax certificate", "tax", "thue",
+        "business registration", "business registration certificate",
+        "gpkd", "giay phep kinh doanh",
+        "withdrawal slip", "withdrawal",
+        "confirmation document", "bien lai",
+        "household registration",
+        "birth certificate", "khai sinh", "giay khai sinh",
+        "marriage certificate", "dang ky ket hon", "dkkh",
+        "unemployment assistance", "tro cap that nghiep",
+        "service contract"
+      ],
+      "extensions": [".pdf", ".jpg", ".jpeg", ".png", ".docx"],
+      "note": "Sổ đỏ, sổ tiết kiệm, sao kê ngân hàng, giấy chứng nhận BĐS, hộ khẩu, giấy khai sinh, giấy kết hôn, thuế, GPKD..."
+    },
+    "portrait_photo": {
+      "label": "Ảnh thẻ chân dung",
+      "aliases": [
+        "anh", "ảnh", "anh the", "ảnh thẻ", "photo", "pic",
+        "chan dung", "chân dung", "portrait", "headshot",
+        "anh 4x6", "anh 3x4", "anh visa", "anh ho chieu",
+        "id photo", "hinh", "hình", "hinh the", "hình thẻ"
+      ],
+      "extensions": [".jpg", ".jpeg", ".png", ".pdf"],
+      "note": "Ảnh thẻ dùng cho visa Canada (bắt buộc)"
+    },
+    "employment_contract": {
+      "label": "Hợp đồng Lao động",
+      "aliases": [
+        "hop dong", "hợp đồng", "hdld", "hđlđ",
+        "hop dong lao dong", "hợp đồng lao động",
+        "lao dong", "labour contract", "labor contract",
+        "employment contract", "work contract",
+        "hop dong lam viec", "hợp đồng làm việc",
+        "nhiem vu", "nhiệm vụ", "quyet dinh", "quyết định",
+        "contract",
+        "car parking agreement", "car parking contract",
+        "parking agreement"
+      ],
+      "extensions": [".pdf", ".jpg", ".jpeg", ".png", ".docx"],
+      "note": "Hợp đồng lao động hay giấy tờ công việc"
+    },
+    "leave_request": {
+      "label": "Đơn Xin Nghỉ Phép",
+      "aliases": [
+        "nghi phep", "nghỉ phép", "don xin", "đơn xin",
+        "xin nghi", "xin nghỉ", "leave", "leave request",
+        "don nghi phep", "đơn nghỉ phép",
+        "giay xin phep", "giấy xin phép",
+        "annual leave", "don xin nghi", "đơn xin nghỉ",
+        "phep nam", "phép năm"
+      ],
+      "extensions": [".pdf", ".jpg", ".jpeg", ".png", ".docx"],
+      "note": "Đơn xin nghỉ phép - BẮT BUỘC nếu có hợp đồng lao động"
+    }
+  },
+
+  "country_rules": {
+    "UC": {
+      "label": "Úc (Australia)",
+      "aliases": ["uc", "úc", "aus", "australia", "aust"],
+      "required_categories": ["form_khai", "passport", "id_card", "financial"],
+      "note": "Bắt buộc 4 loại giấy tờ cơ bản"
+    },
+    "CANADA": {
+      "label": "Canada",
+      "aliases": ["canada", "can", "ca"],
+      "required_categories": ["form_khai", "passport", "id_card", "financial", "portrait_photo"],
+      "note": "Giống Úc + thêm Ảnh thẻ chân dung bắt buộc"
+    },
+    "MY": {
+      "label": "Mỹ (US)",
+      "aliases": ["my", "mỹ", "us", "usa", "america", "hoa ky", "hoa kỳ"],
+      "required_categories": [],
+      "note": "Tạm thời bỏ qua validation (Skip)"
+    }
+  },
+
+  "conditional_rules": [
+    {
+      "if_present": "employment_contract",
+      "then_require": "leave_request",
+      "error_message": "Có Hợp đồng LĐ nhưng THIẾU Đơn Xin Nghỉ Phép"
+    }
+  ],
+
+  "compound_documents": {
+    "_description": "File tổng hợp chứa nhiều loại giấy tờ. Khi bot thấy file có tên khớp aliases, sẽ tự động tính là đã có các categories liệt kê.",
+    "rules": [
+      {
+        "aliases": ["hso ca nhan", "ho so ca nhan", "ho so cá nhân", "hồ sơ cá nhân", "hs ca nhan"],
+        "satisfies": ["passport", "id_card", "financial"],
+        "note": "Hồ sơ cá nhân tổng hợp (chứa passport + CCCD + tài chính)"
+      },
+      {
+        "aliases": ["ho so", "hồ sơ", "ho so bac", "hồ sơ bác", "ho so co", "hồ sơ cô", "ho so chu", "hồ sơ chú"],
+        "satisfies": ["passport", "id_card", "financial"],
+        "note": "Hồ sơ tổng hợp của 1 người"
+      }
+    ]
+  },
+
+  "drive_colors": {
+    "error": "#DB4437",
+    "success": "#0F9D58",
+    "processing": "#F4B400",
+    "default": null
+  },
+
+  "polling_interval_seconds": 10,
+  "root_folder_name": "HỒ SƠ VISA 2026"
+}

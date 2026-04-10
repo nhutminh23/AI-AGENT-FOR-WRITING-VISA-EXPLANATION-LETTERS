@@ -2,6 +2,10 @@
 .env
 *.key
 *.pem
+credentials.json
+client_secret.json
+token.json
+sync/_state.json
 
 # ===== Python =====
 __pycache__/

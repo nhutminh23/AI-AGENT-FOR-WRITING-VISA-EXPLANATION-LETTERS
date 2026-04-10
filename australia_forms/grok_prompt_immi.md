@@ -32,7 +32,7 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
     "purpose_stream": "29",
     "initial_purpose": "2",
     "visit_reason": "1",
-    "significant_dates": "THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM 15 MARCH 2026 TO 25 MARCH 2026. HOWEVER, THIS SCHEDULE IS SUBJECT TO CHANGE BASED ON THE DATE OF VISA GRANT.",
+    "significant_dates": "[Grok tự động chèn ngày và chọn 1 trong 4 câu chuẩn bên dưới tùy hồ sơ]",
     "group_processing": "2",
     "special_category": "2"
   },
@@ -231,6 +231,11 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
 ### Page 2 — Application context (Trang 2/20)
 - `purpose_stream`: `"29"` = Tourist, `"30"` = Business, `"61"` = Frequent Traveller
 - `visit_reason`: `"1"` = Holiday, `"3"` = Tourism, `"4"` = Family visit, `"2"` = Business
+- `significant_dates`: **ĐIỀN TEXT IN HOA**. Tìm ngày dự định bay trong lịch trình/booking và dùng 1 trong 4 câu chuẩn sau đây tùy theo chức nghiệp và mục đích chuyến đi:
+  - Nếu đi Tự túc mà có Khai Công việc / Hợp đồng lđ: `"THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM [NGÀY ĐI] TO [NGÀY VỀ]. THESE DATES HAVE BEEN SPECIFICALLY CHOSEN TO ALIGN WITH THEIR APPROVED ANNUAL LEAVE FROM THEIR EMPLOYER IN VIETNAM."`
+  - Nếu có thăm thân nhân (Family visit): `"THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM [NGÀY ĐI] TO [NGÀY VỀ] TO SPEND QUALITY TIME WITH THEIR RELATIVES AND EXPERIENCE THE LOCAL CULTURE, BEFORE RETURNING TO VIETNAM AS PLANNED."`
+  - Nếu khách Tự do / Nội trợ / Kinh doanh riêng: `"THE APPLICANT INTENDS TO VISIT AUSTRALIA FOR A SHORT HOLIDAY COMMENCING FROM [NGÀY ĐI] UNTIL [NGÀY VỀ]. THIS TIMEFRAME DIRECTLY ALIGNS WITH THEIR PRE-BOOKED ROUND-TRIP FLIGHT TICKETS AND ACCOMMODATION ARRANGEMENTS."`
+  - Nếu không rõ ràng (Mặc định): `"THE APPLICANT CONFIRMS THEIR INTENTION TO VISIT AUSTRALIA FROM [NGÀY ĐI] TO [NGÀY VỀ] FOR TOURISM PURPOSES, AND FULLY INTENDS TO DEPART AUSTRALIA ON OR BEFORE THE PLANNED RETURN DATE."`
 - `legal_status`: `"1"` = Citizen, `"2"` = Permanent resident
 - `group_processing`: `"1"` = Yes, `"2"` = No
 - `special_category`: `"1"` = Yes, `"2"` = No

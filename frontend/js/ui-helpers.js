@@ -125,6 +125,9 @@ async function applyRename() {
     applyBtn.style.background = "#6b7280";
     applyBtn.disabled = true;
 
+    // Re-check Drive folder status → show Push to Drive button if applicable
+    checkDriveFolderStatus();
+
   } catch (e) {
     renameStatus.textContent = `Lỗi: ${e.message}`;
   }

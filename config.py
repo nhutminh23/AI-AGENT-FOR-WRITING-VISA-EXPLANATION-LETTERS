@@ -61,3 +61,9 @@ class Config:
     # --- OCR ---
     OCR_DPI = 250
     OCR_MAX_WORKERS = 4
+
+    # --- Google Drive Sync (Traffic Light) ---
+    GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
+    DRIVE_ROOT_FOLDER = os.getenv("DRIVE_ROOT_FOLDER", "HỒ SƠ VISA 2026")
+    DRIVE_POLL_INTERVAL = int(os.getenv("DRIVE_POLL_INTERVAL", "10"))
+    DRIVE_LOCAL_INPUT = os.path.join(os.path.dirname(__file__), "input")
