@@ -673,10 +673,11 @@
             <h2>✍️ Kết quả thư giải trình</h2>
             <div id="letterGenResultInfo" class="hint" style="margin-bottom:10px;"></div>
 
-            <!-- Letter tabs (visible when 2 letters) -->
+            <!-- Letter tabs (visible when 2+ letters) -->
             <div id="letterGenTabs" style="display:none; margin-bottom:12px;">
               <button id="letterGenTabMain" class="letter-tab-btn active" style="padding:8px 16px; background:#4f46e5; color:#fff; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:600;">📄 Thư Giải Trình</button>
               <button id="letterGenTabRefusal" class="letter-tab-btn" style="padding:8px 16px; background:#334155; color:#94a3b8; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:600;">📄 Giải Thích Từ Chối</button>
+              <button id="letterGenTabInvitation" class="letter-tab-btn" style="padding:8px 16px; background:#334155; color:#94a3b8; border:none; border-radius:6px 6px 0 0; cursor:pointer; font-weight:600; display:none;">✉️ Thư Mời</button>
             </div>
 
             <!-- Main letter textarea -->
@@ -689,6 +690,12 @@
             <div id="letterGenRefusalPanel" style="display:none;">
               <label style="font-weight:600; display:block; margin-bottom:4px;">Explanation of Previous Visa Refusals</label>
               <textarea id="letterGenRefusalText" rows="20" style="width:100%; font-family:'Times New Roman', serif; font-size:0.95em; line-height:1.6; padding:16px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#e2e8f0;"></textarea>
+            </div>
+
+            <!-- Invitation letter textarea (hidden by default) -->
+            <div id="letterGenInvitationPanel" style="display:none;">
+              <label style="font-weight:600; display:block; margin-bottom:4px;">Invitation Letter for Australian Visa Application</label>
+              <textarea id="letterGenInvitationText" rows="25" style="width:100%; font-family:'Times New Roman', serif; font-size:0.95em; line-height:1.6; padding:16px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#e2e8f0;"></textarea>
             </div>
 
             <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">

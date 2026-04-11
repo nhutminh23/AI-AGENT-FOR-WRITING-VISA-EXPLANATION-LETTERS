@@ -64,9 +64,15 @@ def build_invitation_letter_docx(data: Dict[str, Any]) -> io.BytesIO:
     style.paragraph_format.line_spacing = 1.15
 
     host = data.get("host", {})
-    guest = data.get("guest", {})
     trip = data.get("trip", {})
     accompanying = data.get("accompanying", [])
+
+    # Normalize: support both "guests" (array) and legacy "guest" (single)
+    guests = data.get("guests")
+    if not guests and data.get("guest"):
+        guests = [data["guest"]]
+    if not guests:
+        guests = []
 
     # ============================================================
     # TITLE
@@ -120,19 +126,34 @@ def build_invitation_letter_docx(data: Dict[str, Any]) -> io.BytesIO:
         doc.add_paragraph(visa_note)
 
     # ============================================================
-    # GUEST INFO — "I am writing to invite..."
+    # GUEST(S) INFO — "I am writing to invite..."
     # ============================================================
-    relationship = _sanitize(guest.get("relationship"), "relative")
-    guest_name = _sanitize(guest.get("full_name"))
-    guest_dob = _sanitize(guest.get("dob"))
-    guest_passport = _sanitize(guest.get("passport_no"))
+    multi = len(guests) > 1
 
-    invite_para = doc.add_paragraph()
-    invite_para.add_run(f"I am writing to invite my {relationship}: ")
-    run_name = invite_para.add_run(guest_name)
-    run_name.bold = False
-    invite_para.add_run(f"\nDate of Birth: {guest_dob}")
-    invite_para.add_run(f"\nPassport Number: {guest_passport}")
+    if multi:
+        # Multi-guest: "I am writing to invite the following persons:"
+        rel_list = ", ".join(
+            f"my {_sanitize(g.get('relationship'), 'relative')}" for g in guests
+        )
+        doc.add_paragraph(f"I am writing to invite {rel_list}:")
+        for g in guests:
+            p = doc.add_paragraph()
+            p.add_run(f"• {_sanitize(g.get('full_name'))}").bold = False
+            p.add_run(f"\n  Date of Birth: {_sanitize(g.get('dob'))}")
+            p.add_run(f"\n  Passport Number: {_sanitize(g.get('passport_no'))}")
+            rel = _sanitize(g.get("relationship"), "")
+            if rel:
+                p.add_run(f"\n  Relationship: {rel}")
+    else:
+        # Single guest (original format)
+        guest = guests[0] if guests else {}
+        relationship = _sanitize(guest.get("relationship"), "relative")
+        invite_para = doc.add_paragraph()
+        invite_para.add_run(f"I am writing to invite my {relationship}: ")
+        run_name = invite_para.add_run(_sanitize(guest.get("full_name")))
+        run_name.bold = False
+        invite_para.add_run(f"\nDate of Birth: {_sanitize(guest.get('dob'))}")
+        invite_para.add_run(f"\nPassport Number: {_sanitize(guest.get('passport_no'))}")
 
     # ============================================================
     # TRIP DETAILS
@@ -169,8 +190,9 @@ def build_invitation_letter_docx(data: Dict[str, Any]) -> io.BytesIO:
         else:
             acc_text = ", ".join(parts[:-1]) + f" and {parts[-1]}"
 
+        subj = "they" if multi else f"my {_sanitize(guests[0].get('relationship'), 'relative')}"
         doc.add_paragraph(
-            f"During this trip, my {relationship} will be accompanied by {acc_text}."
+            f"During this trip, {subj} will be accompanied by {acc_text}."
         )
 
     # ============================================================
@@ -178,11 +200,23 @@ def build_invitation_letter_docx(data: Dict[str, Any]) -> io.BytesIO:
     # ============================================================
     doc.add_paragraph("I hereby confirm that:")
 
+    if multi:
+        # Gender-neutral for group
+        them, their, they = "them", "their", "they"
+        guests_label = "my guests"
+    else:
+        g = guests[0] if guests else {}
+        gender = _guess_gender(g)
+        them = "him" if gender == "M" else "her"
+        their = "his" if gender == "M" else "her"
+        they = "he" if gender == "M" else "she"
+        guests_label = f"my {_sanitize(g.get('relationship'), 'relative')}"
+
     default_commitments = [
-        f"I will cover all travel expenses for my {relationship}, including airfare, accommodation, living expenses, and any other related costs.",
-        f"I will provide accommodation for {'him' if _guess_gender(guest) == 'M' else 'her'} at my residence throughout {'his' if _guess_gender(guest) == 'M' else 'her'} stay in Australia.",
-        f"I will take full financial responsibility and provide support for {'him' if _guess_gender(guest) == 'M' else 'her'} during the entire visit.",
-        f"I will ensure that {'he' if _guess_gender(guest) == 'M' else 'she'} complies with all Australian laws and visa conditions and leaves Australia before {'his' if _guess_gender(guest) == 'M' else 'her'} visa expires.",
+        f"I will cover all travel expenses for {guests_label}, including airfare, accommodation, living expenses, and any other related costs.",
+        f"I will provide accommodation for {them} at my residence throughout {their} stay in Australia.",
+        f"I will take full financial responsibility and provide support for {them} during the entire visit.",
+        f"I will ensure that {they} comply with all Australian laws and visa conditions and leave Australia before {their} visa expires." if multi else f"I will ensure that {they} complies with all Australian laws and visa conditions and leaves Australia before {their} visa expires.",
     ]
 
     commitments = data.get("financial_commitments") or default_commitments
@@ -198,8 +232,10 @@ def build_invitation_letter_docx(data: Dict[str, Any]) -> io.BytesIO:
         "with no intention to overstay or engage in any unlawful employment."
     )
 
+    visa_word = "visas" if multi else "a visa"
+    guests_word = f"{guests_label}" if not multi else "my guests"
     doc.add_paragraph(
-        f"I kindly request the Consulate to consider and grant a visa for my {relationship}."
+        f"I kindly request the Consulate to consider and grant {visa_word} for {guests_word}."
     )
 
     doc.add_paragraph("Thank you for your time and consideration.")
@@ -243,3 +279,146 @@ def _guess_gender(guest: Dict[str, Any]) -> str:
         if ind in name:
             return "F"
     return "M"  # default
+
+
+def render_invitation_letter_text(data: Dict[str, Any]) -> str:
+    """
+    Render the invitation letter as plain text for UI preview / editing.
+    Uses the same structure as build_invitation_letter_docx but outputs string.
+    """
+    host = data.get("host", {})
+    trip = data.get("trip", {})
+    accompanying = data.get("accompanying", [])
+
+    # Normalize: support both "guests" (array) and legacy "guest" (single)
+    guests = data.get("guests")
+    if not guests and data.get("guest"):
+        guests = [data["guest"]]
+    if not guests:
+        guests = []
+
+    multi = len(guests) > 1
+
+    # Pronouns
+    if multi:
+        them, their, they = "them", "their", "they"
+        guests_label = "my guests"
+    else:
+        g = guests[0] if guests else {}
+        gender = _guess_gender(g)
+        them = "him" if gender == "M" else "her"
+        their = "his" if gender == "M" else "her"
+        they = "he" if gender == "M" else "she"
+        guests_label = f"my {_sanitize(g.get('relationship'), 'relative')}"
+
+    visa_status = _sanitize(host.get("visa_status"), "living and working in Australia")
+    start_date = _sanitize(trip.get("start_date"))
+    end_date = _sanitize(trip.get("end_date"))
+    purpose = _sanitize(trip.get("purpose"), "the purpose of family visit and tourism")
+
+    lines = []
+    lines.append("INVITATION LETTER FOR AUSTRALIAN VISA APPLICATION")
+    lines.append("")
+    lines.append("To: The Australian Consulate,")
+    lines.append("")
+
+    # Host info
+    lines.append(f"My name is: {_sanitize(host.get('full_name'))}")
+    lines.append(f"Date of Birth: {_sanitize(host.get('dob'))}")
+    lines.append(f"Nationality: {_sanitize(host.get('nationality'), 'Vietnamese')}")
+    lines.append(f"Passport Number: {_sanitize(host.get('passport_no'))}")
+    lines.append("")
+
+    lines.append(f"I am currently {visa_status} with the following details:")
+    lines.append(f"  • Address: {_sanitize(host.get('address'))}")
+    lines.append(f"  • Phone number: {_sanitize(host.get('phone'))}")
+    lines.append(f"  • Occupation: {_sanitize(host.get('occupation'))}")
+    lines.append(f"  • Annual income: {_sanitize(host.get('annual_income'))}")
+    lines.append("")
+
+    # Visa note
+    visa_note = host.get("visa_note")
+    if visa_note:
+        lines.append(visa_note)
+        lines.append("")
+
+    # Guest(s) info
+    if multi:
+        rel_list = ", ".join(
+            f"my {_sanitize(g.get('relationship'), 'relative')}" for g in guests
+        )
+        lines.append(f"I am writing to invite {rel_list}:")
+        lines.append("")
+        for g in guests:
+            lines.append(f"• {_sanitize(g.get('full_name'))}")
+            lines.append(f"  Date of Birth: {_sanitize(g.get('dob'))}")
+            lines.append(f"  Passport Number: {_sanitize(g.get('passport_no'))}")
+            rel = _sanitize(g.get("relationship"), "")
+            if rel:
+                lines.append(f"  Relationship: {rel}")
+            lines.append("")
+    else:
+        guest = guests[0] if guests else {}
+        relationship = _sanitize(guest.get("relationship"), "relative")
+        lines.append(f"I am writing to invite my {relationship}: {_sanitize(guest.get('full_name'))}")
+        lines.append(f"Date of Birth: {_sanitize(guest.get('dob'))}")
+        lines.append(f"Passport Number: {_sanitize(guest.get('passport_no'))}")
+        lines.append("")
+
+    lines.append(f"to visit me in Australia for a short stay from {start_date} to {end_date} for {purpose}.")
+    lines.append("")
+
+    # Accompanying
+    if accompanying:
+        parts = []
+        for person in accompanying:
+            name = _sanitize(person.get("full_name"))
+            rel = _sanitize(person.get("relationship"), "")
+            note = person.get("note", "")
+            part = f"{name}"
+            if rel:
+                part = f"{rel}: {name}"
+            if note:
+                part += f" ({note})"
+            parts.append(part)
+
+        if len(parts) == 1:
+            acc_text = parts[0]
+        else:
+            acc_text = ", ".join(parts[:-1]) + f" and {parts[-1]}"
+
+        subj = "they" if multi else guests_label
+        lines.append(f"During this trip, {subj} will be accompanied by {acc_text}.")
+        lines.append("")
+
+    # Financial commitments
+    lines.append("I hereby confirm that:")
+    comply_text = f"{they} comply with all Australian laws and visa conditions and leave Australia before {their} visa expires." if multi else f"{they} complies with all Australian laws and visa conditions and leaves Australia before {their} visa expires."
+    default_commitments = [
+        f"I will cover all travel expenses for {guests_label}, including airfare, accommodation, living expenses, and any other related costs.",
+        f"I will provide accommodation for {them} at my residence throughout {their} stay in Australia.",
+        f"I will take full financial responsibility and provide support for {them} during the entire visit.",
+        f"I will ensure that {comply_text}",
+    ]
+    commitments = data.get("financial_commitments") or default_commitments
+    for c in commitments:
+        lines.append(f"  • {c}")
+    lines.append("")
+
+    # Closing
+    lines.append("This visit is purely for family reunion and short-term tourism purposes, with no intention to overstay or engage in any unlawful employment.")
+    lines.append("")
+    visa_word = "visas" if multi else "a visa"
+    gw = "my guests" if multi else guests_label
+    lines.append(f"I kindly request the Consulate to consider and grant {visa_word} for {gw}.")
+    lines.append("")
+    lines.append("Thank you for your time and consideration.")
+    lines.append("")
+    lines.append("Yours sincerely,")
+    lines.append("")
+    lines.append("")
+    lines.append(_sanitize(host.get("full_name")).upper())
+
+    return "\n".join(lines)
+
+

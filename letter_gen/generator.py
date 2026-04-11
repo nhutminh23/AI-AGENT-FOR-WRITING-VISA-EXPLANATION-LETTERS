@@ -139,15 +139,28 @@ def generate_letters(
 
     # --- Auto-generate invitation letter (if invitation_data present) ---
     has_invitation = False
+    invitation_letter = None
     invitation_data = profile.get("invitation_data")
     if invitation_data and isinstance(invitation_data, dict):
         host = invitation_data.get("host")
-        guest = invitation_data.get("guest")
-        if host and guest:
+
+        # Normalize: convert old "guest" (single) → "guests" (array)
+        guests = invitation_data.get("guests")
+        if not guests and invitation_data.get("guest"):
+            guests = [invitation_data["guest"]]
+            invitation_data["guests"] = guests
+            invitation_data.pop("guest", None)
+
+        if host and guests and len(guests) >= 1:
             has_invitation = True
+            # Render text preview for UI editing
+            from letter_gen.invitation_builder import render_invitation_letter_text
+            invitation_letter = render_invitation_letter_text(invitation_data)
+            guest_names = ", ".join(g.get("full_name", "?") for g in guests)
             logger.info(
-                "Invitation data detected — host: %s, guest: %s",
-                host.get("full_name", "?"), guest.get("full_name", "?"),
+                "Invitation letter rendered — host: %s, guests: [%s] (%d chars)",
+                host.get("full_name", "?"), guest_names,
+                len(invitation_letter),
             )
 
     return {
@@ -158,5 +171,7 @@ def generate_letters(
         "is_group": is_group,
         "group_participants": group_participants,
         "has_invitation": has_invitation,
+        "invitation_letter": invitation_letter,
         "invitation_data": invitation_data if has_invitation else None,
     }
+

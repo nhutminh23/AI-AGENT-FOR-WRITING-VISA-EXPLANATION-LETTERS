@@ -280,53 +280,60 @@ If the applicant's trip purpose involves **visiting a relative/friend who LIVES 
 - Documents mention a sponsor or host in Australia
 - A relative's address in Australia is mentioned
 
+**CRITICAL: When MULTIPLE applicants travel together (e.g., husband + wife, family group), ALL travellers must be listed in the `guests` array.** The invitation letter will invite the entire group, not just one person. Each guest object includes the guest's relationship to the host.
+
 **Add this to each applicable applicant's profile:**
 
 ```json
 {
   "invitation_data": {
     "host": {
-      "full_name": "THI MY LINH TRAN",
-      "dob": "13 June 1997",
+      "full_name": "THAN VAN KHANH",
+      "dob": "13 August 1961",
       "nationality": "Vietnamese",
       "passport_no": "C5776007",
-      "address": "Unit 5/15 High St, Swan Hill, VIC 3585",
+      "address": "206 Southern Road, Heidelberg West, VIC 3081, Australia",
       "phone": "0448687329",
-      "occupation": "Slicer at a meat processing company",
-      "annual_income": "Approximately AUD 70,000",
-      "visa_status": "living and working in Australia",
-      "visa_note": "At present, I am in the process of transitioning from a temporary work visa to permanent residency in Australia."
+      "occupation": "Retired / Self-employed",
+      "annual_income": "Approximately AUD 50,000",
+      "visa_status": "permanent resident of Australia",
+      "visa_note": null
     },
-    "guest": {
-      "full_name": "VU BAO MINH TRAN",
-      "dob": "4 September 2009",
-      "passport_no": "E03450389",
-      "sex": "Male",
-      "relationship": "younger brother"
-    },
+    "guests": [
+      {
+        "full_name": "THAN VAN KHOAN",
+        "dob": "10 April 1953",
+        "passport_no": "E03124147",
+        "sex": "Male",
+        "relationship": "elder brother"
+      },
+      {
+        "full_name": "THIEU THI PHAN",
+        "dob": "2 April 1959",
+        "passport_no": "E03124148",
+        "sex": "Female",
+        "relationship": "sister-in-law"
+      }
+    ],
     "trip": {
       "start_date": "1 June 2026",
       "end_date": "15 June 2026",
       "purpose": "the purpose of family visit and tourism"
     },
-    "accompanying": [
-      {
-        "full_name": "our mother: THI DAN VU",
-        "relationship": "mother",
-        "note": "who already holds a valid Australian visa"
-      }
-    ]
+    "accompanying": []
   }
 }
 ```
 
 **IMPORTANT RULES for invitation_data:**
 - `host` = the person IN Australia who writes the invitation letter
-- `guest` = the applicant being invited (the visa applicant)
-- `relationship` = how the host refers to the guest (e.g., "younger brother", "mother", "friend")
-- `accompanying` = other people travelling with the guest (optional, can be empty array `[]`)
+- `guests` = array of ALL travellers being invited (each visa applicant in the group). Even if only 1 person, use array format: `[{...}]`
+- Each guest has: `full_name`, `dob`, `passport_no`, `sex`, `relationship` (how the host refers to this guest, e.g., "elder brother", "sister-in-law", "mother", "friend")
+- `accompanying` = other people travelling WITH the guests who are NOT applying for visa (optional, can be empty `[]`)
 - `visa_status` = host's current status in Australia (e.g., "living and working in Australia", "permanent resident of Australia")
 - `visa_note` = optional extra sentence about host's visa situation
 - If host info is incomplete (e.g., no income data), still include what you have — use `null` for missing fields
 - If NO family visit / NO host in Australia → do NOT include `invitation_data` at all (omit the key)
+- **For backward compatibility:** if you output `guest` (singular object) instead of `guests` (array), the system will auto-convert it. But prefer `guests` array format.
+
 

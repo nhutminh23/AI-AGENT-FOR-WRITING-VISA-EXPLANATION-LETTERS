@@ -441,18 +441,24 @@ async function letterGenApplyJson() {
     // Show/hide refusal
     if (hasRefusal) {
       getLetterGenEl('letterGenRefusalText').value = data.refusal_letter;
-      getLetterGenEl('letterGenTabs').style.display = '';
       getLetterGenEl('letterGenDownloadRefusalBtn').style.display = '';
     } else {
-      getLetterGenEl('letterGenTabs').style.display = 'none';
       getLetterGenEl('letterGenDownloadRefusalBtn').style.display = 'none';
     }
 
-    // Show/hide invitation button
-    const invBtn = getLetterGenEl('letterGenDownloadInvitationBtn');
-    if (invBtn) {
-      invBtn.style.display = hasInvitation ? '' : 'none';
+    // Show/hide invitation tab + panel + fill text
+    if (hasInvitation) {
+      getLetterGenEl('letterGenInvitationText').value = data.invitation_letter || '';
+      getLetterGenEl('letterGenTabInvitation').style.display = '';
+      getLetterGenEl('letterGenDownloadInvitationBtn').style.display = '';
+    } else {
+      getLetterGenEl('letterGenTabInvitation').style.display = 'none';
+      getLetterGenEl('letterGenDownloadInvitationBtn').style.display = 'none';
     }
+
+    // Show tabs bar if there's more than 1 letter type
+    const showTabs = hasRefusal || hasInvitation;
+    getLetterGenEl('letterGenTabs').style.display = showTabs ? '' : 'none';
 
     // Build result info
     let letterCount = 1;
@@ -479,22 +485,38 @@ async function letterGenApplyJson() {
 }
 
 // ---- Step 3: Tab switching ----
-function letterGenShowMainTab() {
-  getLetterGenEl('letterGenMainPanel').style.display = '';
+function _resetAllLetterTabs() {
+  // Hide all panels
+  getLetterGenEl('letterGenMainPanel').style.display = 'none';
   getLetterGenEl('letterGenRefusalPanel').style.display = 'none';
+  getLetterGenEl('letterGenInvitationPanel').style.display = 'none';
+  // Reset all tab buttons to inactive
+  const inactive = { bg: '#334155', color: '#94a3b8' };
+  for (const id of ['letterGenTabMain', 'letterGenTabRefusal', 'letterGenTabInvitation']) {
+    const el = getLetterGenEl(id);
+    if (el) { el.style.background = inactive.bg; el.style.color = inactive.color; }
+  }
+}
+
+function letterGenShowMainTab() {
+  _resetAllLetterTabs();
+  getLetterGenEl('letterGenMainPanel').style.display = '';
   getLetterGenEl('letterGenTabMain').style.background = '#4f46e5';
   getLetterGenEl('letterGenTabMain').style.color = '#fff';
-  getLetterGenEl('letterGenTabRefusal').style.background = '#334155';
-  getLetterGenEl('letterGenTabRefusal').style.color = '#94a3b8';
 }
 
 function letterGenShowRefusalTab() {
-  getLetterGenEl('letterGenMainPanel').style.display = 'none';
+  _resetAllLetterTabs();
   getLetterGenEl('letterGenRefusalPanel').style.display = '';
-  getLetterGenEl('letterGenTabMain').style.background = '#334155';
-  getLetterGenEl('letterGenTabMain').style.color = '#94a3b8';
   getLetterGenEl('letterGenTabRefusal').style.background = '#4f46e5';
   getLetterGenEl('letterGenTabRefusal').style.color = '#fff';
+}
+
+function letterGenShowInvitationTab() {
+  _resetAllLetterTabs();
+  getLetterGenEl('letterGenInvitationPanel').style.display = '';
+  getLetterGenEl('letterGenTabInvitation').style.background = '#f59e0b';
+  getLetterGenEl('letterGenTabInvitation').style.color = '#000';
 }
 
 // ---- Step 3/4: Download DOCX ----
@@ -567,6 +589,7 @@ function letterGenStartOver() {
   getLetterGenEl('letterGenAdditionalContext').value = '';
   getLetterGenEl('letterGenMainText').value = '';
   getLetterGenEl('letterGenRefusalText').value = '';
+  getLetterGenEl('letterGenInvitationText').value = '';
   getLetterGenEl('letterGenJsonStatus').innerHTML = '';
   getLetterGenEl('letterGenDownloadStatus').innerHTML = '';
   getLetterGenEl('letterGenResultInfo').innerHTML = '';
@@ -622,6 +645,9 @@ function initLetterGen() {
 
   const tabRefusal = getLetterGenEl('letterGenTabRefusal');
   if (tabRefusal) tabRefusal.addEventListener('click', letterGenShowRefusalTab);
+
+  const tabInvitation = getLetterGenEl('letterGenTabInvitation');
+  if (tabInvitation) tabInvitation.addEventListener('click', letterGenShowInvitationTab);
 
   // Step 3 download buttons
   const dlMain = getLetterGenEl('letterGenDownloadMainBtn');

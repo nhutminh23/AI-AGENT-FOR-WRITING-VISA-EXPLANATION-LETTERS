@@ -11,9 +11,6 @@ import logging
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
-from werkzeug.utils import secure_filename
-
-from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +20,6 @@ letter_gen_bp = Blueprint("letter_gen", __name__)
 # Directory setup
 # ---------------------------------------------------------------------------
 LETTER_GEN_BASE = Path(__file__).resolve().parent.parent / "letter_gen"
-LETTER_GEN_OUTPUT = Path(Config.LETTER_GEN_OUTPUT_DIR)
 
 
 # ---------------------------------------------------------------------------
@@ -124,83 +120,6 @@ def letter_gen_build_docx():
         logger.exception("DOCX build failed")
         return jsonify({"error": f"DOCX build failed: {str(exc)}"}), 500
 
-
-# ---------------------------------------------------------------------------
-# API: Download generated DOCX
-# ---------------------------------------------------------------------------
-@letter_gen_bp.get("/api/letter-gen/download/<filename>")
-def letter_gen_download(filename: str):
-    """Download a generated DOCX file."""
-    filepath = LETTER_GEN_OUTPUT / secure_filename(filename)
-    if not filepath.exists():
-        return jsonify({"error": "File not found"}), 404
-
-    return send_file(
-        str(filepath),
-        as_attachment=True,
-        download_name=filename,
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
-
-
-# ---------------------------------------------------------------------------
-# API: Detect group participants from JSON profile(s)
-# ---------------------------------------------------------------------------
-@letter_gen_bp.post("/api/letter-gen/detect-group")
-def letter_gen_detect_group():
-    """
-    Detect group participants from one or more JSON profiles.
-    Returns participant list if ≥2 people detected.
-    """
-    data = request.get_json(silent=True) or {}
-    profiles = data.get("profiles")  # can be list or dict
-
-    if not profiles:
-        return jsonify({"is_group": False, "participants": []})
-
-    try:
-        from letter_gen.group_builder import detect_group_participants
-        participants = detect_group_participants(profiles)
-        return jsonify({
-            "is_group": len(participants) >= 2,
-            "participants": participants,
-            "count": len(participants),
-        })
-    except Exception as exc:
-        logger.exception("Group detection failed")
-        return jsonify({"error": f"Detection failed: {str(exc)}"}), 500
-
-
-# ---------------------------------------------------------------------------
-# API: Build Group Participant List DOCX
-# ---------------------------------------------------------------------------
-@letter_gen_bp.post("/api/letter-gen/build-group-docx")
-def letter_gen_build_group_docx():
-    """Build Group Tour Participant List DOCX and return for download."""
-    data = request.get_json(silent=True) or {}
-    participants = data.get("participants", [])
-    group_id = data.get("group_id", "")
-
-    if not participants or len(participants) < 2:
-        return jsonify({"error": "Need at least 2 participants for group list"}), 400
-
-    try:
-        from letter_gen.group_builder import build_group_docx
-        import uuid
-
-        file_stream = build_group_docx(participants, group_id)
-        session_id = str(uuid.uuid4())[:8]
-        filename = f"Group_Participant_List_{session_id}.docx"
-
-        return send_file(
-            file_stream,
-            as_attachment=True,
-            download_name=filename,
-            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-    except Exception as exc:
-        logger.exception("Group DOCX build failed")
-        return jsonify({"error": f"Group DOCX build failed: {str(exc)}"}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -314,17 +233,27 @@ def letter_gen_build_invitation():
     data = request.get_json(silent=True) or {}
 
     host = data.get("host")
-    guest = data.get("guest")
-    if not host or not guest:
-        return jsonify({"error": "Missing host or guest data"}), 400
+
+    # Normalize: convert old "guest" (single) → "guests" (array)
+    guests = data.get("guests")
+    if not guests and data.get("guest"):
+        guests = [data["guest"]]
+        data["guests"] = guests
+        data.pop("guest", None)
+
+    if not host or not guests or len(guests) < 1:
+        return jsonify({"error": "Missing host or guests data"}), 400
 
     try:
         from letter_gen.invitation_builder import build_invitation_letter_docx
 
         file_stream = build_invitation_letter_docx(data)
 
-        guest_name = (guest.get("full_name") or "Guest").replace(" ", "_")
-        filename = f"Invitation_Letter_{guest_name}.docx"
+        first_guest_name = (guests[0].get("full_name") or "Guest").replace(" ", "_")
+        if len(guests) > 1:
+            filename = f"Invitation_Letter_{first_guest_name}_and_{len(guests)-1}_others.docx"
+        else:
+            filename = f"Invitation_Letter_{first_guest_name}.docx"
 
         return send_file(
             file_stream,
@@ -335,3 +264,4 @@ def letter_gen_build_invitation():
     except Exception as exc:
         logger.exception("Invitation letter build failed")
         return jsonify({"error": f"Invitation letter build failed: {str(exc)}"}), 500
+
