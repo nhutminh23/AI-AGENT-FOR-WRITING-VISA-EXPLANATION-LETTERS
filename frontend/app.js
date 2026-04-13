@@ -352,6 +352,17 @@ const bulkTranslateAllBtn = document.getElementById("bulkTranslateAllBtn");
 const bulkPrintAllPdfBtn = document.getElementById("bulkPrintAllPdfBtn");
 const bulkManualFallbackEl = document.getElementById("bulkManualFallback");
 
+// Workspace selector elements (Drive auto-download)
+const workspaceSelectEl = document.getElementById("workspaceSelect");
+const refreshWorkspacesBtn = document.getElementById("refreshWorkspacesBtn");
+const workspaceScanBtn = document.getElementById("workspaceScanBtn");
+const workspaceScanStatusEl = document.getElementById("workspaceScanStatus");
+const workspaceScanProgressEl = document.getElementById("workspaceScanProgress");
+const workspaceScanProgressBarEl = document.getElementById("workspaceScanProgressBar");
+const workspaceCompletePanelEl = document.getElementById("workspaceCompletePanel");
+const workspaceCompleteInfoEl = document.getElementById("workspaceCompleteInfo");
+const markCompleteBtn = document.getElementById("markCompleteBtn");
+
 let cachedFiles = [];
 let hotelHtmls = [];
 let writerContextCache = "";

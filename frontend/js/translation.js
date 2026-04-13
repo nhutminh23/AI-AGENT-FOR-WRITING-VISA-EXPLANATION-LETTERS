@@ -80,9 +80,13 @@ async function autoSaveTranslationFlow(flowId) {
     const translatedText = document.getElementById(`transTranslated-${flowId}`)?.value || "";
     const htmlContent = document.getElementById(`transHtmlSource-${flowId}`)?.value || "";
     const saveName = document.getElementById(`transSaveName-${flowId}`)?.value || "";
+    const driveFileId = document.getElementById(`transDriveFileId-${flowId}`)?.value || "";
+    // Workspace: use global active workspace name (set by workspace scan)
+    const workspace = (typeof _activeWorkspaceName !== "undefined" && _activeWorkspaceName) ? _activeWorkspaceName : "";
     const payload = { filename, file_ref: fileRef, template_name: templateName,
       source_lang: sourceLang, ocr_text: ocrText, translated_text: translatedText,
-      html_content: htmlContent, save_name: saveName, status: "done" };
+      html_content: htmlContent, save_name: saveName, status: "done",
+      workspace, drive_file_id: driveFileId };
 
     const dbId = _flowDbIds[flowId];
     if (dbId) {
@@ -128,6 +132,8 @@ async function deleteAllTranslationFlows() {
   if (translateFlowsContainerEl) translateFlowsContainerEl.innerHTML = "";
   try { await fetch("/api/translate/flows", { method: "DELETE" }); } catch (_) {}
   Object.keys(_flowDbIds).forEach(k => delete _flowDbIds[k]);
+  try { localStorage.removeItem("activeWorkspace"); } catch (_) {}
+  _activeWorkspaceName = "";
   translationFlowCounter = 0;  // Reset counter so next flow starts at #1
 }
 
@@ -138,6 +144,38 @@ async function restoreTranslationFlows() {
     if (!res.ok) return;
     const { flows } = await res.json();
     if (!flows || flows.length === 0) return;
+
+    // Detect workspace mode from flows (first flow with workspace set)
+    let detectedWorkspace = "";
+    for (const f of flows) {
+      if (f.workspace) { detectedWorkspace = f.workspace; break; }
+    }
+    // Fallback: check localStorage
+    if (!detectedWorkspace) {
+      try { detectedWorkspace = localStorage.getItem("activeWorkspace") || ""; } catch (_) {}
+    }
+
+    // If workspace mode detected, restore workspace state
+    if (detectedWorkspace) {
+      _activeWorkspaceName = detectedWorkspace;
+      // Auto-select workspace dropdown
+      if (typeof workspaceSelectEl !== "undefined" && workspaceSelectEl) {
+        for (let i = 0; i < workspaceSelectEl.options.length; i++) {
+          if (workspaceSelectEl.options[i].value === detectedWorkspace) {
+            workspaceSelectEl.selectedIndex = i;
+            break;
+          }
+        }
+      }
+      // Show workspace complete panel
+      if (typeof workspaceCompletePanelEl !== "undefined" && workspaceCompletePanelEl) {
+        workspaceCompletePanelEl.style.display = "block";
+      }
+      if (typeof workspaceCompleteInfoEl !== "undefined" && workspaceCompleteInfoEl) {
+        workspaceCompleteInfoEl.innerHTML = `📂 Đang dịch: <strong>${escapeHtml(detectedWorkspace)}</strong> — ${flows.length} luồng (đã khôi phục)`;
+      }
+    }
+
     for (const f of flows) {
       // createTranslateFlow increments translationFlowCounter internally
       createTranslateFlow();
@@ -153,6 +191,14 @@ async function restoreTranslationFlows() {
       set(`transTranslated-${flowId}`, f.translated_text);
       set(`transHtmlSource-${flowId}`, f.html_content);
       set(`transSaveName-${flowId}`, f.save_name);
+
+      // Restore workspace-specific fields (drive_file_id + stamp area)
+      if (f.workspace || detectedWorkspace) {
+        set(`transDriveFileId-${flowId}`, f.drive_file_id);
+        const stampArea = document.getElementById(`transStampArea-${flowId}`);
+        if (stampArea) stampArea.style.display = "block";
+      }
+
       // Show file info
       if (f.filename) {
         const fileInfoEl = document.getElementById(`transFileInfo-${flowId}`);
@@ -353,6 +399,24 @@ function createTranslateFlow() {
         <button id="transSavePdfBtn-${flowId}" type="button" style="background:#dc2626; padding:8px 14px;">📥 Lưu PDF</button>
       </div>
 
+      <!-- Stamp & Drive 2-step row (workspace mode only) -->
+      <div id="transStampArea-${flowId}" style="display:none; margin-top:12px; border:2px solid #7c3aed; border-radius:10px; padding:12px; background:linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="font-weight:700; font-size:0.95em; color:#5b21b6;">🔏 Đóng Mộc & Gửi Drive</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button id="transStampPreviewBtn-${flowId}" type="button" style="background:#7c3aed; padding:8px 16px; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.9em;" title="Đóng mộc + giáp lai → xem trước PDF">🔏 Bước 1: Đóng Mộc & Xem Trước</button>
+          <button id="transPushDriveBtn-${flowId}" type="button" style="background:#d1d5db; padding:8px 16px; color:#6b7280; border:none; border-radius:6px; cursor:not-allowed; font-weight:600; font-size:0.9em;" disabled title="Kiểm tra mộc trước rồi mới gửi Drive">📤 Bước 2: Gửi lên Drive</button>
+        </div>
+        <div id="transStampStatus-${flowId}" style="margin-top:6px; font-size:0.85em; color:#64748b;"></div>
+        <!-- Stamped PDF Preview -->
+        <div id="transStampPreview-${flowId}" style="display:none; margin-top:10px;">
+          <label style="font-weight:600; font-size:0.9em; color:#5b21b6;">📄 Preview PDF đã đóng mộc:</label>
+          <iframe id="transStampPdfFrame-${flowId}" style="width:100%; height:70vh; border:2px solid #c4b5fd; border-radius:8px; margin-top:6px; background:#fff;" title="Stamped PDF Preview"></iframe>
+        </div>
+      </div>
+      <input id="transDriveFileId-${flowId}" type="hidden" value="" />
+
       <!-- HTML Preview iframe -->
       <div style="margin-top:12px;">
         <label style="font-weight:600;">Kết quả HTML</label>
@@ -391,6 +455,18 @@ function createTranslateFlow() {
         fileInfoEl.innerHTML = `📄 <b>${escapeHtml(file.name)}</b> <span style="color:#16a34a;">✅ Đã gắn lại file gốc</span>`;
       }
     });
+  }
+
+  // Step 1: Stamp Preview button
+  const stampPreviewBtn = document.getElementById(`transStampPreviewBtn-${flowId}`);
+  if (stampPreviewBtn) {
+    stampPreviewBtn.addEventListener("click", () => stampPreview(flowId));
+  }
+
+  // Step 2: Push to Drive button
+  const pushDriveBtn = document.getElementById(`transPushDriveBtn-${flowId}`);
+  if (pushDriveBtn) {
+    pushDriveBtn.addEventListener("click", () => pushToDrive(flowId));
   }
 
   const applyHtmlBtn = document.getElementById(`transApplyHtmlBtn-${flowId}`);
@@ -1118,6 +1194,14 @@ async function bulkCreateTranslateStreams() {
     fileByName[safeName] = f;
   }
 
+  // Detect workspace mode
+  const isWorkspaceMode = typeof _activeWorkspaceName !== "undefined" && _activeWorkspaceName;
+
+  // Persist active workspace name in localStorage (survives F5)
+  if (isWorkspaceMode) {
+    try { localStorage.setItem("activeWorkspace", _activeWorkspaceName); } catch (_) {}
+  }
+
   // Create a stream for each file that needs translation, pre-setting the upload token
   for (const r of needsTranslation) {
     createTranslateFlow();
@@ -1135,6 +1219,14 @@ async function bulkCreateTranslateStreams() {
     if (fileInfoEl) fileInfoEl.innerHTML = `📄 <b>${escapeHtml(r.filename)}</b> — <span style="color:#16a34a;">Đã upload sẵn</span>`;
     if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;">✅ File đã sẵn sàng để dịch.</span>';
 
+    // Workspace mode: set Drive file ID + show stamp area
+    if (isWorkspaceMode) {
+      const driveFileIdEl = document.getElementById(`transDriveFileId-${flowId}`);
+      const stampArea = document.getElementById(`transStampArea-${flowId}`);
+      if (driveFileIdEl && r.drive_file_id) driveFileIdEl.value = r.drive_file_id;
+      if (stampArea) stampArea.style.display = "block";
+    }
+
     // Store browser File object for combined PDF export (original pages)
     const matchedFile = fileByName[r.filename];
     if (matchedFile) {
@@ -1146,6 +1238,9 @@ async function bulkCreateTranslateStreams() {
       const base = (r.filename || "file").replace(/\.[^.]+$/, "");
       saveNameEl.value = `${base}.translated.html`;
     }
+
+    // Immediately persist to DB (workspace + drive_file_id)
+    autoSaveTranslationFlow(flowId);
   }
 
   // Show translate-all button

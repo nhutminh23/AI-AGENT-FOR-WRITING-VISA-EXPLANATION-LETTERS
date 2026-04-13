@@ -128,6 +128,8 @@ class TranslationFlow(Base):
     html_content = Column(Text, default="")            # HTML source (may be edited)
     save_name = Column(String(500), default="")        # Suggested save filename
     status = Column(String(50), default="pending")     # pending / done / error
+    workspace = Column(String(500), default="")        # Workspace name (for workspace mode)
+    drive_file_id = Column(String(500), default="")    # Google Drive file ID
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -622,6 +624,8 @@ def save_translation_flow(**kwargs) -> Dict[str, Any]:
             html_content=kwargs.get("html_content", ""),
             save_name=kwargs.get("save_name", ""),
             status=kwargs.get("status", "pending"),
+            workspace=kwargs.get("workspace", ""),
+            drive_file_id=kwargs.get("drive_file_id", ""),
         )
         session.add(flow)
         session.commit()
@@ -709,6 +713,8 @@ def _translation_flow_to_dict(f: TranslationFlow) -> Dict[str, Any]:
         "html_content": f.html_content or "",
         "save_name": f.save_name or "",
         "status": f.status or "pending",
+        "workspace": f.workspace or "",
+        "drive_file_id": f.drive_file_id or "",
         "created_at": f.created_at.isoformat() if f.created_at else None,
         "updated_at": f.updated_at.isoformat() if f.updated_at else None,
     }

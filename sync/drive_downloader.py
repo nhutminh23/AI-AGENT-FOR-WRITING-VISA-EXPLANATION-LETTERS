@@ -142,6 +142,73 @@ class DriveDownloader:
         )
         return dest
 
+    def download_folder_for_translation(
+        self,
+        folder_id: str,
+        local_folder_name: str,
+        dest_root: str | Path | None = None,
+    ) -> Path:
+        """
+        Download Drive folder for translation workspace, preserving structure
+        AND recording every file/folder's Drive ID in ``_files_meta.json``.
+
+        Unlike ``download_folder``, this writes a comprehensive ID mapping
+        so the translation pipeline can push files back to the correct
+        Drive location without re-querying the API.
+
+        Parameters
+        ----------
+        folder_id : str
+            Google Drive folder ID to download from (typically ``Final/``).
+        local_folder_name : str
+            Clean customer folder name. E.g. ``"ÚC - CHÚ HIỆP CÔ CHÍNH - NHÂN"``.
+        dest_root : str | Path, optional
+            Override destination root. Defaults to ``self._local_root``.
+
+        Returns
+        -------
+        Path
+            Absolute path to the created local directory.
+        """
+        root = Path(dest_root) if dest_root else self._local_root
+        root.mkdir(parents=True, exist_ok=True)
+
+        safe_name = self._sanitize_dirname(local_folder_name)
+        dest = root / safe_name
+        dest.mkdir(parents=True, exist_ok=True)
+
+        # file_id_map: maps local relative path → Drive file/folder ID
+        file_id_map: dict[str, str] = {}
+
+        # Download: collect file list, build ID map, then parallel download
+        t0 = time.perf_counter()
+        tasks = self._collect_tasks_with_ids(folder_id, dest, dest, file_id_map)
+        t_list = time.perf_counter() - t0
+        logger.info(
+            "  📋 Listed %d files in %.1fs. Starting parallel download (%d workers)...",
+            len(tasks), t_list, _MAX_WORKERS,
+        )
+
+        downloaded = self._download_parallel(tasks)
+        elapsed = time.perf_counter() - t0
+
+        # Write _files_meta.json — the "Sổ Nam Tào"
+        meta_path = dest / "_files_meta.json"
+        meta_data = {
+            "drive_folder_id": folder_id,
+            "base_name": local_folder_name,
+            "file_id_map": file_id_map,
+        }
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta_data, f, ensure_ascii=False, indent=2)
+        logger.info("  📝 Wrote _files_meta.json (%d entries) -> %s", len(file_id_map), meta_path)
+
+        logger.info(
+            "Translation workspace download complete: %d files saved to %s (%.1fs total)",
+            downloaded, dest, elapsed,
+        )
+        return dest
+
     # ------------------------------------------------------------------
     # Phase 1: Collect all download tasks (sequential API listing)
     # ------------------------------------------------------------------
@@ -178,6 +245,49 @@ class DriveDownloader:
                     "mime": mime,
                     "dest_dir": dest_dir,
                 })
+
+        return tasks
+
+    def _collect_tasks_with_ids(
+        self,
+        folder_id: str,
+        dest_dir: Path,
+        workspace_root: Path,
+        file_id_map: dict[str, str],
+    ) -> list[dict]:
+        """
+        Like ``_collect_tasks`` but also populates ``file_id_map`` with
+        relative_path → Drive file ID mappings.
+        """
+        _FOLDER_MIME = "application/vnd.google-apps.folder"
+        files = self._list_files(folder_id)
+        tasks: list[dict] = []
+
+        for file_meta in files:
+            fid = file_meta["id"]
+            fname = file_meta["name"]
+            mime = file_meta.get("mimeType", "")
+
+            if mime == _FOLDER_MIME:
+                sub_dir = dest_dir / self._sanitize_dirname(fname)
+                sub_dir.mkdir(parents=True, exist_ok=True)
+                # Record folder ID
+                rel = str(sub_dir.relative_to(workspace_root)).replace("\\", "/")
+                file_id_map[rel] = fid
+                tasks.extend(
+                    self._collect_tasks_with_ids(fid, sub_dir, workspace_root, file_id_map)
+                )
+            else:
+                tasks.append({
+                    "file_id": fid,
+                    "name": fname,
+                    "mime": mime,
+                    "dest_dir": dest_dir,
+                })
+                # Record file ID (use sanitized filename)
+                safe_name = self._safe_filename(fname)
+                rel = str((dest_dir / safe_name).relative_to(workspace_root)).replace("\\", "/")
+                file_id_map[rel] = fid
 
         return tasks
 

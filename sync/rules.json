@@ -60,7 +60,21 @@
         "birth certificate", "khai sinh", "giay khai sinh",
         "marriage certificate", "dang ky ket hon", "dkkh",
         "unemployment assistance", "tro cap that nghiep",
-        "service contract"
+        "service contract",
+        "hop dong", "hợp đồng", "contract",
+        "hop dong thue", "hợp đồng thuê",
+        "hop dong thue xe", "hợp đồng thuê xe",
+        "hop dong giu xe", "hợp đồng giữ xe",
+        "hop dong cho thue", "hợp đồng cho thuê",
+        "hop dong cho thue nha", "hợp đồng cho thuê nhà",
+        "hop dong bao hiem", "hợp đồng bảo hiểm",
+        "hop dong mua ban", "hợp đồng mua bán",
+        "hop dong dich vu", "hợp đồng dịch vụ",
+        "hop dong gui xe", "hợp đồng gửi xe",
+        "hop dong thue mat bang", "hợp đồng thuê mặt bằng",
+        "rental agreement", "lease agreement",
+        "car parking agreement", "car parking contract",
+        "parking agreement", "insurance contract"
       ],
       "extensions": [".pdf", ".jpg", ".jpeg", ".png", ".docx"],
       "note": "Sổ đỏ, sổ tiết kiệm, sao kê ngân hàng, giấy chứng nhận BĐS, hộ khẩu, giấy khai sinh, giấy kết hôn, thuế, GPKD..."
@@ -79,18 +93,17 @@
     "employment_contract": {
       "label": "Hợp đồng Lao động",
       "aliases": [
-        "hop dong", "hợp đồng", "hdld", "hđlđ",
+        "hdld", "hđlđ",
         "hop dong lao dong", "hợp đồng lao động",
         "lao dong", "labour contract", "labor contract",
         "employment contract", "work contract",
         "hop dong lam viec", "hợp đồng làm việc",
         "nhiem vu", "nhiệm vụ", "quyet dinh", "quyết định",
-        "contract",
-        "car parking agreement", "car parking contract",
-        "parking agreement"
+        "hop dong cong viec", "hợp đồng công việc",
+        "employment agreement"
       ],
       "extensions": [".pdf", ".jpg", ".jpeg", ".png", ".docx"],
-      "note": "Hợp đồng lao động hay giấy tờ công việc"
+      "note": "Hợp đồng lao động / làm việc - CHỈ match khi có từ khóa lao động/công việc rõ ràng"
     },
     "leave_request": {
       "label": "Đơn Xin Nghỉ Phép",

@@ -267,8 +267,14 @@ class DriveWatcher:
         )
 
         if result["valid"]:
-            logger.info("  ✅ CHECK PASSED → Marking green")
+            logger.info("  ✅ CHECK PASSED → Marking green + preparing translation workspace")
             self._ui.mark_success(folder_id, base_name)
+
+            # --- NEW: Create Translate folder on Drive & download for translation ---
+            try:
+                self._prepare_translation_workspace(folder_id, base_name, final_folder["id"])
+            except Exception as exc:
+                logger.error("  ⚠️ Translation workspace prep failed (non-fatal): %s", exc, exc_info=True)
         else:
             logger.info("  ❌ CHECK FAILED: %s", result["summary"])
             self._ui.mark_error(folder_id, base_name, result["summary"])
@@ -281,6 +287,60 @@ class DriveWatcher:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         _save_state(self._state)
+
+    # ------------------------------------------------------------------
+    # Stage 2.5: Prepare translation workspace after CHECK passes
+    # ------------------------------------------------------------------
+    def _prepare_translation_workspace(
+        self, root_folder_id: str, base_name: str, final_folder_id: str,
+    ) -> None:
+        """
+        After CHECK passes:
+        1. Create a 'Translate' subfolder inside Final/ on Drive.
+        2. Download the entire Final/ structure (incl Translate) to
+           ``translation_workspace/{base_name}/`` on local disk.
+        3. Write ``_files_meta.json`` with full Drive ID mapping.
+        """
+        from config import Config
+
+        # 1. Create 'Translate' folder inside Final/ on Drive
+        #    (Check if it already exists first)
+        existing = self._ui.list_files_in_folder(final_folder_id)
+        translate_folder_id = None
+        for item in existing:
+            if (item.get("mimeType") == "application/vnd.google-apps.folder"
+                    and item["name"].strip().lower() == "translate"):
+                translate_folder_id = item["id"]
+                logger.info("  📁 Translate folder already exists on Drive: %s", translate_folder_id)
+                break
+
+        if not translate_folder_id:
+            translate_folder_id = self._ui.create_subfolder(final_folder_id, "Translate")
+            logger.info("  📁 Created Translate folder on Drive: %s", translate_folder_id)
+
+        # 2. Download Final/ to translation_workspace/{base_name}/Final/
+        workspace_root = Path(Config.TRANSLATION_WORKSPACE_DIR)
+        workspace_root.mkdir(parents=True, exist_ok=True)
+
+        # Use the downloader with ID mapping
+        dest = self._downloader.download_folder_for_translation(
+            folder_id=final_folder_id,
+            local_folder_name=base_name,
+            dest_root=workspace_root,
+        )
+
+        # 3. Enrich _files_meta.json with root folder ID for status changes
+        meta_path = dest / "_files_meta.json"
+        if meta_path.exists():
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            meta["root_folder_id"] = root_folder_id
+            meta["final_folder_id"] = final_folder_id
+            meta["translate_folder_id"] = translate_folder_id
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(meta, f, ensure_ascii=False, indent=2)
+
+        logger.info("  ✅ Translation workspace ready at: %s", dest)
 
 
 # ---------------------------------------------------------------------------

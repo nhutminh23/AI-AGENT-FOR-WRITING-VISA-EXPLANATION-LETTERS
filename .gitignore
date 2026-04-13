@@ -34,6 +34,7 @@ test_dir/
 scan_splitter_outputs/
 insurance_outputs/
 translation_originals/
+translation_workspace/
 
 # ===== Database =====
 visa_app.db

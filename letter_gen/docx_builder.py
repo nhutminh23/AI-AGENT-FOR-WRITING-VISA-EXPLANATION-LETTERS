@@ -70,6 +70,8 @@ def build_letter_docx(
 
     # -- Parse and add paragraphs --
     lines = letter_text.split('\n')
+    
+    first_title_processed = False
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -82,6 +84,16 @@ def build_letter_docx(
             continue
 
         p = doc.add_paragraph()
+
+        # Main Title (The very first non-empty line)
+        if not first_title_processed:
+            run = p.add_run(stripped)
+            run.bold = True
+            run.font.size = Pt(16)
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(12)
+            first_title_processed = True
+            continue
 
         # Detect section headers (e.g., "Purpose of Visit", "Financial Capacity")
         # Heuristic: short line (<60 chars) that doesn't end with period/comma

@@ -292,3 +292,33 @@ class DriveUIHacker:
         file_id = result["id"]
         logger.debug("Uploaded '%s' -> %s", file_name, file_id)
         return file_id
+
+    def mark_done_translating(self, folder_id: str, base_name: str) -> dict:
+        """
+        Mark a folder as DONE TRANSLATING → move to 'Đang khai' phase.
+
+        Example: ``"✅ UC - NGUYEN VAN A - NHAN - Đang khai"``
+        """
+        new_name = f"✅ {base_name} - Đang khai"
+        return self.rename(folder_id, new_name)
+
+    def rename_file(self, file_id: str, new_name: str) -> dict:
+        """
+        Rename a single file on Google Drive.
+
+        Used to mark translated originals as ``[Đã dịch] - {original_name}``.
+        """
+        try:
+            result = (
+                self._service.files()
+                .update(fileId=file_id, body={"name": new_name}, fields="id,name")
+                .execute()
+            )
+            logger.info("Renamed file %s -> %s", file_id, result.get("name"))
+            return result
+        except Exception as exc:
+            logger.error("Failed to rename file %s: %s", file_id, exc)
+            raise
+
+    # Alias for backward compatibility
+    upload_file_to_folder = upload_file

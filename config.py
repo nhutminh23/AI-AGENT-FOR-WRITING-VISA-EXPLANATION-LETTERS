@@ -65,3 +65,6 @@ class Config:
     DRIVE_ROOT_FOLDER = os.getenv("DRIVE_ROOT_FOLDER", "HỒ SƠ VISA 2026")
     DRIVE_POLL_INTERVAL = int(os.getenv("DRIVE_POLL_INTERVAL", "10"))
     DRIVE_LOCAL_INPUT = os.path.join(os.path.dirname(__file__), "input")
+
+    # --- Translation Workspace (Auto-downloaded from Drive) ---
+    TRANSLATION_WORKSPACE_DIR = os.path.join(os.path.dirname(__file__), "translation_workspace")

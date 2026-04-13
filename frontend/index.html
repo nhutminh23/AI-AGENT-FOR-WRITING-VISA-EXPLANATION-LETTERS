@@ -754,11 +754,61 @@
             <h2>Dịch tài liệu (đa luồng)</h2>
           </div>
           <div class="hint">
-            Upload tất cả file → AI quét trang đầu → phát hiện file cần dịch → tự tạo luồng → ấn Dịch tất cả.
+            Chọn hồ sơ từ Drive → AI tự quét → phát hiện file cần dịch → tạo luồng → ấn Dịch tất cả.
           </div>
 
-          <!-- Bulk Upload Area -->
-          <div style="margin-top:12px; border:2px dashed #4f46e5; border-radius:10px; padding:16px; background:#eef2ff;">
+          <!-- ===== WORKSPACE SELECTOR (NEW) ===== -->
+          <div id="workspacePanel" style="margin-top:12px; border:2px solid #8b5cf6; border-radius:10px; padding:16px; background:linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);">
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <div style="flex:1; min-width:280px;">
+                <label for="workspaceSelect" style="font-weight:700; display:block; margin-bottom:6px; color:#6d28d9;">
+                  📋 Hôm nay bạn muốn dịch hồ sơ nào?
+                </label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <select id="workspaceSelect" style="flex:1; padding:10px 14px; border-radius:8px; border:2px solid #c4b5fd; font-size:14px; background:#fff; font-weight:500;">
+                    <option value="">-- Đang tải danh sách... --</option>
+                  </select>
+                  <button id="refreshWorkspacesBtn" type="button" title="Tải lại danh sách"
+                    style="background:#7c3aed; padding:10px 14px; border:none; border-radius:8px; color:#fff; cursor:pointer; font-size:14px; white-space:nowrap;">
+                    🔄
+                  </button>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; align-items:flex-end;">
+                <button id="workspaceScanBtn" type="button"
+                  style="background:#7c3aed; padding:10px 20px; font-size:14px; white-space:nowrap; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600;">
+                  🤖 Quét & Phân loại
+                </button>
+              </div>
+            </div>
+            <div id="workspaceScanStatus" style="margin-top:8px; font-size:0.9em; color:#64748b;"></div>
+            <div id="workspaceScanProgress" style="display:none; margin-top:8px;">
+              <div style="background:#e2e8f0; border-radius:6px; height:6px; overflow:hidden;">
+                <div id="workspaceScanProgressBar"
+                  style="background:#7c3aed; height:100%; width:0%; transition:width 0.3s ease;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== MARK COMPLETE BAR (sticky bottom, hidden until workspace selected) ===== -->
+          <div id="workspaceCompletePanel" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:9999; padding:14px 24px; background:linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%); box-shadow:0 -4px 20px rgba(0,0,0,0.3); border-top:3px solid #34d399;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; max-width:1400px; margin:0 auto;">
+              <span id="workspaceCompleteInfo" style="font-size:1em; color:#ecfdf5; font-weight:500;">
+                📂 Đang dịch: <strong>---</strong>
+              </span>
+              <button id="markCompleteBtn" type="button"
+                style="background:#fff; padding:12px 28px; font-size:15px; color:#065f46; border:none; border-radius:8px; cursor:pointer; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,0.2); transition:transform 0.15s ease;">
+                🚀 Báo cáo: Đã Dịch Xong
+              </button>
+            </div>
+          </div>
+
+          <!-- ===== MANUAL BULK UPLOAD (fallback) ===== -->
+          <details style="margin-top:12px;">
+            <summary style="cursor:pointer; font-weight:600; font-size:0.9em; color:#64748b;">
+              📂 Upload file thủ công (không qua Drive)
+            </summary>
+          <div style="margin-top:8px; border:2px dashed #4f46e5; border-radius:10px; padding:16px; background:#eef2ff;">
             <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
               <div style="flex:1; min-width:250px;">
                 <label for="bulkTranslateFiles" style="font-weight:600; display:block; margin-bottom:6px;">📂 Chọn tất cả file cần kiểm tra</label>
@@ -780,6 +830,7 @@
               </div>
             </div>
           </div>
+          </details>
 
           <!-- Results Table -->
           <div id="bulkCheckResults" style="display:none; margin-top:16px;">
@@ -1309,6 +1360,7 @@ Ví dụ:
     <script src="js/splitter.js"></script>
     <script src="js/pipeline.js"></script>
     <script src="js/translation.js"></script>
+    <script src="js/workspace.js"></script>
     <script src="js/tab-nav.js"></script>
     <script src="js/booking.js"></script>
     <script src="js/flights.js"></script>

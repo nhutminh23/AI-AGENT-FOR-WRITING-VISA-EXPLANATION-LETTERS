@@ -420,6 +420,17 @@ if (bulkPrintAllPdfBtn) {
   bulkPrintAllPdfBtn.addEventListener("click", () => printAllTranslationFlows());
 }
 
+// Workspace-based translation events
+if (workspaceScanBtn) {
+  workspaceScanBtn.addEventListener("click", () => runWorkspaceScan());
+}
+if (refreshWorkspacesBtn) {
+  refreshWorkspacesBtn.addEventListener("click", () => loadTranslationWorkspaces());
+}
+if (markCompleteBtn) {
+  markCompleteBtn.addEventListener("click", () => markWorkspaceComplete());
+}
+
 window.addEventListener("load", async () => {
   setActiveTab("precheck");
   await fetchFiles();
@@ -437,6 +448,7 @@ window.addEventListener("load", async () => {
   syncCombinedPreviews();
   await loadOutputHistory();
   checkDriveFolderStatus();  // Show Push-to-Drive button if Drive folders exist
+  loadTranslationWorkspaces();  // Load workspace dropdown
 });
 
 
