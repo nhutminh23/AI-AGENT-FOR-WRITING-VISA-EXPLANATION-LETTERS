@@ -450,6 +450,27 @@ async function fillPage3(d) {
         return added;
     }
 
+    // Read entries from a SPECIFIC table by index (0-based)
+    // Minor page 5: table[0] = guardian table, table[1] = companion table
+    function getAddedFromTableByIndex(tableIndex) {
+        const added = [];
+        const tables = document.querySelectorAll('table');
+        if (tableIndex >= tables.length) return added;
+        const table = tables[tableIndex];
+        const rows = table.querySelectorAll('tr');
+        for (const row of rows) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 2) {
+                const familyName = cells[0]?.textContent?.trim().toUpperCase() || '';
+                const givenNames = cells[1]?.textContent?.trim().toUpperCase() || '';
+                if (familyName && givenNames && familyName !== 'FAMILY NAME') {
+                    added.push({ family_name: familyName, given_names: givenNames });
+                }
+            }
+        }
+        return added;
+    }
+
     function saveAddedToStorage(pageKey, added) {
         try { sessionStorage.setItem(`immi_added_${pageKey}`, JSON.stringify(added)); }
         catch(e) { console.warn('[IMMI] sessionStorage error:', e); }
@@ -487,18 +508,182 @@ async function fillPage3(d) {
         console.log('[IMMI MAIN] fillPage5 START — Travelling companion');
 
         const hasCompanions = d.companions && d.companions.length > 0;
+        const isMinor = d.is_minor === "Yes";
         const STORAGE_KEY = 'page5';
+        const GUARDIAN_STORAGE_KEY = 'page5_guardians';
 
         // Check if the inline companion form is already showing (user clicked Add)
-        // Detect by Cancel/Confirm buttons + Relationship label (only present in add form)
         const hasConfirmBtn = !!document.querySelector('button[title="Save the current entry"]');
         const hasRelationshipLabel = Array.from(document.querySelectorAll('label.wc-label'))
             .some(l => l.textContent.includes('Relationship to the applicant'));
         const inlineForm = hasConfirmBtn && hasRelationshipLabel;
 
+        // ==================== MINOR SECTION (under 18) ====================
+        if (isMinor && !inlineForm) {
+            console.log('[IMMI MAIN] Minor detected — handling parent/guardian section');
+
+            // Q1: "Is the applicant travelling with a parent or legal guardian?"
+            const travelWithParentRadioName = '_2a0b0a0a0e0a0a4a3b1b0';
+            if (d.travelling_with_parent === "Yes") {
+                const yesR = document.querySelector(`input[type="radio"][name="${travelWithParentRadioName}"][value="1"]`);
+                if (yesR && !yesR.checked) yesR.click();
+                console.log('[IMMI MAIN] ✅ Travelling with parent: Yes');
+            } else if (d.travelling_with_parent === "No") {
+                const noR = document.querySelector(`input[type="radio"][name="${travelWithParentRadioName}"][value="2"]`);
+                if (noR && !noR.checked) noR.click();
+                await delay(800);
+
+                // Reason not with parent
+                if (d.not_with_parent_reason) {
+                    const reasonRadioName = '_2a0b0a0a0e0a0a4a3c1b0';
+                    const reasonR = document.querySelector(`input[type="radio"][name="${reasonRadioName}"][value="${d.not_with_parent_reason}"]`);
+                    if (reasonR) {
+                        reasonR.click();
+                        console.log('[IMMI MAIN] ✅ Not-with-parent reason:', d.not_with_parent_reason);
+                        await delay(600);
+                    }
+
+                    // "Give details" textarea (appears for reason "5" = Other)
+                    if (d.not_with_parent_reason === "5" && d.not_with_parent_details) {
+                        const detailsTA = document.getElementById('_2a0b0a0a0e0a0a4a3d0b0_input');
+                        if (detailsTA) {
+                            detailsTA.value = d.not_with_parent_details;
+                            detailsTA.dispatchEvent(new Event('input', {bubbles: true}));
+                            detailsTA.dispatchEvent(new Event('change', {bubbles: true}));
+                            console.log('[IMMI MAIN] ✅ Filled not-with-parent details');
+                        }
+                    }
+                }
+                console.log('[IMMI MAIN] ✅ Travelling with parent: No');
+            }
+            await delay(600);
+
+            // Parents/guardians table — check if any need to be added
+            const parents = d.parents_guardians || [];
+            if (parents.length > 0) {
+                // Read ONLY the FIRST table (guardian table) — table[0]
+                const guardianTableAdded = getAddedFromTableByIndex(0);
+                saveAddedToStorage(GUARDIAN_STORAGE_KEY, guardianTableAdded);
+                const remaining = parents.length - guardianTableAdded.length;
+                if (remaining > 0) {
+                    const nextP = findNextUnadded(parents, guardianTableAdded);
+                    const name = nextP ? `${nextP.member.family_name} ${nextP.member.given_names}` : '';
+                    sendInfo(`👶 Minor detected! Còn ${remaining} cha/mẹ cần thêm vào bảng Guardian.\n👉 Ấn [Add] ở bảng "parents or legal guardians" → [Auto-Fill] để điền: ${name}`);
+                } else {
+                    sendInfo(`✅ Tất cả ${parents.length} cha/mẹ/guardian đã được thêm.`);
+                }
+            }
+        }
+
+        // ==================== MINOR: Fill guardian inline form ====================
+        // Detect "Responsible person details" form (guardian form has different IDs than companion form)
+        const isGuardianForm = !!document.getElementById('_2a0b0a0a0e0be0a0c0b0a_input') ||
+            Array.from(document.querySelectorAll('h2.wc-heading')).some(h => h.textContent.includes('Responsible person details'));
+
+        if (isMinor && isGuardianForm) {
+            const parents = d.parents_guardians || [];
+            if (parents.length > 0) {
+                const guardianAdded = loadAddedFromStorage(GUARDIAN_STORAGE_KEY);
+                const nextGuardian = findNextUnadded(parents, guardianAdded);
+
+                if (nextGuardian) {
+                    const g = nextGuardian.member;
+                    const fillingNum = guardianAdded.length + 1;
+                    sendInfo(`📝 Đang điền Guardian ${fillingNum}/${parents.length}: ${g.family_name} ${g.given_names}`);
+
+                    // Helper: set value by element ID
+                    function setById(id, value) {
+                        if (!value) return false;
+                        const el = document.getElementById(id);
+                        if (!el) { console.log(`[IMMI P5] ❌ ID not found: ${id}`); return false; }
+                        el.value = value;
+                        el.dispatchEvent(new Event('input', {bubbles: true}));
+                        el.dispatchEvent(new Event('change', {bubbles: true}));
+                        console.log(`[IMMI P5] ✅ ${id} = "${value}"`);
+                        return true;
+                    }
+
+                    // 1. Relationship (select: 2=Parent, 14=Step Parent, 87=Legal guardian)
+                    setById('_2a0b0a0a0e0be0a0c0b0a_input', g.relationship || '2');
+                    await delay(600);
+
+                    // 2. Family name
+                    setById('_2a0b0a0a0e0be0a0g1b0b0a_input', g.family_name || '');
+                    // 3. Given names
+                    setById('_2a0b0a0a0e0be0a0g1c0b0a_input', g.given_names || '');
+                    // 4. Sex (radio)
+                    if (g.sex) {
+                        const sexRadio = document.querySelector(`input[type="radio"][name="_2a0b0a0a0e0be0a0g2a1a"][value="${g.sex}"]`);
+                        if (sexRadio) sexRadio.click();
+                    }
+                    // 5. Date of birth
+                    setById('_2a0b0a0a0e0be0a0g3a1a_input', g.date_of_birth || '');
+
+                    // 6. Passport number
+                    setById('_2a0b0a0a0e0be0a0h1a1a_input', g.passport_number || '');
+                    // 7. Country of passport
+                    setById('_2a0b0a0a0e0be0a0h2a1a_input', g.passport_country || 'VNM');
+                    // 8. Nationality of passport holder
+                    setById('_2a0b0a0a0e0be0a0h3a1a_input', g.passport_nationality || 'VNM');
+                    // 9. Date of issue (passport)
+                    if (g.passport_issue_date) setById('_2a0b0a0a0e0be0a0h4a1a_input', g.passport_issue_date);
+                    // 10. Date of expiry (passport)
+                    if (g.passport_expiry_date) setById('_2a0b0a0a0e0be0a0h5a1a_input', g.passport_expiry_date);
+                    // 11. Place of issue / issuing authority
+                    setById('_2a0b0a0a0e0be0a0h7a1a_input', g.passport_issuing_authority || 'IMMIGRATION DEPARTMENT OF VIETNAM');
+
+                    await delay(400);
+
+                    // 12. Related application: "Has this responsible person submitted a Visitor visa application?"
+                    if (g.has_submitted_visa === "Yes") {
+                        const yesVisaR = document.querySelector('input[type="radio"][name="_2a0b0a0a0e0be0a0j1b0"][value="1"]');
+                        if (yesVisaR) yesVisaR.click();
+                        await delay(800);
+
+                        // Reference number type
+                        if (g.ref_number_type) {
+                            setById('_2a0b0a0a0e0be0a0bc0b0_input', g.ref_number_type);
+                            await delay(600);
+                        }
+
+                        // Fill the appropriate reference number field based on type
+                        if (g.ref_number) {
+                            if (g.ref_number_type === '1') {
+                                // TRN
+                                setById('_2a0b0a0a0e0be0a0bd0b0_input', g.ref_number);
+                            } else if (g.ref_number_type === '10') {
+                                // Application ID
+                                setById('_2a0b0a0a0e0be0a0be0b0_input', g.ref_number);
+                            } else if (g.ref_number_type === '3') {
+                                // Visa grant number
+                                setById('_2a0b0a0a0e0be0a0bf0b0a_input', g.ref_number);
+                            }
+                        }
+                        console.log('[IMMI P5] ✅ Related application: Yes + ref filled');
+                    } else {
+                        const noVisaR = document.querySelector('input[type="radio"][name="_2a0b0a0a0e0be0a0j1b0"][value="2"]');
+                        if (noVisaR) noVisaR.click();
+                        console.log('[IMMI P5] ✅ Related application: No');
+                    }
+
+                    const remaining = parents.length - fillingNum;
+                    if (remaining > 0) {
+                        sendInfo(`✅ Đã điền Guardian ${g.family_name} ${g.given_names} (${fillingNum}/${parents.length})\n📌 Bao gồm passport + related application\n📌 Còn ${remaining} guardian. Ấn [Confirm] → [Add] → [Auto-Fill]`);
+                    } else {
+                        sendInfo(`✅ Đã điền Guardian ${g.family_name} ${g.given_names} — hoàn tất!\n📌 Bao gồm passport + related application\n👉 Ấn [Confirm] để lưu.`);
+                    }
+                    console.log('[IMMI MAIN] fillPage5 guardian (full passport) DONE ✅');
+                    return;
+                }
+            }
+            // If all guardians done, fall through to companion logic below
+        }
+
+        // ==================== COMPANION SECTION (shared for adult & minor) ====================
         if (!inlineForm) {
             // Phase 1: Click Yes/No + read table + save to storage
-            const tableAdded = getAlreadyAddedFromTable();
+            // For minor: companion table is table[1] (2nd table), for adult: read all tables
+            const tableAdded = isMinor ? getAddedFromTableByIndex(1) : getAlreadyAddedFromTable();
             saveAddedToStorage(STORAGE_KEY, tableAdded);
 
             const yesRadio = document.querySelector('input[type="radio"][name="_2a0b0a0a0e0a0a4a4b1a0"][value="1"]');
@@ -522,7 +707,11 @@ async function fillPage3(d) {
         }
 
         // Phase 2: Fill the NEXT unadded companion (read from storage)
-        if (!hasCompanions) return;
+        // Detect companion form specifically (heading "Travelling companion" or ID prefix _2a0b0a0a0e0bf)
+        const isCompanionForm = !!document.getElementById('_2a0b0a0a0e0bf0a0c0b0a_input') ||
+            Array.from(document.querySelectorAll('h2.wc-heading')).some(h => h.textContent.includes('Travelling companion'));
+
+        if (!hasCompanions || !isCompanionForm) return;
 
         const alreadyAdded = loadAddedFromStorage(STORAGE_KEY);
         const next = findNextUnadded(d.companions, alreadyAdded);
@@ -534,14 +723,41 @@ async function fillPage3(d) {
 
         const comp = next.member;
         const fillingNum = alreadyAdded.length + 1;
-        sendInfo(`📝 Đang điền người ${fillingNum}/${d.companions.length}: ${comp.family_name} ${comp.given_names}`);
+        sendInfo(`📝 Đang điền companion ${fillingNum}/${d.companions.length}: ${comp.family_name} ${comp.given_names}`);
 
-        setSelect("Relationship to the applicant", comp.relationship || "33");
-        await delay(600);
-        setTextInput("Family name", comp.family_name || "");
-        setTextInput("Given names", comp.given_names || "");
-        if (comp.sex) clickRadioInFieldset("Sex", comp.sex);
-        setTextInput("Date of birth", comp.date_of_birth || "");
+        // Try direct IDs first (minor page 5 companion form), fallback to label-based
+        const compRelSelect = document.getElementById('_2a0b0a0a0e0bf0a0c0b0a_input');
+        if (compRelSelect) {
+            // Direct ID approach (minor page 5)
+            compRelSelect.value = comp.relationship || '33';
+            compRelSelect.dispatchEvent(new Event('change', {bubbles: true}));
+            await delay(600);
+
+            const compFamilyName = document.getElementById('_2a0b0a0a0e0bf0a0d1b0b0a_input');
+            if (compFamilyName) { compFamilyName.value = comp.family_name || ''; compFamilyName.dispatchEvent(new Event('input', {bubbles: true})); compFamilyName.dispatchEvent(new Event('change', {bubbles: true})); }
+
+            const compGivenNames = document.getElementById('_2a0b0a0a0e0bf0a0d1c0b0a_input');
+            if (compGivenNames) { compGivenNames.value = comp.given_names || ''; compGivenNames.dispatchEvent(new Event('input', {bubbles: true})); compGivenNames.dispatchEvent(new Event('change', {bubbles: true})); }
+
+            if (comp.sex) {
+                const sexRadio = document.querySelector(`input[type="radio"][name="_2a0b0a0a0e0bf0a0d2a1a"][value="${comp.sex}"]`);
+                if (sexRadio) sexRadio.click();
+            }
+
+            const compDob = document.getElementById('_2a0b0a0a0e0bf0a0d3a1a_input');
+            if (compDob) { compDob.value = comp.date_of_birth || ''; compDob.dispatchEvent(new Event('input', {bubbles: true})); compDob.dispatchEvent(new Event('change', {bubbles: true})); }
+
+            console.log('[IMMI P5] ✅ Companion filled via direct IDs (_2a0b0a0a0e0bf)');
+        } else {
+            // Fallback: label-based (adult page 5 or different form version)
+            setSelect("Relationship to the applicant", comp.relationship || "33");
+            await delay(600);
+            setTextInput("Family name", comp.family_name || "");
+            setTextInput("Given names", comp.given_names || "");
+            if (comp.sex) clickRadioInFieldset("Sex", comp.sex);
+            setTextInput("Date of birth", comp.date_of_birth || "");
+            console.log('[IMMI P5] ✅ Companion filled via labels (fallback)');
+        }
         await delay(300);
 
         const remaining = d.companions.length - fillingNum;
@@ -672,9 +888,38 @@ async function fillPage3(d) {
         }
 
         // 3. Residential address — Country
+        // ⚠️ WComponents needs a FULL event chain to trigger State field transformation
         if (d.residential_country) {
-            setById('_2a0b0a0a0e0a0a5a4d0b0_input', d.residential_country);
-            await delay(1000); // Wait for international address panel to load
+            const countrySelect = document.getElementById('_2a0b0a0a0e0a0a5a4d0b0_input');
+            if (countrySelect) {
+                // Simulate realistic user interaction for WComponents
+                countrySelect.focus();
+                countrySelect.dispatchEvent(new Event('focus', {bubbles: true}));
+                await delay(100);
+                
+                countrySelect.value = d.residential_country;
+                
+                // Fire full event chain that WComponents expects
+                countrySelect.dispatchEvent(new Event('change', {bubbles: true}));
+                countrySelect.dispatchEvent(new Event('input', {bubbles: true}));
+                countrySelect.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+                countrySelect.blur();
+                countrySelect.dispatchEvent(new Event('blur', {bubbles: true}));
+                
+                console.log(`[IMMI MAIN] ✅ Residential Country = "${d.residential_country}"`);
+                
+                // Wait for WComponents to process the country change and transform State field
+                // This is critical — the framework needs time to AJAX-load province list
+                await delay(2500);
+                
+                // Double-check: if State selectbox still hasn't appeared, trigger change again
+                const stateSelectCheck = document.getElementById('_2a0b0a0a0e0a0a5a4h2b0b0_input');
+                if (!stateSelectCheck || stateSelectCheck.closest('[hidden]')) {
+                    console.log('[IMMI MAIN] ⏳ State selectbox not ready, re-triggering country change...');
+                    countrySelect.dispatchEvent(new Event('change', {bubbles: true}));
+                    await delay(2500);
+                }
+            }
         }
 
         // Address line 1 (max 40)
@@ -688,55 +933,63 @@ async function fillPage3(d) {
         // Suburb / Town (international section)
         setById('_2a0b0a0a0e0a0a5a4h1a1a_input', d.residential_suburb || '');
 
-        // State / Province (can be SELECT dropdown or TEXT input depending on timing)
+        // State / Province — wait for the correct field type to appear
         if (d.residential_state) {
             let stateSet = false;
 
-            // Strategy 1: Find visible select by label "State or Province"
-            const stateLabel = Array.from(document.querySelectorAll('label.wc-label'))
-                .find(l => l.textContent.includes('State or Province') || l.textContent.includes('State / Province'));
-            if (stateLabel) {
-                const row = stateLabel.closest('.wc-row') || stateLabel.closest('.wc-panel');
-                const sel = row?.querySelector('select:not([hidden])');
-                const txtInp = row?.querySelector('input[type="text"]:not([hidden])');
+            // Strategy 1: Try VN province selectbox (most common case for VIET)
+            const vnDrop = document.getElementById('_2a0b0a0a0e0a0a5a4h2b0b0_input');
+            if (vnDrop && !vnDrop.closest('[hidden]')) {
+                // This is the selectbox with VN provinces (AN GIANG, BA RIA-VUNG TAU, etc.)
+                const opts = Array.from(vnDrop.options);
+                // Try exact value match first (e.g., "VN18" for NINH BINH)
+                const exactMatch = opts.find(o => o.value === d.residential_state);
+                // Try text match (e.g., "NINH BINH")
+                const textMatch = opts.find(o => o.textContent.trim().toUpperCase().includes(d.residential_state.toUpperCase()));
 
-                if (sel && !sel.closest('[hidden]')) {
-                    // Try exact value match first
-                    const opts = Array.from(sel.options);
-                    const exactMatch = opts.find(o => o.value === d.residential_state);
-                    const textMatch = opts.find(o => o.textContent.trim().toUpperCase().includes(d.residential_state.toUpperCase()));
-                    if (exactMatch) {
-                        sel.value = exactMatch.value;
-                    } else if (textMatch) {
-                        sel.value = textMatch.value;
-                    } else {
-                        sel.value = d.residential_state;
+                if (exactMatch) {
+                    vnDrop.value = exactMatch.value;
+                } else if (textMatch) {
+                    vnDrop.value = textMatch.value;
+                } else {
+                    vnDrop.value = d.residential_state;
+                }
+                vnDrop.dispatchEvent(new Event('change', {bubbles: true}));
+                stateSet = true;
+                console.log(`[IMMI MAIN] ✅ VN Province (selectbox) = "${d.residential_state}"`);
+            }
+
+            // Strategy 2: Generic State labels (fallback for non-VN countries)
+            if (!stateSet) {
+                const stateLabel = Array.from(document.querySelectorAll('label.wc-label'))
+                    .find(l => l.textContent.includes('State or Province') || l.textContent.includes('State / Province'));
+                if (stateLabel) {
+                    const row = stateLabel.closest('.wc-row') || stateLabel.closest('.wc-panel');
+                    const sel = row?.querySelector('select:not([hidden])');
+                    const txtInp = row?.querySelector('input[type="text"]:not([hidden])');
+
+                    if (sel && !sel.closest('[hidden]')) {
+                        const opts = Array.from(sel.options);
+                        const exactMatch = opts.find(o => o.value === d.residential_state);
+                        const textMatch = opts.find(o => o.textContent.trim().toUpperCase().includes(d.residential_state.toUpperCase()));
+                        sel.value = exactMatch ? exactMatch.value : (textMatch ? textMatch.value : d.residential_state);
+                        sel.dispatchEvent(new Event('change', {bubbles: true}));
+                        stateSet = true;
+                        console.log(`[IMMI MAIN] ✅ State/Province (select by label) = "${d.residential_state}"`);
+                    } else if (txtInp && !txtInp.closest('[hidden]')) {
+                        txtInp.value = d.residential_state;
+                        txtInp.dispatchEvent(new Event('input', {bubbles: true}));
+                        txtInp.dispatchEvent(new Event('change', {bubbles: true}));
+                        stateSet = true;
+                        console.log(`[IMMI MAIN] ✅ State/Province (text by label) = "${d.residential_state}"`);
                     }
-                    sel.dispatchEvent(new Event('change', {bubbles: true}));
-                    stateSet = true;
-                    console.log(`[IMMI MAIN] ✅ State/Province (select by label) = "${d.residential_state}"`);
-                } else if (txtInp && !txtInp.closest('[hidden]')) {
-                    txtInp.value = d.residential_state;
-                    txtInp.dispatchEvent(new Event('input', {bubbles: true}));
-                    txtInp.dispatchEvent(new Event('change', {bubbles: true}));
-                    stateSet = true;
-                    console.log(`[IMMI MAIN] ✅ State/Province (text by label) = "${d.residential_state}"`);
                 }
             }
 
-            // Strategy 2: Fallback to known IDs
+            // Strategy 3: Absolute fallback — text input by ID
             if (!stateSet) {
-                const vnDrop = document.getElementById('_2a0b0a0a0e0a0a5a4h2b0b0_input');
-                if (vnDrop && !vnDrop.closest('[hidden]')) {
-                    vnDrop.value = d.residential_state;
-                    vnDrop.dispatchEvent(new Event('change', {bubbles: true}));
-                    stateSet = true;
-                    console.log(`[IMMI MAIN] ✅ VN Province (ID fallback) = "${d.residential_state}"`);
-                } else {
-                    setById('_2a0b0a0a0e0a0a5a4h2a0b0_input', d.residential_state);
-                    stateSet = true;
-                    console.log(`[IMMI MAIN] ✅ State/Province (text ID fallback) = "${d.residential_state}"`);
-                }
+                setById('_2a0b0a0a0e0a0a5a4h2a0b0_input', d.residential_state);
+                console.log(`[IMMI MAIN] ✅ State/Province (text ID fallback) = "${d.residential_state}"`);
             }
         }
 
@@ -970,11 +1223,126 @@ async function fillPage3(d) {
             await delay(600);
         }
 
-        // Supported by other person (4) — relationship + name
+        // Supported by other person (4) — relationship + name + address
         if (d.funding_source === "4") {
             if (d.supporter_relationship) setSelect("Relationship to the applicant", d.supporter_relationship);
             if (d.supporter_family_name) setTextInput("Family name", d.supporter_family_name);
             if (d.supporter_given_names) setTextInput("Given names", d.supporter_given_names);
+
+            // Supporter address — Country
+            if (d.supporter_country) {
+                const countrySelect = document.getElementById('_2a0b0a0a0e0a0a11a8b0b0_input');
+                if (countrySelect) {
+                    // ⚠️ WComponents needs FULL event chain to trigger State field transformation
+                    countrySelect.focus();
+                    countrySelect.dispatchEvent(new Event('focus', {bubbles: true}));
+                    await delay(100);
+
+                    countrySelect.value = d.supporter_country;
+
+                    countrySelect.dispatchEvent(new Event('change', {bubbles: true}));
+                    countrySelect.dispatchEvent(new Event('input', {bubbles: true}));
+                    countrySelect.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+                    countrySelect.blur();
+                    countrySelect.dispatchEvent(new Event('blur', {bubbles: true}));
+
+                    console.log(`[IMMI MAIN] ✅ Supporter Country = "${d.supporter_country}"`);
+                    await delay(2500);
+                }
+            }
+
+            // Address line 1
+            if (d.supporter_address1) {
+                const addr1 = document.getElementById('_2a0b0a0a0e0a0a11a8c0b0a_input');
+                if (addr1) {
+                    addr1.value = d.supporter_address1;
+                    addr1.dispatchEvent(new Event('input', {bubbles: true}));
+                    addr1.dispatchEvent(new Event('change', {bubbles: true}));
+                    console.log(`[IMMI MAIN] ✅ Supporter Address1 = "${d.supporter_address1}"`);
+                }
+            }
+
+            // Address line 2
+            if (d.supporter_address2) {
+                const addr2 = document.getElementById('_2a0b0a0a0e0a0a11a8d0b0_input');
+                if (addr2) {
+                    addr2.value = d.supporter_address2;
+                    addr2.dispatchEvent(new Event('input', {bubbles: true}));
+                    addr2.dispatchEvent(new Event('change', {bubbles: true}));
+                    console.log(`[IMMI MAIN] ✅ Supporter Address2 = "${d.supporter_address2}"`);
+                }
+            }
+
+            // Suburb/Town + State + Postcode — depends on Country
+            if (d.supporter_country === 'A') {
+                // ===== AUSTRALIAN ADDRESS =====
+                // Suburb/Town (Australian section)
+                if (d.supporter_suburb) {
+                    const suburb = document.getElementById('_2a0b0a0a0e0a0a11a8e0a1a_input');
+                    if (suburb) {
+                        suburb.value = d.supporter_suburb;
+                        suburb.dispatchEvent(new Event('input', {bubbles: true}));
+                        suburb.dispatchEvent(new Event('change', {bubbles: true}));
+                        console.log(`[IMMI MAIN] ✅ Supporter Suburb (AU) = "${d.supporter_suburb}"`);
+                    }
+                }
+
+                // State/Territory (Australian select: ACT, NSW, etc.)
+                if (d.supporter_state) {
+                    const stateSelect = document.getElementById('_2a0b0a0a0e0a0a11a8e1a1a_input');
+                    if (stateSelect && !stateSelect.closest('[hidden]')) {
+                        stateSelect.value = d.supporter_state;
+                        stateSelect.dispatchEvent(new Event('change', {bubbles: true}));
+                        console.log(`[IMMI MAIN] ✅ Supporter State (AU) = "${d.supporter_state}"`);
+                    }
+                }
+
+                // Postcode (Australian)
+                if (d.supporter_postcode) {
+                    const postcode = document.getElementById('_2a0b0a0a0e0a0a11a8e2a1a_input');
+                    if (postcode) {
+                        postcode.value = d.supporter_postcode;
+                        postcode.dispatchEvent(new Event('input', {bubbles: true}));
+                        postcode.dispatchEvent(new Event('change', {bubbles: true}));
+                        console.log(`[IMMI MAIN] ✅ Supporter Postcode (AU) = "${d.supporter_postcode}"`);
+                    }
+                }
+            } else {
+                // ===== INTERNATIONAL ADDRESS =====
+                // Suburb/Town (International section)
+                if (d.supporter_suburb) {
+                    const suburb = document.getElementById('_2a0b0a0a0e0a0a11a8f1a1a_input');
+                    if (suburb) {
+                        suburb.value = d.supporter_suburb;
+                        suburb.dispatchEvent(new Event('input', {bubbles: true}));
+                        suburb.dispatchEvent(new Event('change', {bubbles: true}));
+                        console.log(`[IMMI MAIN] ✅ Supporter Suburb (intl) = "${d.supporter_suburb}"`);
+                    }
+                }
+
+                // State/Province (International — text or select depending on country)
+                if (d.supporter_state) {
+                    // Try select first (VN provinces etc.)
+                    const stateDropdown = document.getElementById('_2a0b0a0a0e0a0a11a8f2b0b0_input');
+                    if (stateDropdown && !stateDropdown.closest('[hidden]')) {
+                        const opts = Array.from(stateDropdown.options);
+                        const textMatch = opts.find(o => o.textContent.trim().toUpperCase().includes(d.supporter_state.toUpperCase()));
+                        const exactMatch = opts.find(o => o.value === d.supporter_state);
+                        stateDropdown.value = exactMatch ? exactMatch.value : (textMatch ? textMatch.value : d.supporter_state);
+                        stateDropdown.dispatchEvent(new Event('change', {bubbles: true}));
+                        console.log(`[IMMI MAIN] ✅ Supporter State (intl select) = "${d.supporter_state}"`);
+                    } else {
+                        // Fallback to text input
+                        const stateText = document.getElementById('_2a0b0a0a0e0a0a11a8f2a0b0_input');
+                        if (stateText && !stateText.closest('[hidden]')) {
+                            stateText.value = d.supporter_state;
+                            stateText.dispatchEvent(new Event('input', {bubbles: true}));
+                            stateText.dispatchEvent(new Event('change', {bubbles: true}));
+                            console.log(`[IMMI MAIN] ✅ Supporter State (intl text) = "${d.supporter_state}"`);
+                        }
+                    }
+                }
+            }
         }
 
         // Supported by employer/org (2/3) — organisation details
@@ -993,7 +1361,6 @@ async function fillPage3(d) {
             if (d.org_address1) setTextInput("Address", d.org_address1);
             if (d.org_suburb) setTextInput("Suburb / Town", d.org_suburb);
             if (d.org_state) {
-                // Check if state is SELECT (Australian) or TEXT (international)
                 const stateSelect = Array.from(document.querySelectorAll('select'))
                     .find(s => !s.closest('[hidden]') && s.querySelector('option[value="NSW"]'));
                 if (stateSelect) {

@@ -191,6 +191,15 @@ async function markWorkspaceComplete() {
     if (bulkCheckResultsEl) bulkCheckResultsEl.style.display = "none";
     if (workspaceScanStatusEl) workspaceScanStatusEl.innerHTML = "";
 
+    // Delete all translation flows from DB (prevents F5 from restoring them)
+    try {
+      await fetch("/api/translate/flows", { method: "DELETE" });
+    } catch (_) {}
+
+    // Clear translation flows from DOM
+    const flowsContainer = document.getElementById("translateFlowsContainer");
+    if (flowsContainer) flowsContainer.innerHTML = "";
+
     // Reload workspace list
     await loadTranslationWorkspaces();
 
@@ -228,11 +237,6 @@ async function stampPreview(flowId) {
     return;
   }
 
-  if (!_activeWorkspaceName) {
-    if (stampStatusEl) stampStatusEl.innerHTML = '<span style="color:#dc2626;">❌ Không tìm thấy workspace đang active.</span>';
-    return;
-  }
-
   const origText = stampBtn?.textContent || "";
   if (stampBtn) {
     stampBtn.disabled = true;
@@ -245,12 +249,21 @@ async function stampPreview(flowId) {
   const fileRefEl = document.getElementById(`transUploadedRef-${flowId}`);
   const fileRef = (fileRefEl?.value || "").trim();
 
+  // Use fallback workspace for manual mode (no Drive)
+  const workspaceName = _activeWorkspaceName || "_manual_stamp";
+  const isManualMode = !_activeWorkspaceName;
+
+  // Hide "Push to Drive" in manual mode (no Drive folder)
+  if (isManualMode && pushBtn) {
+    pushBtn.style.display = "none";
+  }
+
   try {
     const res = await fetch("/api/translate/stamp_preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        workspace: _activeWorkspaceName,
+        workspace: workspaceName,
         filename: filename,
         file_ref: fileRef,
         html_content: htmlContent,

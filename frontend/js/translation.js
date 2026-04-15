@@ -839,6 +839,10 @@ async function uploadTranslateFile(flowId) {
       saveNameEl.value = `${base}.translated.html`;
     }
     statusEl.innerHTML = `<span style="color:#16a34a;">✅ Upload thành công: <b>${escapeHtml(uploadedDisplayName)}</b> (${sizeKB} KB)</span>`;
+
+    // Show stamp area for ALL modes (workspace + manual)
+    const stampArea = document.getElementById(`transStampArea-${flowId}`);
+    if (stampArea) stampArea.style.display = "block";
   } catch (e) {
     statusEl.innerHTML = `<span style="color:#dc2626;">❌ Upload lỗi: ${escapeHtml(e.message)}</span>`;
   } finally {

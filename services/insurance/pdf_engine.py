@@ -373,59 +373,71 @@ def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict =
                             template_path: str = "liberty", expected_rect=None,
                             page_idx: int = 0):
     """
-    Replace old_text on a page using OVERLAY approach (not redaction).
+    Replace old_text on a page using REDACTION + RE-INSERT approach.
 
-    Why overlay instead of redaction?
-    - apply_redactions() destroys ALL text in the same content stream segment
-      that overlaps the redaction rect, including adjacent labels like
-      "Issued Date / Ngày cấp" when redacting "04/02/2026" nearby.
-    - Overlay draws a filled rectangle OVER the old text to hide it,
-      then inserts new text on top. No content stream modification = no collateral damage.
+    Process:
+    1. Sample background color from the area around the text
+    2. Add redaction annotation to REMOVE old text from content stream
+    3. Apply redaction (fills with background color + removes text layer)
+    4. Insert new text on top
+
+    This ensures copy/paste returns the NEW text, not the old one.
 
     font_info: dict with {font, size, color, bbox} from font_map
     expected_rect: fitz.Rect from span bbox — used for precise targeting
     """
     # ── Determine the rect to cover ──
-    # Priority: use expected_rect (from font_map span bbox) when available
     if expected_rect is not None:
         cover_rect = fitz.Rect(expected_rect)
     else:
-        # Fallback: search for text on the page
         text_instances = page.search_for(old_text)
         if not text_instances:
             return False
         cover_rect = text_instances[0]
 
-    # ── Background Color Config ──
-    # Liberty TravelCare (chubb.pdf): page 1 header area has yellow/orange bg
-    # Chubb Travel Insurance (standard.pdf): page 1 header area has orange bg
-    # Both need orange overlay in the header zone; rest is white.
-    LIBERTY_BG_HEX = "#fedc8a"   # Liberty gold/yellow header
-    CHUBB_BG_HEX = "#ffdfbf"     # Chubb orange header
+    # ── Background Color Detection ──
+    LIBERTY_BG_HEX = "#fedc8a"
+    CHUBB_BG_HEX = "#ffdfbf"
     WHITE_BG_HEX = "#ffffff"
 
     def hex_to_rgb(hex_str: str) -> tuple[float, float, float]:
         hex_str = hex_str.lstrip('#')
         return tuple(int(hex_str[i:i+2], 16) / 255.0 for i in (0, 2, 4))
 
-    # Smart background detection: sample the pixel color under the text
-    # to match the actual PDF background instead of guessing by template name
-    try:
-        clip = fitz.Rect(cover_rect.x0, cover_rect.y0, cover_rect.x0 + 2, cover_rect.y0 + 2)
-        pix = page.get_pixmap(clip=clip, dpi=72)
-        if pix.n >= 3:
-            r_val, g_val, b_val = pix.pixel(0, 0)[:3]
-            fill_color = (r_val / 255.0, g_val / 255.0, b_val / 255.0)
-        else:
-            fill_color = hex_to_rgb(WHITE_BG_HEX)
-    except Exception:
-        # Fallback: use template name heuristic
-        if "liberty" in template_path.lower() and page_idx == 0 and cover_rect.y0 < 500:
-            fill_color = hex_to_rgb(LIBERTY_BG_HEX)
-        elif "chubb" in template_path.lower() and page_idx == 0 and cover_rect.y0 < 430:
-            fill_color = hex_to_rgb(CHUBB_BG_HEX)
-        else:
-            fill_color = hex_to_rgb(WHITE_BG_HEX)
+    # Sample background color from OUTSIDE the text area (left edge, 4px wide strip)
+    # Only page 0 has colored backgrounds (Liberty yellow / Chubb orange header).
+    # Pages 1+ are ALWAYS white — skip sampling to avoid hitting adjacent text.
+    if page_idx > 0:
+        fill_color = (1.0, 1.0, 1.0)
+    else:
+        try:
+            sample_x = max(0, cover_rect.x0 - 4)
+            sample_y = cover_rect.y0 + 1
+            clip = fitz.Rect(sample_x, sample_y, sample_x + 4, sample_y + 4)
+            pix = page.get_pixmap(clip=clip, dpi=72)
+            if pix.n >= 3 and pix.width >= 2 and pix.height >= 2:
+                r_sum, g_sum, b_sum, count = 0, 0, 0, 0
+                for py in range(min(pix.height, 4)):
+                    for px in range(min(pix.width, 4)):
+                        pr, pg, pb = pix.pixel(px, py)[:3]
+                        r_sum += pr; g_sum += pg; b_sum += pb; count += 1
+                r_avg = r_sum / count
+                g_avg = g_sum / count
+                b_avg = b_sum / count
+                # Snap to pure white if near-white
+                if r_avg > 240 and g_avg > 240 and b_avg > 240:
+                    fill_color = (1.0, 1.0, 1.0)
+                else:
+                    fill_color = (r_avg / 255.0, g_avg / 255.0, b_avg / 255.0)
+            else:
+                fill_color = hex_to_rgb(WHITE_BG_HEX)
+        except Exception:
+            if "liberty" in template_path.lower() and cover_rect.y0 < 500:
+                fill_color = hex_to_rgb(LIBERTY_BG_HEX)
+            elif "chubb" in template_path.lower() and cover_rect.y0 < 430:
+                fill_color = hex_to_rgb(CHUBB_BG_HEX)
+            else:
+                fill_color = hex_to_rgb(WHITE_BG_HEX)
 
     # ── Determine font properties ──
     target_font = "Times-Roman"
@@ -444,23 +456,17 @@ def _find_and_replace_text(page, old_text: str, new_text: str, font_info: dict =
 
     insert_fontname = _map_font_name(target_font)
 
-    # ── Step 1: Draw filled rectangle to COVER old text ──
-    # Cover rect stays EXACTLY the size of the old text.
-    # New text writes at original font size — if wider, it overflows into
-    # adjacent whitespace rather than extending the cover (which would eat
-    # into neighboring text in mid-sentence positions).
-    cover = fitz.Rect(
+    # ── Step 1: REDACT old text (removes from content stream) ──
+    redact_rect = fitz.Rect(
         cover_rect.x0 - 0.5,
-        cover_rect.y0 - 0.5,
+        cover_rect.y0 + 0.5,
         cover_rect.x1 + 0.5,
         cover_rect.y1 + 0.5,
     )
-    shape = page.new_shape()
-    shape.draw_rect(cover)
-    shape.finish(color=fill_color, fill=fill_color)
-    shape.commit()
+    page.add_redact_annot(redact_rect, fill=fill_color)
+    page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
 
-    # ── Step 3: Insert new text at baseline position (original font size) ──
+    # ── Step 2: Insert new text at baseline position ──
     baseline_y = cover_rect.y1 - (target_size * 0.15)
     insert_point = fitz.Point(cover_rect.x0, baseline_y)
 
@@ -562,11 +568,8 @@ def _apply_changes_to_pdf(template_path: str, changes: dict, output_path: str) -
                     replaced_pages.add(pg_idx)
 
         # ── Pass 2: search_for() sweep to catch text in longer spans ──
-        # ONLY on pages NOT already handled by Pass 1.
-        # Why skip entire pages? Because the overlay approach doesn't remove
-        # old text from the PDF content stream — it just draws over it.
-        # search_for() would re-find the old text on already-processed pages,
-        # causing double-replacement = garbled output.
+        # Since redaction removes old text from content stream, search_for()
+        # won't find already-replaced text — safe to scan all pages.
         for page_idx in range(len(doc)):
             if page_idx in replaced_pages:
                 continue  # This page was already handled by font_map Pass 1

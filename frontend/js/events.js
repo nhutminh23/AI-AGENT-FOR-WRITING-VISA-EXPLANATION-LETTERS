@@ -473,7 +473,7 @@ if (sendMultiToSplitterBtn) {
 }
 const pushToDriveBtn = document.getElementById("pushToDriveBtn");
 if (pushToDriveBtn) {
-  pushToDriveBtn.addEventListener("click", pushToDrive);
+  pushToDriveBtn.addEventListener("click", pushPipelineToDrive);
 }
 
 // Restore last classifier result on page load

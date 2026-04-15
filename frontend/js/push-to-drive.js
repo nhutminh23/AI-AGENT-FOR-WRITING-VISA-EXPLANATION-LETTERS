@@ -37,7 +37,7 @@ async function checkDriveFolderStatus() {
  * Push all processed files from a local input folder back to Google Drive.
  * Shows a folder selection dialog if multiple Drive-sourced folders exist.
  */
-async function pushToDrive() {
+async function pushPipelineToDrive() {
   const pushBtn = document.getElementById("pushToDriveBtn");
   const folders = window._driveFolders || [];
 

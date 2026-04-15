@@ -59,6 +59,27 @@ I need you to read ALL attached documents and extract family composition data to
    }
    ```
 
+### 🚫🚫🚫 ABSOLUTE RULE — ZERO FABRICATION 🚫🚫🚫
+
+**You MUST NEVER invent, guess, infer, or fabricate ANY information.** Only extract data that is **EXPLICITLY WRITTEN** in the uploaded documents.
+
+**If a piece of information is NOT in the files → use `null`.** Do NOT fill it with guessed data.
+
+**Specifically, you MUST NOT fabricate:**
+- ❌ **Names** (spouse, parents, siblings, children) — if the document section is blank or the person is not mentioned → use `null` for all their fields
+- ❌ **Dates of birth** — if not explicitly stated → use `null`
+- ❌ **Addresses** — if not found → use `null`
+- ❌ **Marital status** — if not confirmed in documents → use `null`
+- ❌ **Relationships** — do NOT infer mother's name from child's birth certificate surname. If the spouse section in the application form is BLANK → `spouse: null`
+
+**WRONG EXAMPLE:** Seeing a child named "THACH NGUYEN PHUONG KHANH" and guessing the mother is "NGUYEN THI [something]" based on the child's middle name. This is FABRICATION — NEVER do this.
+
+**CORRECT BEHAVIOR:** If the spouse/partner section in the application form is empty OR no document explicitly names the spouse → set `"spouse": null`
+
+**🏆 GOLDEN RULE: MISSING IS BETTER THAN WRONG. `null` is always better than fabricated data.**
+
+**VERIFICATION STEP:** Before outputting each field, ask yourself: "Can I point to the EXACT line/page in the documents where this information appears?" If NO → use `null`.
+
 ### ⚠️ STRICTLY FORBIDDEN:
 - DO NOT use `"same as applicant"` — write the FULL address for each person
 - DO NOT use `"N/A"` — if student write `"Student"`, if child write `"Minor"`, if unemployed write `"Unemployed"`
@@ -66,6 +87,8 @@ I need you to read ALL attached documents and extract family composition data to
 - DO NOT abbreviate addresses — write full street number, ward, district, city, country
 - DO NOT wrap multiple forms in a JSON array `[...]` — output each form as a SEPARATE JSON object
 - DO NOT skip deceased parents/siblings — they MUST still appear with address = `"Deceased"`
+- DO NOT infer/guess spouse name from children's birth certificates or any indirect source
+- DO NOT invent bank balances, property details, or financial information
 
 ---
 
@@ -229,3 +252,6 @@ Each JSON must be a standalone object `{...}` that can be copy-pasted independen
 3. Each JSON is a standalone `{...}` object (NOT wrapped in an array `[...]`)?
 4. Spouse/parent/sibling roles are correctly swapped in each block?
 5. Every address is FULL (not "same as applicant")?
+6. **🚫 ANTI-FABRICATION CHECK:** For EVERY name, DOB, and address you filled in — can you point to the EXACT document where it appears? If you cannot → CHANGE IT TO `null` IMMEDIATELY.
+7. **🚫 SPOUSE CHECK:** If the "spouse/partner" section in the application form is blank/empty → `"spouse": null`. Do NOT guess the spouse's name from any other document.
+8. **🚫 PARENT CHECK:** If parent names are not explicitly written in any document → use `null` for their fields. Do NOT guess from surnames.

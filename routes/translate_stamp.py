@@ -111,8 +111,8 @@ def stamp_preview():
     workspace_root = SplitterPath(Config.TRANSLATION_WORKSPACE_DIR)
     workspace_path = workspace_root / workspace_name
 
-    if not workspace_path.is_dir():
-        return jsonify({"error": "workspace_not_found"}), 404
+    # Auto-create workspace dir if it doesn't exist (supports manual mode)
+    workspace_path.mkdir(parents=True, exist_ok=True)
 
     base_name = os.path.splitext(filename)[0]
     final_pdf_name = f"{base_name}_translated.pdf"
@@ -324,7 +324,7 @@ def push_stamped_to_drive():
 
     drive_upload_ok = False
     uploaded_drive_id = None
-    rename_ok = False
+    original_deleted = False
 
     try:
         if translate_folder_id or drive_file_id:
@@ -342,22 +342,21 @@ def push_stamped_to_drive():
                 except Exception as exc:
                     logging.exception("Drive upload failed")
 
-            # Rename original file with [Đã dịch] prefix
-            if drive_file_id:
+            # Delete original file from Drive (Final folder) after successful upload
+            if drive_file_id and drive_upload_ok:
                 try:
-                    new_name = f"[Đã dịch] - {filename}"
-                    ui.rename_file(drive_file_id, new_name)
-                    rename_ok = True
-                    logging.info("Renamed original on Drive: %s → %s", filename, new_name)
+                    ui.delete_file(drive_file_id)
+                    original_deleted = True
+                    logging.info("Deleted original from Drive: %s (id: %s)", filename, drive_file_id)
                 except Exception as exc:
-                    logging.warning("Drive rename failed (non-fatal): %s", exc)
+                    logging.warning("Drive delete failed (non-fatal): %s", exc)
 
         return jsonify({
             "status": "success",
             "stamped_pdf": translated_pdf_name,
             "drive_uploaded": drive_upload_ok,
             "drive_file_id": uploaded_drive_id,
-            "original_renamed": rename_ok,
+            "original_deleted": original_deleted,
         })
 
     except Exception as exc:
@@ -413,15 +412,29 @@ def mark_translation_complete():
         logging.exception("Failed to rename Drive folder to 'Đang khai'")
         return jsonify({"error": "drive_rename_failed", "detail": str(exc)}), 500
 
-    # 2. Clean up local workspace
+    # 2. Move workspace to "Khai Imm/" archive folder (instead of deleting)
+    archive_root = SplitterPath(_BASE_DIR) / "Khai Imm"
+    archive_root.mkdir(parents=True, exist_ok=True)
+    archive_dest = archive_root / workspace_name
+
     try:
-        shutil.rmtree(workspace_path)
-        logging.info("Cleaned up workspace: %s", workspace_path)
+        # If destination already exists from a previous run, remove it first
+        if archive_dest.is_dir():
+            shutil.rmtree(archive_dest)
+        shutil.move(str(workspace_path), str(archive_dest))
+        logging.info("Moved workspace to archive: %s → %s", workspace_path, archive_dest)
     except Exception as exc:
-        logging.warning("Failed to clean up workspace (non-fatal): %s", exc)
+        logging.warning("Failed to move workspace to Khai Imm (non-fatal): %s", exc)
+        # Fallback: try to delete if move fails
+        try:
+            shutil.rmtree(workspace_path)
+            logging.info("Fallback: deleted workspace: %s", workspace_path)
+        except Exception:
+            pass
 
     return jsonify({
         "status": "done",
         "message": f"Đã chuyển '{base_name}' sang trạng thái Đang khai",
         "drive_folder_id": root_folder_id,
+        "archived_to": str(archive_dest),
     })

@@ -15,7 +15,26 @@ Bạn là chuyên gia trích xuất dữ liệu visa Úc. Hãy đọc TẤT CẢ
 
 **Trả về JSON theo đúng format dưới đây cho MỖI người.** Nếu có nhiều người (gia đình), trả về một mảng JSON `[{...person1}, {...person2}]`.
 
-Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""` (chuỗi rỗng).
+## 🚫🚫🚫 QUY TẮC TUYỆT ĐỐI — KHÔNG ĐƯỢC VI PHẠM 🚫🚫🚫
+
+**TUYỆT ĐỐI KHÔNG ĐƯỢC BỊA / SUY LUẬN / ĐOÁN bất kỳ thông tin nào.** Bạn CHỈ ĐƯỢC trích xuất thông tin CÓ THẬT trong file tôi gửi.
+
+⚠️ **Nếu một thông tin KHÔNG CÓ trong bất kỳ file nào tôi gửi → BẮT BUỘC để `""` (chuỗi rỗng).** KHÔNG BAO GIỜ được tự bịa ra.
+
+**Cụ thể KHÔNG ĐƯỢC BỊA:**
+- ❌ Tên người (họ tên vợ/chồng, cha mẹ, con cái) → nếu file không ghi tên → để `""`
+- ❌ Ngày sinh → nếu file không ghi → để `""`
+- ❌ Số CCCD/CMND → nếu file không ghi → để `""`
+- ❌ Số dư ngân hàng, tên ngân hàng → nếu file không có sao kê/xác nhận → để `""`
+- ❌ Địa chỉ → nếu file không ghi rõ → để `""`
+- ❌ Nghề nghiệp, nơi làm việc → nếu file không ghi → để `""`
+- ❌ Quan hệ gia đình → nếu file không xác nhận rõ → để `""`
+
+**CÁCH KIỂM TRA:** Trước khi điền MỖI trường, hãy tự hỏi: "Thông tin này CÓ ĐÚNG NẰM TRONG file không?" Nếu câu trả lời là KHÔNG hoặc KHÔNG CHẮC → để `""`.
+
+**VÍ DỤ SAI:** Suy luận tên vợ từ tên con (thấy con họ Nguyễn → đoán mẹ cũng họ Nguyễn). ĐÂY LÀ BỊA — KHÔNG ĐƯỢC LÀM.
+
+---
 
 **LƯU Ý QUAN TRỌNG:** Số `page_X` trong JSON phải ĐÚNG theo số trang thật trên form IMMI (2/20, 3/20, 5/20, 6/20, 8/20, 9/20, 11/20).
 
@@ -84,6 +103,30 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
   },
   "page_5": {
     "_title": "Travelling companions (Trang 5/20)",
+    "_WARNING_MINOR_CHECK": "⚠️ BẮT BUỘC: Tính tuổi từ page_3.date_of_birth so với NGÀY HIỆN TẠI. Nếu dưới 18 tuổi → is_minor='Yes' + PHẢI có parents_guardians[]. Nếu từ 18 tuổi trở lên → is_minor='No' + BỎ parents_guardians. VD: DOB='04 Sep 2009', ngày hiện tại=2026 → tuổi=16 → is_minor='Yes'",
+    "is_minor": "Yes hoặc No (BẮT BUỘC tính từ DOB)",
+    "travelling_with_parent": "Yes nếu có cha/mẹ đi cùng (chỉ khi is_minor=Yes)",
+    "not_with_parent_reason": "",
+    "not_with_parent_details": "",
+    "parents_guardians": [
+      {
+        "_NOTE": "Lấy passport info từ hồ sơ của NGƯỜI CHA/MẸ trong cùng bộ hồ sơ. Nếu cha/mẹ cũng nộp visa → has_submitted_visa=Yes + ref_number=TRN của cha/mẹ",
+        "relationship": "2",
+        "family_name": "VU",
+        "given_names": "THI DAN",
+        "sex": "F",
+        "date_of_birth": "20 Jul 1976",
+        "passport_number": "P02685236 (lấy từ page_3 của applicant cha/mẹ)",
+        "passport_country": "VNM",
+        "passport_nationality": "VNM",
+        "passport_issue_date": "",
+        "passport_expiry_date": "",
+        "passport_issuing_authority": "IMMIGRATION DEPARTMENT OF VIETNAM",
+        "has_submitted_visa": "Yes (nếu cha/mẹ cũng nộp visa)",
+        "ref_number_type": "1 (1=TRN, 10=Application ID, 3=Visa grant number)",
+        "ref_number": "TRN hoặc Application ID của cha/mẹ"
+      }
+    ],
     "companions": [
       {
         "relationship": "1",
@@ -96,14 +139,15 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
   },
   "page_6": {
     "_title": "Contact details (Trang 6/20)",
+    "_ADDRESS_RULE": "⚠️ ĐỊA CHỈ PHẢI DỊCH SANG TIẾNG ANH. Không được để nguyên tiếng Việt bỏ dấu!",
     "usual_country": "VIET",
-    "closest_office": "Vietnam, Ho Chi Minh City",
+    "closest_office": "Vietnam, Ho Chi Minh City hoặc Vietnam, Hanoi (chọn gần nhất)",
     "residential_country": "VIET",
-    "residential_address1": "123 NGUYEN HUE STREET",
-    "residential_address2": "",
-    "residential_suburb": "DISTRICT 1",
-    "residential_state": "HO CHI MINH",
-    "residential_postcode": "700000",
+    "residential_address1": "123 NGUYEN HUE STREET (dịch: ĐƯỜNG→STREET, QUỐC LỘ→HIGHWAY, NGÕ/HẺM→ALLEY, THÔN/XÓM→HAMLET)",
+    "residential_address2": "(nếu cần dòng 2)",
+    "residential_suburb": "DISTRICT 1 (dịch: QUẬN→DISTRICT, HUYỆN→DISTRICT, PHƯỜNG→WARD, XÃ→COMMUNE, THỊ TRẤN→TOWN)",
+    "residential_state": "HO CHI MINH (tên tỉnh/thành phố bỏ dấu, không thêm tiền tố)",
+    "residential_postcode": "700000 (nếu có, để trống nếu không biết)",
     "phone_home": "",
     "phone_business": "",
     "phone_mobile": "0901234567",
@@ -162,7 +206,7 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
     "org_country": "VIET",
     "org_address1": "789 LE LOI STREET",
     "org_address2": "DISTRICT 1",
-    "org_suburb": "PHUONG BEN NGHE",
+    "org_suburb": "BEN NGHE WARD",
     "org_state": "HO CHI MINH",
     "org_postcode": "700000",
     "contact_family_name": "NGUYEN",
@@ -175,7 +219,18 @@ Nếu không tìm thấy thông tin cho trường nào, để giá trị là `""
   "page_12": {
     "_title": "Financial support (Trang 12/20)",
     "funding_source": "1",
-    "available_funds": "THE APPLICANT WILL SELF-FUND THE TRIP. BANK STATEMENTS FROM VIETCOMBANK SHOW: (1) SAVINGS ACCOUNT BALANCE: VND 150,000,000 (APPROX. AUD 9,500), (2) FIXED DEPOSIT: VND 200,000,000 (APPROX. AUD 12,500). THE APPLICANT ALSO OWNS A RESIDENTIAL PROPERTY (85 SQM APARTMENT) IN DISTRICT 7, HO CHI MINH CITY. MONTHLY SALARY: VND 25,000,000. ROUND-TRIP FLIGHTS AND ACCOMMODATION HAVE BEEN PRE-BOOKED AND PAID."
+    "available_funds": "THE APPLICANT WILL SELF-FUND THE TRIP. BANK STATEMENTS FROM VIETCOMBANK SHOW: (1) SAVINGS ACCOUNT BALANCE: VND 150,000,000 (APPROX. AUD 9,500), (2) FIXED DEPOSIT: VND 200,000,000 (APPROX. AUD 12,500). THE APPLICANT ALSO OWNS A RESIDENTIAL PROPERTY (85 SQM APARTMENT) IN DISTRICT 7, HO CHI MINH CITY. MONTHLY SALARY: VND 25,000,000. ROUND-TRIP FLIGHTS AND ACCOMMODATION HAVE BEEN PRE-BOOKED AND PAID.",
+    "_IF_funding_source_4": "Nếu funding_source=4 (người khác hỗ trợ), PHẢI thêm các trường sau:",
+    "support_type": "1 (1=Financial, 2=Accommodation, 3=All costs, 99=Other)",
+    "supporter_relationship": "36 (dùng bảng mã quan hệ như page_5)",
+    "supporter_family_name": "TRAN",
+    "supporter_given_names": "THI MY LINH",
+    "supporter_country": "A (A=Australia, VIET=Vietnam — dùng mã IMMI)",
+    "supporter_address1": "12 SMITH STREET",
+    "supporter_address2": "",
+    "supporter_suburb": "BANKSTOWN",
+    "supporter_state": "NSW (nếu ở Úc: ACT/NSW/NT/QLD/SA/TAS/VIC/WA)",
+    "supporter_postcode": "2200"
   },
   "page_16": {
     "_title": "Health declarations (Trang 16/20)",
@@ -304,6 +359,48 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
 - ❌ `"passport_expiry_date": "29 Jul 2047"` (lấy từ hạn CCCD) → **SAI NGHIÊM TRỌNG**
 
 ### Page 5 — Travelling companions (Trang 5/20)
+
+### 🚨🚨🚨 CRITICAL: MINOR DETECTION — KHÔNG ĐƯỢC BỎ QUA 🚨🚨🚨
+
+**BƯỚC 1 — Tính tuổi BẮT BUỘC cho MỌI applicant:**
+- Công thức: `tuổi = NĂM HIỆN TẠI - NĂM SINH` (điều chỉnh nếu chưa qua sinh nhật)
+- Ví dụ: `date_of_birth = "04 Sep 2009"`, ngày hiện tại = tháng 4/2026 → tuổi = 16 → **MINOR**
+- Nếu tuổi < 18 → `is_minor`: `"Yes"` → **BẮT BUỘC có `parents_guardians`**
+- Nếu tuổi >= 18 → `is_minor`: `"No"` → KHÔNG cần `parents_guardians`
+
+**BƯỚC 2 — Khi `is_minor` = `"Yes"` — BẮT BUỘC thêm `parents_guardians`:**
+
+1. `travelling_with_parent`: `"Yes"` nếu có cha/mẹ/người giám hộ đi cùng, `"No"` nếu không
+2. **Nếu `travelling_with_parent` = `"Yes"`:**
+   - `parents_guardians`: mảng thông tin cha/mẹ đi cùng (**"Responsible person details" form**):
+     - `relationship`: `"2"` = Parent, `"14"` = Step Parent, `"87"` = Legal guardian
+     - `family_name`, `given_names`: tên trên passport (viết HOA)
+     - `sex`: `"F"` / `"M"` / `"U"`
+     - `date_of_birth`: `DD MMM YYYY`
+     - `passport_number`: số passport
+     - `passport_country`: mã 3 chữ (VD: `"VNM"`)
+     - `passport_nationality`: mã 3 chữ (VD: `"VNM"`)
+     - `passport_issue_date`: `DD MMM YYYY` — **CHỈ lấy từ passport**, KHÔNG lấy từ CCCD
+     - `passport_expiry_date`: `DD MMM YYYY` — **CHỈ lấy từ passport**, KHÔNG lấy từ CCCD
+     - `passport_issuing_authority`: `"IMMIGRATION DEPARTMENT OF VIETNAM"` (hoặc cơ quan cấp trên passport)
+     - `has_submitted_visa`: `"Yes"` nếu cha/mẹ đã nộp đơn visa riêng, `"No"` nếu chưa
+     - **Nếu `has_submitted_visa` = `"Yes"`:**
+       - `ref_number_type`: `"1"` = TRN, `"10"` = Application ID, `"3"` = Visa grant number
+       - `ref_number`: mã tham chiếu (VD: `"EGPC7ZXB8D"` cho TRN)
+   - `not_with_parent_reason`: `""` (rỗng)
+   - `not_with_parent_details`: `""` (rỗng)
+
+3. **Nếu `travelling_with_parent` = `"No"`:**
+   - `not_with_parent_reason`: lý do không đi cùng cha mẹ:
+     - `"1"` = Travelling with another relative aged over 21 (e.g., grandparent)
+     - `"2"` = Visiting parents already in Australia (travelling unaccompanied)
+     - `"3"` = Visiting other relatives already in Australia (travelling unaccompanied)
+     - `"4"` = Travelling on an organised tour (e.g., study tour)
+     - `"5"` = Other reason
+   - `not_with_parent_details`: text giải thích chi tiết (nếu chọn `"5"` Other), max 300 ký tự
+   - `parents_guardians`: `[]` (mảng rỗng) — HOẶC vẫn khai người thân đi cùng nếu có (VD: ông bà)
+
+**Companions (dùng chung cho cả adult và minor):**
 - **Nếu có nhiều applicant**, mỗi người PHẢI có `page_5` khai người đi cùng
 - Mẹ + Con → Mẹ khai Con ở page_5, Con khai Mẹ ở page_5
 - `relationship` (đúng theo IMMI form):
@@ -323,12 +420,57 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
   - `"42"` = Nephew
 - `sex`: `"F"` hoặc `"M"`, `date_of_birth`: `DD MMM YYYY`
 
+### Page 6 — Contact details (Trang 6/20)
+
+**🚨 ĐỊA CHỈ BẮT BUỘC DỊCH SANG TIẾNG ANH — KHÔNG để nguyên tiếng Việt bỏ dấu!**
+
+**Bảng dịch đơn vị hành chính Việt Nam:**
+| Tiếng Việt | Tiếng Anh | Ví dụ |
+|------------|-----------|-------|
+| Xóm / Thôn / Ấp | Hamlet | XOM 7C → HAMLET 7C |
+| Đường / Phố | Street | DUONG NGUYEN HUE → NGUYEN HUE STREET |
+| Ngõ / Hẻm | Alley / Lane | NGO 12 → ALLEY 12 |
+| Xã | Commune | XA CON THOI → CON THOI COMMUNE |
+| Phường | Ward | PHUONG 5 → WARD 5 |
+| Thị trấn | Town | THI TRAN PHO YEN → PHO YEN TOWN |
+| Quận | District | QUAN 1 → DISTRICT 1 |
+| Huyện | District | HUYEN KIM SON → KIM SON DISTRICT |
+| Thị xã | Town | THI XA SON TAY → SON TAY TOWN |
+| Tỉnh | Province | (chỉ ghi tên, VD: NINH BINH) |
+| Thành phố | City | (chỉ ghi tên, VD: HO CHI MINH) |
+
+**Cách điền:**
+- `residential_address1`: Địa chỉ chi tiết (số nhà, tên đường/thôn/xóm). VD: `"HAMLET 7C"` hoặc `"123 NGUYEN HUE STREET"`
+- `residential_address2`: Phần bổ sung nếu cần. VD: `"CON THOI COMMUNE"` (xã)
+- `residential_suburb`: Quận/Huyện/Phường. VD: `"KIM SON DISTRICT"` (KHÔNG viết `"HUYEN KIM SON"`)
+- `residential_state`: Tỉnh/Thành phố — **CHỈ ghi tên**, bỏ dấu. VD: `"NINH BINH"` (KHÔNG viết `"TINH NINH BINH"`)
+- `residential_postcode`: Mã bưu chính nếu có, để `""` nếu không biết
+
+**❌ SAI:**
+```
+"residential_address1": "XOM 7C"
+"residential_address2": "XA CON THOI"
+"residential_suburb": "HUYEN KIM SON"
+```
+
+**✅ ĐÚNG:**
+```
+"residential_address1": "HAMLET 7C"
+"residential_address2": "CON THOI COMMUNE"
+"residential_suburb": "KIM SON DISTRICT"
+```
+
+**`closest_office`:** Chọn văn phòng gần nhất:
+- Bắc/Trung bộ (Hà Nội, Ninh Bình, Đà Nẵng, Nghệ An...) → `"Vietnam, Hanoi"`
+- Nam bộ (HCM, Bình Dương, Cần Thơ, Đồng Nai...) → `"Vietnam, Ho Chi Minh City"`
+
 ### Page 8 — Non-accompanying family members (Trang 8/20)
 - Người thân trong gia đình **KHÔNG ĐI CÙNG** (ví dụ: chồng/vợ ở nhà, cha mẹ, anh chị em)
 - **QUAN TRỌNG:** Chỉ liệt kê người KHÔNG CÓ trong `page_5` (travelling companions)
-- Nếu `relationship_status` là `"M"` (Married) → vợ/chồng PHẢI có trong page_8 (nếu không đi cùng)
-- Nếu applicant có cha/mẹ, anh/chị em → liệt kê vào đây
-- Nếu applicant KHÔNG có ai (orphan, single, v.v.) → `non_accompanying_members` = `[]` (mảng rỗng)
+- Nếu `relationship_status` là `"M"` (Married) → vợ/chồng PHẢI có trong page_8 (nếu không đi cùng) **NHƯNG CHỈ KHI file hồ sơ CÓ GHI TÊN vợ/chồng**. Nếu phần thông tin vợ/chồng trong form khai TRỐNG hoặc KHÔNG CÓ trong file → để `family_name: ""`, `given_names: ""`, `date_of_birth: ""`
+- Nếu applicant có cha/mẹ, anh/chị em **CÓ GHI RÕ TRONG FILE** → liệt kê vào đây
+- Nếu applicant KHÔNG có ai (orphan, single, v.v.) HOẶC file không ghi thông tin người thân → `non_accompanying_members` = `[]` (mảng rỗng)
+- ⚠️ **KHÔNG ĐƯỢC suy luận tên vợ/chồng từ giấy khai sinh con hay bất kỳ nguồn gián tiếp nào. CHỈ lấy từ form khai hoặc giấy tờ CÓ GHI RÕ.**
 - `relationship`: dùng cùng bảng mã như page_5
 - `country_of_birth`: mã nước, vd: `"VIET"` = Vietnam
 
@@ -423,7 +565,8 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
   - **Ví dụ tốt:** `"THE APPLICANT WILL SELF-FUND THE TRIP. BANK STATEMENTS FROM AGRIBANK SHOW: (1) SAVINGS ACCOUNT BALANCE: VND 250,000,000 (APPROX. AUD 15,600), (2) FIXED DEPOSIT: VND 100,000,000 (APPROX. AUD 6,250). THE APPLICANT ALSO OWNS RESIDENTIAL LAND (200 SQM) IN BEN TRE PROVINCE AND A HOUSE IN TAM PHUOC COMMUNE. MONTHLY INCOME FROM DONATIONS AND TEMPLE ACTIVITIES: APPROX. VND 15,000,000. ROUND-TRIP FLIGHTS AND ACCOMMODATION HAVE BEEN PRE-BOOKED AND PAID."`
   - **❌ KHÔNG viết:** `"PERSONAL SAVINGS. FLIGHTS AND HOTEL PRE-BOOKED."` (quá chung chung, thiếu số liệu)
   - **❌ KHÔNG viết:** `"THE APPLICANT WILL SELF-FUND THE TRIP USING PERSONAL SAVINGS AND BANK BALANCE AS SHOWN IN AGRIBANK STATEMENTS."` (thiếu số dư cụ thể)
-  - Nếu hồ sơ không có số tiền chính xác, ước tính hợp lý dựa trên bank statement và tài sản trong hồ sơ
+  - ⚠️ **QUAN TRỌNG: CHỈ GHI SỐ TIỀN VÀ TÊN NGÂN HÀNG CHÍNH XÁC TỪ FILE.** Nếu sao kê ngân hàng mờ/không đọc được số dư → ghi `"BANK STATEMENTS FROM [TÊN NGÂN HÀNG] ATTACHED"` thay vì bịa số. KHÔNG ĐƯỢC tự ước tính hoặc bịa số dư.
+  - ⚠️ **Nếu hồ sơ KHÔNG CÓ sao kê ngân hàng** → KHÔNG được ghi tên ngân hàng hay số dư. Chỉ ghi những tài sản/nghề nghiệp CÓ TRONG FILE.
 - **Nếu `funding_source` = `"2"` hoặc `"3"` (Employer/Organisation):**
   - `support_type`: `"1"` = Financial, `"2"` = Accommodation, `"3"` = All costs, `"99"` = Other
   - `paying_org`: `"1"` = Current overseas employer, `"2"` = Organisation in Australia, `"3"` = Other organisation
@@ -437,6 +580,13 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
   - `supporter_relationship`: mã quan hệ (dùng bảng mã như page_5)
   - `supporter_family_name`: họ người hỗ trợ
   - `supporter_given_names`: tên người hỗ trợ
+  - `supporter_country`: mã quốc gia nơi supporter sống (VD: `"A"` = Australia, `"VIET"` = Vietnam)
+  - `supporter_address1`: dòng 1 địa chỉ supporter (tối đa 40 ký tự)
+  - `supporter_address2`: dòng 2 địa chỉ (nếu có)
+  - `supporter_suburb`: Suburb/Town nơi supporter sống
+  - `supporter_state`: State/Territory (nếu ở Úc: `"NSW"`, `"VIC"`, `"QLD"`, `"SA"`, `"WA"`, `"TAS"`, `"NT"`, `"ACT"`)
+  - `supporter_postcode`: postcode
+  - **⚠️ Nếu supporter ở Úc** → dùng thông tin từ thư mời / giấy tờ sponsor. Địa chỉ PHẢI bằng tiếng Anh.
 - **Với du lịch thông thường:** hầu hết là `"1"` (Self funded)
 
 ### Page 16 — Health declarations (Trang 16/20)
@@ -472,3 +622,11 @@ Grok phải tự động xử lý logic sau dựa trên thông tin hồ sơ và 
 - **Mỗi người PHẢI có `page_5`** liệt kê người đi cùng
 - **Mỗi người PHẢI có `page_8`** liệt kê người thân KHÔNG đi cùng (chồng/vợ, cha mẹ, anh chị em)
 - Nếu trong hồ sơ KHÔNG có thông tin người thân → `non_accompanying_members` = `[]`
+
+### 🚫 QUY TẮC CHỐNG BỊA THÔNG TIN (NHẮC LẠI)
+- **TUYỆT ĐỐI KHÔNG ĐƯỢC SUY LUẬN hoặc BỊA tên, ngày sinh, số CCCD, số tiền, tên ngân hàng, địa chỉ, hay bất kỳ thông tin nào KHÔNG CÓ TRONG FILE.**
+- Nếu phần "Thông tin vợ/chồng" trong form khai trống → để `""` cho tất cả trường liên quan. KHÔNG được đoán từ tên con hay giấy khai sinh.
+- Nếu sao kê ngân hàng không rõ số dư → KHÔNG được bịa số dư. Chỉ ghi những gì đọc được rõ ràng trong file.
+- Nếu hồ sơ không có thông tin ngày sinh cha/mẹ → để `""`. KHÔNG ĐƯỢC ước đoán.
+- **Nguyên tắc vàng: THIẾU TỐT HƠN SAI. Để trống `""` tốt hơn bịa thông tin sai.**
+- Sau khi hoàn thành JSON, hãy KIỂM TRA LẠI từng trường: nếu không tìm thấy nguồn gốc thông tin trong file → xóa và để `""`.

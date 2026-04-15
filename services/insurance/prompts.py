@@ -47,15 +47,24 @@ Using the applicant's ACTUAL documents (passport, ID card, application form) tha
 
 ⚠️ STRICT RULES — MUST FOLLOW ALL:
 1. **USE THE REAL PERSON'S DATA** from the documents I provide — do NOT invent or generate fake data
-2. **ALL TEXT MUST BE IN ENGLISH** — absolutely NO Vietnamese characters (no ă, â, ê, ô, ơ, ư, đ, diacritics, etc.)
+2. **ALL TEXT MUST BE IN FULL ENGLISH** — absolutely NO Vietnamese words, NO Vietnamese characters (no ă, â, ê, ô, ơ, ư, đ, diacritics, etc.)
 3. **insured_name**: Vietnamese name in UPPERCASE without diacritics. Example: "NGUYEN VAN A", NOT "Nguyễn Văn A"
-4. **address**: MUST be in English. Use format: "192 Tran Quang Khai, Tan Dinh Ward, Ho Chi Minh City, 70000, Viet Nam". NO Vietnamese diacritics
+4. **address**: MUST be FULLY TRANSLATED to English. Translate ALL Vietnamese geographical terms:
+   - "Xã" → "Commune" (NOT "Xa")
+   - "Huyện" → "District" (NOT "Huyen")  
+   - "Tỉnh" → "Province" (NOT "Tinh")
+   - "Phường" → "Ward" (NOT "Phuong")
+   - "Quận" → "District" (NOT "Quan")
+   - "Xóm/Thôn" → "Hamlet" (NOT "Xom/Thon")
+   - "Thành phố" → "City" (NOT "Thanh pho")
+   - Example: "Hamlet 7C, Con Thoi Commune, Kim Son District, Ninh Binh Province, Viet Nam"
+   - WRONG: "Xom 7C, Xa Con Thoi, Kim Son District, Ninh Binh Province, Viet Nam"
 5. **dob**: DD/MM/YYYY format (e.g. 21/08/2002)
 6. **passport_no**: Copy EXACTLY from the person's passport (1 uppercase letter + 7-8 digits)
 7. Return ONLY pure JSON with the EXACT same keys, no explanation
 
-⛔ FORBIDDEN: Any character with diacritics (ả, ã, á, à, ạ, ắ, etc.)
-✅ ALLOWED: Only ASCII characters (A-Z, a-z, 0-9, spaces, punctuation)
+⛔ FORBIDDEN: Any Vietnamese word (Xã, Phường, Quận, Huyện, Tỉnh, Xóm, Thôn, etc.) and any character with diacritics (ả, ã, á, à, ạ, ắ, etc.)
+✅ ALLOWED: Only ASCII characters (A-Z, a-z, 0-9, spaces, punctuation) and English geographical terms
 
 Now here are the applicant's documents:
 

@@ -1,6 +1,25 @@
 # 🛂 AI Visa Agent — Multi-Agent Automation System
 
-Hệ thống multi-agent AI tự động hóa toàn bộ quy trình hồ sơ VISA: đọc tài liệu, phân loại, tách/ghép PDF, dịch thuật, tạo booking khách sạn & vé máy bay, lên lịch trình, và viết thư giải trình song ngữ (VI/EN).
+Hệ thống multi-agent AI tự động hóa toàn bộ quy trình hồ sơ VISA: đọc tài liệu, phân loại, tách/ghép PDF, dịch thuật, tạo booking khách sạn & vé máy bay, lên lịch trình, sinh bảo hiểm du lịch, và viết thư giải trình song ngữ (VI/EN).
+
+> **Tech Stack**: Python 3.10+ · Flask · SQLite/SQLAlchemy · OpenAI GPT-4o · Google Gemini · PyMuPDF · Vanilla JS · Google Drive API
+
+---
+
+## 📑 Mục Lục
+
+- [⚡ Cài đặt nhanh](#-cài-đặt-nhanh)
+- [🔑 Biến môi trường](#-biến-môi-trường-env)
+- [🖥️ 9 Tabs Chức Năng](#️-9-tabs-chức-năng)
+- [📊 Use Case Diagram](#-use-case-diagram)
+- [🔄 Sequence Diagrams](#-sequence-diagrams)
+- [📈 Activity Diagrams](#-activity-diagrams)
+- [📐 Kiến trúc hệ thống](#-kiến-trúc-hệ-thống)
+- [📂 Cấu trúc dự án](#-cấu-trúc-dự-án)
+- [🧾 API Endpoints](#-api-endpoints)
+- [📝 Database](#-database)
+- [🧪 Tests](#-chạy-tests)
+- [📝 Ghi chú kỹ thuật](#-ghi-chú-kỹ-thuật-dành-cho-developer)
 
 ---
 
@@ -24,8 +43,9 @@ copy .env.example .env
 
 # 4. Cấp quyền Google Drive (Quan trọng cho Tính năng Đồng bộ)
 # Tải file client_secret.json (Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs (Desktop))
-# Bỏ file client_secret.json vào thư mục gốc của project ngang hàng với server.py. Lần đầu tiện chạy, hệ thống sẽ mở trình duyệt để xin quyền truy cập Drive và sinh ra file token.json.
-# Hãy lưu ý không bao giờ push client_secret.json và token.json lên github.
+# Bỏ file client_secret.json vào thư mục gốc của project ngang hàng với server.py.
+# Lần đầu chạy, hệ thống sẽ mở trình duyệt để xin quyền truy cập Drive và sinh ra file token.json.
+# ⚠️ KHÔNG BAO GIỜ push client_secret.json và token.json lên github.
 
 # 5. Chạy server
 python server.py
@@ -47,8 +67,7 @@ Mở trình duyệt: **http://127.0.0.1:8000**
 | `SERPAPI_KEY`         | API key SerpAPI cho tìm chuyến bay               | ❌       |
 | `GOOGLE_CREDENTIALS_PATH` | Đường dẫn tới file Google Credentials (mặc định: `client_secret.json`) | ❌ |
 
-> **Lưu ý:** `TEXT_MODEL` và `VISION_MODEL` vẫn được hỗ trợ như alias tương thích ngược, nhưng nên ưu tiên `OPENAI_MODEL` và `OPENAI_VISION_MODEL`.
-> Tất cả config được quản lý tập trung qua `config.py` → class `Config`. Không cần gọi `os.getenv()` trực tiếp trong code.
+> **Lưu ý:** Tất cả config được quản lý tập trung qua `config.py` → class `Config`. Không cần gọi `os.getenv()` trực tiếp trong code.
 
 ---
 
@@ -56,124 +75,487 @@ Mở trình duyệt: **http://127.0.0.1:8000**
 
 | Tab | Chức năng | Mô tả |
 |-----|-----------|-------|
-| ① Tách PDF (AI) | AI Splitter | Upload scan nhiều trang → AI tự nhận diện + tách từng tài liệu tự động |
+| ① Xử lý hồ sơ | AI Splitter + Classifier | Upload scan nhiều trang → AI tự nhận diện + tách + phân loại từng tài liệu |
 | ② Tách/Nối PDF | PDF Tools | Trộn/Merge nhiều file, rename theo format danh mục Đại sứ quán, rút trích trang |
-| ③ Booking | Chuyến bay & Khách sạn | Tích hợp SerpAPI chuyến bay → Auto-check-in KHÁCH SẠN liên hoàn, vé Multi-city |
-| ④ Lịch trình | Dựa trên Booking | Sinh lịch trình du lịch chi tiết từng ngày khớp hoàn toàn vé máy bay / khách sạn |
-| ⑤ Bảo Hiểm | Chubb / Liberty | Sinh tự động chứng nhận bảo hiểm du lịch quốc tế (Sử dụng kiến trúc PDF Overlay) |
-| ⑥ Thư giải trình | Lõi AI Agent | Đọc hiểu background người nộp → Viết thư Cover Letter chuẩn đại sứ quán (Vi/En) |
-| ⑦ Kết quả | File Manager | Quản lý toàn bộ outputs ở local, xem trước, gộp chung, tải xuống |
-| ⑧ Dịch thuật | Translation | Dịch và bóc tách tài liệu (Khai sinh, Tư pháp) giữ nguyên layout HTML gốc |
-| ⑨ Sửa PDF | Metadata Editor | Can thiệp chỉnh sửa meta-data và fill các form điền tay dễ dàng |
+| ③ Booking | Chuyến bay & Khách sạn | Tích hợp SerpAPI chuyến bay → Auto-check-in khách sạn liên hoàn, vé Multi-city |
+| ④ Lịch trình | Travel Itinerary | Sinh lịch trình du lịch chi tiết từng ngày khớp hoàn toàn vé máy bay / khách sạn |
+| ⑤ Bảo Hiểm | Chubb / Liberty | Sinh chứng nhận bảo hiểm du lịch (Redaction + Text Insert trên PDF template) |
+| ⑥ Thư giải trình | AI Cover Letter | Đọc hiểu background người nộp → Viết Cover Letter chuẩn đại sứ quán (Vi/En) |
+| ⑦ Kết quả | Output Manager | Quản lý toàn bộ outputs, xem trước, gộp chung, tải xuống ZIP |
+| ⑧ Dịch thuật | Translation Engine | Dịch tài liệu (Khai sinh, Tư pháp...) giữ nguyên layout HTML + Đóng mộc & Giáp lai |
+| ⑨ Sửa PDF | PDF Editor | Can thiệp chỉnh sửa metadata và fill các form điền tay |
 
-> **🌟 Các Điểm Khác Biệt & Nổi Bật (Features):**
-> - **Flight-First Sync:** Ngày đáp chuyến bay tự động đồng bộ làm ngày check-in khách sạn, tự nhận diện bay đêm (qua timezone) để cộng thêm `+1 Day` check-in chính xác. Tích hợp thanh Popup City Wizard tính quỹ ngày.
-> - **PDF Overlay Engine:** Sinh bảo hiểm Chubb PDF chân thực qua thư viện `PyMuPDF` bằng thuật toán vẽ nền ảo (Overlay) giấu vùng chèn text và nhúng font System `[Times New Roman]` thật — giải tỏa triệt để lỗi loạn font và hỏng stream.
-> - **Hỗ Trợ Form Thông Minh:** Render chính xác tờ khai IMM5257, IMM5645 (Canada) & Form 54 (Úc). Tích hợp Chrome Ext Autofill.
+### 🌟 Các Điểm Khác Biệt & Nổi Bật
 
+- **Google Drive Integration:** Tự động quét → tải hồ sơ → AI phân loại → dịch → đóng mộc → push bản dịch lên Drive → xóa file gốc. Quy trình zero-touch.
+- **Flight-First Sync:** Ngày đáp chuyến bay tự đồng bộ làm ngày check-in khách sạn, nhận diện bay đêm (timezone) cộng `+1 Day` check-in chính xác.
+- **PDF Redaction Engine:** Sinh bảo hiểm Chubb/Liberty bằng `PyMuPDF` — xóa text gốc bằng Redaction, insert text mới với font/size/color y hệt original.
+- **Đóng mộc & Giáp lai:** Tự động đóng dấu công ty + dấu giáp lai (edge seal) trên bản dịch PDF, chuẩn hóa A4.
+- **Chrome Extension Autofill:** Tự động điền tờ khai ImmiAccount (Úc), DS-160 (Mỹ), IMM5257/5645 (Canada).
+
+---
+
+## 📊 Use Case Diagram
+
+```mermaid
+graph TB
+    subgraph Actors
+        User["👤 Nhân viên Visa"]
+        Sale["👤 Sale (Upload hồ sơ)"]
+        AI["🤖 AI System"]
+        Drive["☁️ Google Drive"]
+    end
+
+    subgraph UC_HoSo["📁 Xử Lý Hồ Sơ"]
+        UC1["Tải lên scan hồ sơ"]
+        UC2["AI tách & phân loại tài liệu"]
+        UC3["Quét hồ sơ từ Drive"]
+        UC4["Kiểm tra đủ/thiếu giấy tờ"]
+    end
+
+    subgraph UC_Dich["📝 Dịch Thuật"]
+        UC5["OCR & Dịch tài liệu"]
+        UC6["Tạo HTML giữ layout gốc"]
+        UC7["Đóng mộc & Giáp lai PDF"]
+        UC8["Push bản dịch lên Drive"]
+    end
+
+    subgraph UC_Booking["✈️ Booking & Lịch Trình"]
+        UC9["Tìm chuyến bay (SerpAPI)"]
+        UC10["Đặt khách sạn liên hoàn"]
+        UC11["Sinh lịch trình du lịch"]
+    end
+
+    subgraph UC_BaoHiem["🛡️ Bảo Hiểm"]
+        UC12["Sinh chứng nhận Liberty/Chubb"]
+        UC13["Điền thông tin khách hàng lên PDF"]
+    end
+
+    subgraph UC_Letter["✉️ Thư Giải Trình"]
+        UC14["AI đọc hiểu profile ứng viên"]
+        UC15["Sinh Cover Letter Vi/En"]
+    end
+
+    subgraph UC_Output["📦 Kết Quả"]
+        UC16["Merge PDF tổng hợp"]
+        UC17["Tải ZIP toàn bộ hồ sơ"]
+    end
+
+    User --> UC1 & UC5 & UC9 & UC12 & UC14 & UC16
+    Sale --> UC3
+    UC1 --> UC2
+    UC3 --> UC4
+    UC5 --> UC6 --> UC7 --> UC8
+    UC9 --> UC10 --> UC11
+    AI --> UC2 & UC5 & UC11 & UC14 & UC15
+    UC8 --> Drive
+    UC3 --> Drive
+```
+
+---
+
+## 🔄 Sequence Diagrams
+
+### 1. Quy trình Dịch Thuật (Drive → Dịch → Đóng mộc → Push)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Sale
+    actor User as Nhân viên
+    participant Drive as Google Drive
+    participant Server as Flask Server
+    participant AI as OpenAI/Gemini
+    participant DB as SQLite DB
+
+    Sale->>Drive: Upload hồ sơ khách + đánh dấu -DONE
+    Drive-->>Server: Webhook/Scan phát hiện folder mới
+    Server->>Drive: Tải toàn bộ file về translation_workspace/
+    Server->>Drive: Đổi tên folder → "✅ ... - Đang dịch"
+
+    User->>Server: Chọn workspace từ dropdown
+    Server->>AI: Quét AI phát hiện file cần dịch
+    AI-->>Server: Danh sách file (cần dịch / song ngữ / bỏ qua)
+
+    loop Với mỗi file cần dịch
+        User->>Server: Chọn file + template
+        Server->>AI: OCR → Dịch → Tạo HTML
+        AI-->>Server: HTML bản dịch
+        Server-->>User: Preview bản dịch
+        User->>Server: Sửa HTML (nếu cần)
+        User->>Server: Đóng mộc & Giáp lai
+        Server->>Server: Merge PDF (bản gốc + bản dịch + xác nhận)
+        Server->>Server: Đóng dấu công ty + Giáp lai (edge seal)
+        Server-->>User: Preview PDF đã đóng mộc
+        User->>Server: Push lên Drive
+        Server->>Drive: Upload bản dịch → folder Translate/
+        Server->>Drive: Xóa file gốc khỏi Final/
+    end
+
+    User->>Server: Báo cáo "Đã Dịch Xong"
+    Server->>Drive: Đổi tên folder → "✅ ... - Đang khai"
+    Server->>Server: Move workspace → Khai Imm/ (archive)
+    Server->>DB: Xóa translation flows
+```
+
+### 2. Quy trình Sinh Bảo Hiểm
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Nhân viên
+    participant Server as Flask Server
+    participant AI as Grok/GPT
+    participant PDF as PyMuPDF Engine
+
+    User->>Server: Chọn template (Liberty / Chubb)
+    Server->>PDF: Đọc PDF template → trích xuất fields
+    PDF-->>Server: Summary (name, DOB, passport, address, policy...)
+    Server-->>User: Hiển thị prompt + fields cần fill
+
+    User->>AI: Paste prompt + ảnh passport khách hàng
+    AI-->>User: JSON (name, DOB, passport, address)
+
+    User->>Server: Gửi JSON data mới + auto-generated fields
+    Server->>Server: Random policy_no, customer_code, dates
+    Server->>PDF: Redact old text → Insert new text
+    Note over PDF: 1. Sample background color<br/>2. add_redact_annot() xóa text gốc<br/>3. apply_redactions() fill background<br/>4. insert_text() chèn text mới
+
+    PDF-->>Server: PDF hoàn chỉnh
+    Server-->>User: Preview & Download
+```
+
+### 3. Quy trình Booking & Lịch Trình
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Nhân viên
+    participant Server as Flask Server
+    participant Serp as SerpAPI
+    participant AI as OpenAI
+    participant DB as SQLite DB
+
+    User->>Server: Nhập thông tin chuyến bay (ngày, điểm đến)
+    Server->>Serp: Tìm chuyến bay phù hợp
+    Serp-->>Server: Danh sách kết quả
+    Server-->>User: Hiển thị chuyến bay
+
+    User->>Server: Chọn chuyến bay
+    Server->>DB: Lưu booking flight
+    Note over Server: Flight-First Sync:<br/>Ngày đáp = check-in khách sạn<br/>Bay đêm → +1 day
+
+    Server->>Server: Auto-tính ngày check-in/check-out khách sạn
+    User->>Server: Chọn khách sạn cho từng thành phố
+    Server->>DB: Lưu booking hotel
+
+    User->>AI: Sinh lịch trình du lịch
+    AI-->>Server: Lịch trình chi tiết theo ngày
+    Server->>DB: Lưu itinerary
+    Server-->>User: Preview HTML lịch trình
+```
+
+---
+
+## 📈 Activity Diagrams
+
+### 1. Luồng Tổng Thể Xử Lý Hồ Sơ Visa
+
+```mermaid
+flowchart TD
+    Start([🚀 Bắt đầu]) --> InputMethod{Nguồn hồ sơ?}
+
+    InputMethod -->|Google Drive| DriveSync["☁️ Quét Drive<br/>Tải folder về local"]
+    InputMethod -->|Upload thủ công| ManualUpload["📤 Upload file trực tiếp"]
+
+    DriveSync --> AIScan["🤖 AI Quét & Phân loại<br/>(GPT-4o Vision)"]
+    ManualUpload --> AIScan
+
+    AIScan --> CheckResult{Đủ giấy tờ?}
+    CheckResult -->|Thiếu| NotifyMissing["🚨 Đánh dấu THIẾU<br/>Rename folder trên Drive"]
+    CheckResult -->|Đủ| MarkReady["✅ Đánh dấu Đang dịch"]
+
+    NotifyMissing --> End1([⏸️ Chờ Sale bổ sung])
+
+    MarkReady --> TranslationFlow["📝 Dịch thuật tài liệu"]
+
+    TranslationFlow --> OCR["🔍 OCR (AI Vision)"]
+    OCR --> Translate["🌐 Dịch Vi → En"]
+    Translate --> GenerateHTML["📄 Tạo HTML giữ layout"]
+    GenerateHTML --> ReviewEdit["✏️ Review & Sửa HTML"]
+    ReviewEdit --> StampSeal["🔴 Đóng mộc & Giáp lai"]
+    StampSeal --> PushDrive["☁️ Push lên Drive<br/>+ Xóa file gốc"]
+
+    PushDrive --> AllDone{Dịch hết file?}
+    AllDone -->|Chưa| TranslationFlow
+    AllDone -->|Rồi| MarkComplete["✅ Báo cáo Đã Dịch Xong"]
+
+    MarkComplete --> RenameKhai["📂 Drive: Đổi tên → Đang khai"]
+    RenameKhai --> ArchiveLocal["🗂️ Move workspace → Khai Imm/"]
+    ArchiveLocal --> CleanDB["🗑️ Xóa flows trong DB"]
+
+    subgraph Parallel["⚡ Song song: Booking & Bảo hiểm"]
+        BookFlight["✈️ Tìm & Chọn chuyến bay"]
+        BookHotel["🏨 Đặt khách sạn"]
+        GenItinerary["📅 Sinh lịch trình"]
+        GenInsurance["🛡️ Sinh bảo hiểm"]
+        GenLetter["✉️ Viết thư giải trình"]
+
+        BookFlight --> BookHotel --> GenItinerary
+    end
+
+    CleanDB --> Parallel
+
+    GenItinerary --> MergePDF["📦 Gộp PDF tổng hợp"]
+    GenInsurance --> MergePDF
+    GenLetter --> MergePDF
+
+    MergePDF --> FinalZIP["📥 Tải ZIP hoàn chỉnh"]
+    FinalZIP --> End2([✅ Hoàn tất hồ sơ])
+```
+
+### 2. Luồng Đóng Mộc & Giáp Lai PDF
+
+```mermaid
+flowchart TD
+    Start([📄 Bắt đầu]) --> SelectFiles["Chọn file gốc + bản dịch"]
+    SelectFiles --> MergePDF["Merge: Gốc + Dịch + Xác nhận dịch"]
+
+    MergePDF --> NormalizeA4["📐 Chuẩn hóa A4<br/>(tolerance 0.1%)"]
+
+    NormalizeA4 --> StampCompany["🔴 Đóng dấu công ty<br/>Vị trí: góc phải-dưới"]
+    StampCompany --> EdgeSeal{Có giáp lai?}
+
+    EdgeSeal -->|Có| CalcPositions["Tính vị trí seal<br/>= Page_height / Num_pages"]
+    CalcPositions --> DrawSeals["Vẽ dấu giáp lai<br/>mép phải mỗi trang"]
+    DrawSeals --> Preview["👁️ Preview PDF"]
+
+    EdgeSeal -->|Không| Preview
+
+    Preview --> UserAction{Hành động?}
+    UserAction -->|Chấp nhận| PushDrive["☁️ Push lên Drive"]
+    UserAction -->|Sửa| SelectFiles
+
+    PushDrive --> DeleteOriginal["🗑️ Xóa file gốc trên Drive"]
+    DeleteOriginal --> Done([✅ Hoàn tất])
+```
+
+### 3. Luồng Sinh Bảo Hiểm PDF
+
+```mermaid
+flowchart TD
+    Start([🛡️ Bắt đầu]) --> SelectTemplate{Chọn template?}
+
+    SelectTemplate -->|Liberty| ReadLiberty["Đọc liberty.pdf"]
+    SelectTemplate -->|Chubb| ReadChubb["Đọc chubb.pdf"]
+
+    ReadLiberty --> ExtractFields
+    ReadChubb --> ExtractFields
+
+    ExtractFields["🔍 Trích xuất fields<br/>(name, DOB, passport,<br/>address, policy...)"]
+
+    ExtractFields --> GeneratePrompt["📋 Tạo Grok/GPT prompt<br/>+ Random policy_no, customer_code"]
+    GeneratePrompt --> UserPaste["👤 User paste prompt<br/>+ ảnh passport vào AI"]
+    UserPaste --> AIReturn["🤖 AI trả JSON<br/>(name, DOB, passport, address)"]
+
+    AIReturn --> ApplyChanges["PDF Engine: Apply changes"]
+
+    subgraph PDFEngine["🔧 PDF Redaction Engine"]
+        SampleBG["Sample background color<br/>(Page 0: pixel sampling<br/>Page 1+: pure white)"]
+        AddRedact["add_redact_annot()<br/>Đánh dấu vùng cần xóa"]
+        ApplyRedact["apply_redactions()<br/>Xóa text gốc + fill background"]
+        InsertText["insert_text()<br/>Chèn text mới<br/>(đúng font, size, color)"]
+
+        SampleBG --> AddRedact --> ApplyRedact --> InsertText
+    end
+
+    ApplyChanges --> PDFEngine
+    InsertText --> OutputPDF["📄 Output PDF"]
+    OutputPDF --> PreviewDownload["👁️ Preview & Download"]
+    PreviewDownload --> Done([✅ Hoàn tất])
+```
+
+---
+
+## 📐 Kiến trúc hệ thống
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         🌐 Frontend (Vanilla JS)                        │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐    │
+│  │ Splitter │ PDF Tools│ Booking  │Insurance │Translate │ LetterGen│    │
+│  │  .js     │  .js     │  .js     │  .js     │  .js     │  .js     │    │
+│  └────┬─────┴────┬─────┴────┬─────┴────┬─────┴────┬─────┴────┬─────┘    │
+│       │          │          │          │          │          │           │
+│  ┌────┴──────────┴──────────┴──────────┴──────────┴──────────┴─────┐    │
+│  │           workspace.js · events.js · push-to-drive.js           │    │
+│  └─────────────────────────────┬───────────────────────────────────┘    │
+└────────────────────────────────┼────────────────────────────────────────┘
+                                 │ HTTP REST API
+┌────────────────────────────────┼────────────────────────────────────────┐
+│                         🐍 Flask Server                                 │
+│  ┌─────────────────────────────┼───────────────────────────────────┐    │
+│  │                    routes/ (28 files)                            │    │
+│  │  ┌────────────┬────────────┬────────────┬────────────────────┐  │    │
+│  │  │ splitter.py│booking*.py │insurance.py│ translate_*.py (4) │  │    │
+│  │  │ pipeline.py│pipeline*.py│push_drive.py│ australia_forms.py│  │    │
+│  │  └────────────┴────────────┴────────────┴────────────────────┘  │    │
+│  └─────────────────────────────┬───────────────────────────────────┘    │
+│                                │                                        │
+│  ┌────────────┬────────────────┼────────────────┬──────────────────┐    │
+│  │  core/     │  services/     │  pdf_tools/     │  sync/           │    │
+│  │ agents.py  │ insurance/     │ stamper.py      │ drive_ui_hacker  │    │
+│  │ prompts.py │  pdf_engine.py │ (mộc + giáp lai)│ (Drive API)     │    │
+│  │ errors.py  │  prompts.py    │                 │                  │    │
+│  │ helpers.py │  random_utils  │                 │                  │    │
+│  └────────────┴────────────────┴────────────────┴──────────────────┘    │
+│                                │                                        │
+│  ┌─────────────────────────────┼───────────────────────────────────┐    │
+│  │              External Services & Storage                        │    │
+│  │  ┌──────────┬──────────┬──────────┬────────────┬──────────┐    │    │
+│  │  │ OpenAI   │ Gemini   │ SerpAPI  │GoogleDrive │ SQLite   │    │    │
+│  │  │ GPT-4o   │ 1.5Flash │ Flights  │  OAuth2    │ DB       │    │    │
+│  │  └──────────┴──────────┴──────────┴────────────┴──────────┘    │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Bảo mật (Security)
+- **Zero-Git-Tracking**: Hồ sơ visa (Passport, CMND, Sao kê) KHÔNG bao giờ push lên git — `.gitignore` cấu hình đầy đủ.
+- **Dynamic Load Balancing**: Fallback thông minh OpenAI → Gemini khi cạn Rate Limit.
+- **Request Optimization**: Ảnh Resize & nén JPEG 80% tiết kiệm tokens.
+- **Caching**: Request đắt tiền được cache xuống `output/cache`.
+- **Khai Imm/ Archive**: Workspace đã dịch xong được move (không xóa) vào `Khai Imm/` — cũng nằm trong `.gitignore`.
 
 ---
 
 ## 📂 Cấu trúc dự án
 
 ```text
-├── server.py                  ← Entry point / Khởi chạy
-├── config.py                  ← Config tập trung (os.getenv, bảo mật keys)
-├── database.py                ← SQLite + SQLAlchemy (Project, Booking, MergedPdfs...)
+├── server.py                  ← Entry point / Khởi chạy Flask
+├── config.py                  ← Config tập trung (class Config)
+├── database.py                ← SQLite + SQLAlchemy (6 models)
 ├── requirements.txt           ← Dependencies & thư viện
 │
-├── core/                      ← Kho lõi trí tuệ nhân tạo
-│   ├── agents.py              ← AI Agents (Trích xuất & phân tích DOM/PDF)
-│   ├── prompts.py             ← Kho Tàng Prompt Templates (Prompt Engineering)
-│   └── errors.py              ← Xử lý ngắt quãng (QuotaExhaustedError, 429)
+├── core/                      ← Kho lõi AI
+│   ├── agents.py              ← AI Agents (Vision OCR, Document Analysis)
+│   ├── prompts.py             ← Prompt Templates (Prompt Engineering)
+│   ├── helpers.py             ← Utility functions (model selection, etc.)
+│   └── errors.py              ← Error handling (QuotaExhaustedError, 429)
 │
-├── routes/                    ← Hệ thống API (Flask Blueprints)
-│   ├── __init__.py            ← Blueprint registry
-│   ├── projects.py            ← CRUD dự án
-│   ├── booking*.py            ← API Bookings (SerpAPI, Khách sạn, Gen vé)
-│   ├── pipeline*.py           ← Các luồng Pipeline xử lý Cover Letter & PDF
-│   ├── precheck.py            ← Pre-check scanner
+├── routes/                    ← API Layer (Flask Blueprints - 28 files)
 │   ├── splitter.py            ← AI PDF splitter
-│   ├── splitter_manual.py     ← Manual PDF split
-│   ├── splitter_translate.py  ← Translation + OCR + HTML clone
-│   └── insurance.py           ← *[New]* API endpoint cho module Bảo Hiểm
+│   ├── booking*.py            ← Booking (SerpAPI, Hotel, Ticket Gen)
+│   ├── insurance.py           ← Insurance certificate generation
+│   ├── translate_core.py      ← Translation shared config & helpers
+│   ├── translate_api.py       ← Translation CRUD, workspace scan
+│   ├── translate_stamp.py     ← Stamp, seal, push-to-drive
+│   ├── splitter_translate.py  ← Translation flow management
+│   ├── push_to_drive.py       ← Google Drive upload/sync
+│   └── pipeline*.py           ← Cover Letter & PDF pipelines
 │
-├── services/                  ← Business Logic Layer (Clean Architecture)
+├── services/                  ← Business Logic Layer
 │   └── insurance/
-│       └── pdf_engine.py      ← Thuật toán chèn PDF bảo hiểm tinh vi (Overlay)
+│       ├── pdf_engine.py      ← PDF Redaction Engine (extract, replace, render)
+│       ├── prompts.py         ← AI prompt builder for insurance
+│       ├── random_utils.py    ← Random policy/code generators
+│       └── liberty_api.py     ← Liberty Insurance pricing API
 │
-├── booking/                   ← Logic tạo Booking (Agent + Generator)
-├── pdf_tools/                 ← Hỗ trợ cắt, nối, metadata PDF 
-├── classifier/                ← Classifier thông minh bóc nội dung document
+├── pdf_tools/                 ← PDF utilities
+│   └── stamper.py             ← Company stamp + Edge seal (giáp lai)
 │
-├── australia_forms/           ← Auto-fill Úc (Xử lý Form 54 Tiếng Anh/Tiếng Việt)
-├── canada_forms/              ← Auto-fill Canada (Đọc form gia đình IMM5645, File form IMM5257)
-├── autofill aus/              ← Chrome Extension cho hệ thống ImmiAccount Úc
-├── autofill ds160 /           ← Chrome Extension đẩy tờ khai Visa DS-160 Mỹ
+├── sync/                      ← Google Drive integration
+│   └── drive_ui_hacker.py     ← Drive API (rename, upload, delete, list)
 │
-├── frontend/                  ← Web UI Architecture (Vanilla JS)
-│   ├── index.html             ← Giao diện Grid Layout Chính (9 Tabs hiển thị)
-│   └── js/
-│       ├── app.js             ← Global UI State (Theme, Alerts)
-│       ├── booking.js         ← Booking UI
-│       ├── flights.js         ← Flight search/ticket UI
-│       ├── insurance.js       ← Insurance module UI
-│       ├── itinerary.js       ← Itinerary generation UI
-│       ├── splitter.js        ← AI splitter UI
-│       ├── classifier.js      ← Document classifier UI
-│       ├── steps.js           ← Pipeline steps UI
-│       ├── translation.js     ← Translation UI
-│       ├── pdf-tools.js       ← PDF merge/rename UI
-│       ├── scan-splitter.js   ← Scan splitter UI
-│       ├── manual-splitter.js ← Manual split UI
-│       ├── ds160.js           ← DS-160 form UI
-│       ├── canada-forms.js    ← Canada forms UI
-│       ├── pdf-export.js      ← PDF export utilities 
-│       └── letter-edit.js     ← Letter editor UI
+├── classifier/                ← Document classifier
+│   └── agent.py               ← AI document classification
 │
-├── tests/                     ← Hệ thống Test
-│   ├── test_config.py         ← Config validation
-│   ├── test_database.py       ← Database CRUD tests
-│   ├── test_agents.py         ← Agent logic tests
-│   ├── test_errors.py         ← Error handling tests
-│   ├── test_helpers.py        ← Utility function tests
-│   └── test_routes.py         ← Smoke tests for all 15 blueprints
+├── booking/                   ← Booking logic (Agent + Generator)
+├── letter_gen/                ← Cover letter generation
 │
-├── dich/                      ← Cache HTML + Tệp JSON Template sau khi dịch 
-└── splitter_uploads/          ← Nơi chứa ảnh đầu vào Tách/Phân loại
+├── australia_forms/           ← Form 54 (Úc) autofill
+├── canada_forms/              ← IMM5257, IMM5645 (Canada)
+├── autofill aus/              ← Chrome Extension: ImmiAccount (Úc)
+├── autofill ds160/            ← Chrome Extension: DS-160 (Mỹ)
+│
+├── frontend/                  ← Web UI (Vanilla JS, CSS)
+│   ├── index.html             ← Main layout (9 tabs)
+│   ├── app.js                 ← Global UI State
+│   └── js/                    ← 20 JS modules
+│       ├── workspace.js       ← Workspace management + mark complete
+│       ├── translation.js     ← Translation flow (73KB - largest module)
+│       ├── push-to-drive.js   ← Drive upload UI
+│       └── ...                ← Other tab-specific modules
+│
+├── templates/                 ← PDF templates (insurance, forms)
+├── dich/                      ← Translation HTML cache & templates
+├── Khai Imm/                  ← Archive: completed workspaces (gitignored)
+└── tests/                     ← Test suite (153 tests)
 ```
 
 ---
 
-## 📐 Kiến trúc luồng hệ thống (Data Flow)
+## 🧾 API Endpoints
 
-```text
-       Input Trực Tiếp (Files)                        Giao Diện Điều Khiển UI
-                ↓                                               ↓
- ┌─────────────────────────────┐                 ┌─────────────────────────────┐
- │       Tách PDF bằng AI      │                 │  Chubb / Tiện ích Mở rộng   │
- │   Tự động chia nhỏ tài liệu │                 │  Quản lý vé Đặt chỗ Booking │
- └─────────────────────────────┘                 └─────────────────────────────┘
-                ↓                                               ↓
- ┌─────────────────────────────────────────────────────────────────────────────┐
- │    Tầng Model Nhận Diện: OpenAI (GPT-4o-Mini) + Gemini 1.5 Flash (Fallback) │
- └─────────────────────────────────────────────────────────────────────────────┘
-                ↓                                               ↓
- ┌─────────────────────────────┐                 ┌─────────────────────────────┐
- │   Trích Xuất Thông Tin (JSON│   <=========>   │  Lưu Trữ Khách/ SQLite DB   │
- │   Cây phân tích bối cảnh)   │                 │  Quản lý phiên cho Resume   │
- └─────────────────────────────┘                 └─────────────────────────────┘
-                ↓                                               ↓
- ┌─────────────────────────────┐                 ┌─────────────────────────────┐
- │  Cover Letter Gen & PDF Gen │                 │ Final Review (Tab Kết Quả)  │
- │  Dịch tự động ra layout gốc │                 │ Click Tải ZIP, Merge Full   │
- └─────────────────────────────┘                 └─────────────────────────────┘
-```
+### 📁 Xử Lý Hồ Sơ
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `GET` | `/api/translate/workspaces` | Liệt kê workspace dịch (từ Drive) |
+| `POST` | `/api/translate/workspace_scan` | AI quét workspace, phát hiện file cần dịch |
+| `POST` | `/api/translate/check_bilingual` | Upload file → Check song ngữ |
 
-### Bảo mật (Security & Optimization)
-- **Zero-Git-Tracking**: Những hồ sơ của người xin visa (Passport, CMND, Sao kê) tuyệt đối KHÔNG cấu trúc đồng bộ hoá lên cloud, đã config `.gitignore` chuẩn.
-- **Dynamic Load Balancing**: Hệ thống có khả năng Fallback thông minh từ mô hình xử lý Text cực mạnh (GPT-4o) sang mô hình tốc độ (Gemini) ngay khi cạn Rate Limit quota. Dữ liệu Request được Resize & nén bằng JPEG 80% để siêu tiết kiệm lượng Tokens. 
-- **Caching Thông Minh**: Những request đắt tiền được hệ thống caching nội bộ xuống `output/cache`, không lo chạy tốn kém qua mỗi lần reload.
+### 📝 Dịch Thuật
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/api/translate/upload` | Upload file cần dịch |
+| `POST` | `/api/translate/original_pages` | Render trang gốc thành ảnh |
+| `POST` | `/api/translate/rebuild_html` | AI dịch + tạo HTML |
+| `POST` | `/api/translate/save_html` | Lưu HTML bản dịch |
+| `GET/POST/PUT/DELETE` | `/api/translate/flows` | CRUD translation flows |
+
+### 🔴 Đóng Mộc & Drive
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/api/translate/stamp_preview` | Preview PDF đóng mộc + giáp lai |
+| `POST` | `/api/translate/push_to_drive` | Upload bản dịch → Drive, xóa file gốc |
+| `POST` | `/api/translate/mark_complete` | Đánh dấu hoàn tất → Move workspace → Khai Imm/ |
+
+### 🛡️ Bảo Hiểm
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/api/insurance/extract` | Trích xuất fields từ template PDF |
+| `POST` | `/api/insurance/prompt` | Tạo AI prompt cho fields |
+| `POST` | `/api/insurance/apply` | Apply changes lên PDF (Redaction engine) |
+| `GET` | `/api/insurance/price` | Lấy giá Liberty/Chubb real-time |
+
+### ✈️ Booking
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/api/flights/search` | Tìm chuyến bay (SerpAPI) |
+| `POST` | `/api/booking/hotel` | Đặt khách sạn |
+| `POST` | `/api/itinerary/generate` | AI sinh lịch trình |
+
+### ✉️ Thư Giải Trình
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/api/pipeline/ingest` | Upload & phân tích hồ sơ |
+| `POST` | `/api/pipeline/letter` | Sinh Cover Letter Vi/En |
+| `POST` | `/api/pipeline/pdf` | Xuất PDF thư giải trình |
+
+---
+
+## 📝 Database
+
+SQLite via SQLAlchemy với 6 models:
+
+| Model | Mô tả |
+|-------|--------|
+| `Project` | Container chia tách dữ liệu cho mỗi hồ sơ xin VISA |
+| `TripInfo` | Thông tin tổng quan chuyến đi (JSON) — build context thư giải trình |
+| `Booking` | Lưu HTML/dữ liệu booking chuyến bay & khách sạn |
+| `Itinerary` | Lịch trình theo ngày chi tiết khớp thời gian booking |
+| `LetterState` | Phiên bản và tiến độ Cover Letter (Ingest → Summary → Writing) |
+| `MergedPdf` | Theo dõi đường dẫn PDF ghép (bảo hiểm, bản dịch, tổng hợp) |
 
 ---
 
@@ -193,23 +575,18 @@ python -m pytest tests/test_helpers.py -v    # Utility functions
 
 ---
 
-## 📝 Database
+## 📝 Ghi chú Kỹ thuật Dành cho Developer
 
-SQLite via SQLAlchemy với 6 models:
-
-| Model | Mô tả |
-|-------|--------|
-| `Project` | Container chính để chia tách ranh giới dữ liệu cho mỗi hồ sơ xin VISA riêng biệt |
-| `TripInfo` | Thông tin tổng quan chuyến đi (JSON) - Dành để build context thư trình bày |
-| `Booking` | Nơi lưu giữ HTML / dữ liệu sau khi AI cào tìm vé cho Chuyến bay & Khách sạn |
-| `Itinerary` | Lịch trình theo ngày chi tiết chuẩn khớp với thời gian Booking do AI sinh |
-| `LetterState` | Kiểm soát phiên bản và tiến độ của Cover Letter (Ingest → Summary → Writing) |
-| `MergedPdf` | CSDL Vật lý theo dõi đường dẫn đến các chứng nhận bảo hiểm / pdf được cắt ghép |
+- **PDF Redaction Strategy**: Bảo hiểm Chubb/Liberty dùng `add_redact_annot()` + `apply_redactions()` để XÓA text gốc khỏi content stream, rồi `insert_text()` chèn text mới. Đảm bảo copy/paste trả về data mới.
+- **Background Color Logic**: Page 0 dùng pixel sampling (phát hiện header vàng/cam). Page 1+ luôn pure white.
+- **Giáp lai (Edge Seal)**: Dấu seal phân bố đều dọc mép phải PDF, kích thước cố định bất kể số trang.
+- **A4 Normalization**: Tolerance 0.1% — tất cả trang chuẩn hóa A4 trước khi đóng mộc.
+- **Gemini Fallback**: Tự động chuyển từ OpenAI → Gemini khi gặp lỗi `429 Rate Limit`.
+- **Config tập trung**: Mọi env var và path đều qua class `Config` (`config.py`).
+- **⚠️ Encoding Windows**: PowerShell cần `[console]::OutputEncoding = [System.Text.Encoding]::UTF8` cho file Tiếng Việt.
 
 ---
 
-## 📝 Ghi chú Kỹ thuật Dành cho Developer
-- **PDF Overlay Strategy**: Chữ điền form (Chubb/Canada) ưu tiên kỹ thuật trỏ TextWriter nhúng kèm font TTF chân nguyên bản thay cho chức năng Redact mộc (Redact thường gây hỏng cấu trúc Text Stream gốc của nhà mạng).
-- Gemini tự động fallback khi gặp lỗi `429 Rate Limit`.
-- Tất cả đường dẫn và Secret Constants hiện được quản lý tại 1 nơi tập trung là class `Config` (`config.py`).
-- **⚠️ Cẩn trọng Encoding**: PowerShell trên Windows không nên dùng chung cho các File có chữ Tiếng Việt nếu chưa Setup `[console]::OutputEncoding = [System.Text.Encoding]::UTF8`, do dễ gặp lỗi corruption dấu.
+## 📜 License
+
+MIT © 2024-2026

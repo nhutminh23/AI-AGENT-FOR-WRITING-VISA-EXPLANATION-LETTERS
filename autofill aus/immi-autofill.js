@@ -228,8 +228,12 @@
 
         const tableCount = countTableMembers();
         let expectedCount = 0;
-        if (currentPage === 5 && applicantData.page_5?.companions) {
-            expectedCount = applicantData.page_5.companions.length;
+        if (currentPage === 5 && applicantData.page_5) {
+            expectedCount = (applicantData.page_5.companions || []).length;
+            // For minors, also count parents/guardians table entries
+            if (applicantData.page_5.is_minor === "Yes") {
+                expectedCount += (applicantData.page_5.parents_guardians || []).length;
+            }
         } else if (currentPage === 8 && applicantData.page_8?.non_accompanying_members) {
             expectedCount = applicantData.page_8.non_accompanying_members.length;
         }

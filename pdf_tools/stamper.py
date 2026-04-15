@@ -98,6 +98,10 @@ def stamp_pdf(
         input_path.name, page_count, output_path.name,
     )
 
+    # --- Normalize all pages to A4 (so seal looks consistent) ---
+    _normalize_pages_to_a4(doc)
+    page_count = len(doc)  # refresh in case pages changed
+
     # --- Edge Seal (Giáp lai) on ALL pages ---
     _apply_edge_seal(doc, seal_path, seal_height_pt, seal_margin_right_pt)
 
@@ -115,79 +119,189 @@ def stamp_pdf(
     return output_path
 
 
+# A4 dimensions in points (72 dpi)
+A4_WIDTH_PT = 595.28
+A4_HEIGHT_PT = 841.89
+# Tolerance: pages within 0.1% of A4 are considered A4 already
+_A4_TOLERANCE = 0.001
+
+
+def _normalize_pages_to_a4(doc: fitz.Document) -> None:
+    """
+    Normalize all pages to A4 size. Oversized pages are scaled down to fit A4
+    while maintaining aspect ratio. Pages already at A4 (within tolerance) are
+    left unchanged.
+    """
+    # Find pages that need resizing
+    pages_to_resize = []
+    for page_idx in range(len(doc)):
+        page = doc[page_idx]
+        pw, ph = page.rect.width, page.rect.height
+        w_ratio = pw / A4_WIDTH_PT
+        h_ratio = ph / A4_HEIGHT_PT
+        if abs(w_ratio - 1.0) > _A4_TOLERANCE or abs(h_ratio - 1.0) > _A4_TOLERANCE:
+            pages_to_resize.append(page_idx)
+
+    if not pages_to_resize:
+        logger.info("  📐 All pages already A4, no normalization needed")
+        return
+
+    # Open a SEPARATE copy of the document as source (PyMuPDF requires src != target)
+    src_doc = fitz.open()
+    src_doc.insert_pdf(doc)
+
+    # Process in REVERSE order so indices don't shift when deleting/inserting
+    for page_idx in reversed(pages_to_resize):
+        src_page = src_doc[page_idx]
+        pw, ph = src_page.rect.width, src_page.rect.height
+
+        scale = min(A4_WIDTH_PT / pw, A4_HEIGHT_PT / ph)
+        new_w = pw * scale
+        new_h = ph * scale
+        x_offset = (A4_WIDTH_PT - new_w) / 2
+        y_offset = (A4_HEIGHT_PT - new_h) / 2
+        target_rect = fitz.Rect(x_offset, y_offset, x_offset + new_w, y_offset + new_h)
+
+        # Delete original page
+        doc.delete_page(page_idx)
+
+        # Insert new blank A4 page at same position
+        doc.insert_page(page_idx, width=A4_WIDTH_PT, height=A4_HEIGHT_PT)
+        new_page = doc[page_idx]
+
+        # Render source page content onto new A4 page
+        new_page.show_pdf_page(target_rect, src_doc, page_idx)
+
+        logger.debug(
+            "  📐 Page %d: %.0f×%.0f → A4 (scale=%.2f)",
+            page_idx + 1, pw, ph, scale,
+        )
+
+    src_doc.close()
+    logger.info("  📐 Normalized %d oversized pages to A4", len(pages_to_resize))
+
+
 def _apply_edge_seal(
     doc: fitz.Document,
     seal_path: Path,
     seal_height_pt: float,
     margin_right_pt: float,
+    max_pages_per_seal: int = 4,
 ) -> None:
     """
-    Slice the seal image into N vertical strips (one per page) and overlay
-    each strip on the right edge of its corresponding page.
+    Slice the seal image into groups of at most `max_pages_per_seal` pages.
+    Each group gets ONE FULL seal image divided among its pages.
 
-    The seal_height_pt controls the visual height (diameter) of the seal circle
-    on each page. The strip width is auto-calculated so the seal appears as a
-    continuous circle when pages are stacked.
+    For example, 14 pages with max_pages_per_seal=5 → 3 groups:
+      Group 1: pages 1–5  (seal ÷ 5 strips)
+      Group 2: pages 6–10 (seal ÷ 5 strips)
+      Group 3: pages 11–14 (seal ÷ 4 strips)
     """
     from PIL import Image
     import io
+    import random
 
     seal_img = Image.open(str(seal_path)).convert("RGBA")
     seal_w, seal_h = seal_img.size
     page_count = len(doc)
 
-    # Use float division for perfectly even distribution
-    strip_w_float = seal_w / page_count
+    # Split pages into groups of max_pages_per_seal
+    # Rule: last group must have >= 2 pages (avoid full seal on cert page alone)
+    groups = []
+    for start in range(0, page_count, max_pages_per_seal):
+        end = min(start + max_pages_per_seal, page_count)
+        groups.append((start, end))
 
-    # Generate random offsets for natural look (seeded per document for consistency)
-    import random
-    rng = random.Random(page_count * 7 + seal_w)  # deterministic per doc structure
+    # If last group has only 1 page, merge it into the previous group
+    if len(groups) >= 2:
+        last_start, last_end = groups[-1]
+        if last_end - last_start == 1:
+            prev_start, _ = groups[-2]
+            groups[-2] = (prev_start, last_end)
+            groups.pop()
 
-    for i, page in enumerate(doc):
-        # Slice: left to right, one strip per page (float → int rounding for even splits)
-        left = round(i * strip_w_float)
-        right = round((i + 1) * strip_w_float)
-        right = min(right, seal_w)
+    logger.info(
+        "  📍 Edge seal: %d pages → %d groups (max %d pages/seal)",
+        page_count, len(groups), max_pages_per_seal,
+    )
 
-        strip = seal_img.crop((left, 0, right, seal_h))
+    for group_idx, (group_start, group_end) in enumerate(groups):
+        group_size = group_end - group_start
 
-        # Random rotation: ±6 degrees for natural hand-stamp look
-        rotation_deg = rng.uniform(-6.0, 6.0)
-        strip = strip.rotate(rotation_deg, expand=True, resample=Image.BICUBIC)
+        # U-shaped distribution: edge strips get slightly MORE pixels (circle is thin at edges)
+        # Keep boost moderate to avoid center pages looking too thin
+        edge_boost = 0.6
+        center = (group_size - 1) / 2.0
+        max_dist = center if center > 0 else 1
+        weights = []
+        for j in range(group_size):
+            dist = abs(j - center) / max_dist  # 0=center, 1=edge
+            weights.append(1.0 + edge_boost * dist)
+        total_w = sum(weights)
+        # Convert weights to cumulative pixel boundaries
+        strip_boundaries = [0]
+        for j in range(group_size):
+            strip_boundaries.append(strip_boundaries[-1] + (weights[j] / total_w) * seal_w)
 
-        # Convert strip to bytes
-        buf = io.BytesIO()
-        strip.save(buf, format="PNG")
-        strip_bytes = buf.getvalue()
+        # Deterministic RNG per group for consistent randomization
+        rng = random.Random(page_count * 7 + seal_w + group_idx * 31)
 
-        # Calculate display size on page (use original strip dimensions for aspect ratio)
-        strip_pixel_w = right - left
-        strip_pixel_h = seal_h
-        strip_aspect_wh = strip_pixel_w / max(strip_pixel_h, 1)  # width/height ratio
-        strip_display_h = seal_height_pt
-        strip_display_w = seal_height_pt * strip_aspect_wh
+        for local_i in range(group_size):
+            page_idx = group_start + local_i
+            page = doc[page_idx]
 
-        # Random Y offset: ±15 points for natural variation
-        y_offset = rng.uniform(-15.0, 15.0)
+            # Slice: weighted boundaries (edge strips are wider)
+            left = round(strip_boundaries[local_i])
+            right = round(strip_boundaries[local_i + 1])
+            right = min(right, seal_w)
 
-        # Position: right edge, vertically centered + random offset
-        page_rect = page.rect
-        x1 = page_rect.width - margin_right_pt
-        x0 = x1 - strip_display_w
-        y_center = (page_rect.height / 2) + y_offset
-        y0 = y_center - strip_display_h / 2
-        y1 = y_center + strip_display_h / 2
+            strip = seal_img.crop((left, 0, right, seal_h))
 
-        stamp_rect = fitz.Rect(x0, y0, x1, y1)
+            # Random rotation: ±6 degrees for natural hand-stamp look
+            rotation_deg = rng.uniform(-6.0, 6.0)
+            strip = strip.rotate(rotation_deg, expand=True, resample=Image.BICUBIC)
 
-        # Insert image with transparency
-        page.insert_image(
-            stamp_rect,
-            stream=strip_bytes,
-            overlay=True,
+            # Convert strip to bytes
+            buf = io.BytesIO()
+            strip.save(buf, format="PNG")
+            strip_bytes = buf.getvalue()
+
+            # Calculate display size on page (fixed A4 size after normalization)
+            strip_pixel_w = right - left
+            strip_pixel_h = seal_h
+            strip_aspect_wh = strip_pixel_w / max(strip_pixel_h, 1)
+            strip_display_h = seal_height_pt
+            strip_display_w = seal_height_pt * strip_aspect_wh
+
+            # Random Y offset: ±15 points for natural variation
+            y_offset = rng.uniform(-15.0, 15.0)
+
+            # Position: right edge, vertically centered + random offset
+            page_rect = page.rect
+            # Last page of each group → push seal to outer edge (rightmost strip)
+            is_last_in_group = (local_i == group_size - 1)
+            overhang = 35 if is_last_in_group else 0
+            x1 = page_rect.width - margin_right_pt + overhang
+            x0 = x1 - strip_display_w
+            y_center = (page_rect.height / 2) + y_offset
+            y0 = y_center - strip_display_h / 2
+            y1 = y_center + strip_display_h / 2
+
+            stamp_rect = fitz.Rect(x0, y0, x1, y1)
+
+            # Insert image with transparency
+            page.insert_image(
+                stamp_rect,
+                stream=strip_bytes,
+                overlay=True,
+            )
+
+        logger.info(
+            "    Group %d: pages %d–%d (%d strips)",
+            group_idx + 1, group_start + 1, group_end, group_size,
         )
 
-    logger.info("  📍 Edge seal applied to %d pages (height=%.0f pt, randomized)", page_count, seal_height_pt)
+    logger.info("  📍 Edge seal complete: %d groups applied", len(groups))
 
 
 def _apply_company_stamp(

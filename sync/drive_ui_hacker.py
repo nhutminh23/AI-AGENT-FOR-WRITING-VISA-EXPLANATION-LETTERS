@@ -320,5 +320,19 @@ class DriveUIHacker:
             logger.error("Failed to rename file %s: %s", file_id, exc)
             raise
 
+    def delete_file(self, file_id: str) -> None:
+        """
+        Permanently delete a file from Google Drive.
+
+        Used to remove original files from Final folder after translated
+        version is successfully uploaded.
+        """
+        try:
+            self._service.files().delete(fileId=file_id).execute()
+            logger.info("Deleted file %s from Drive", file_id)
+        except Exception as exc:
+            logger.error("Failed to delete file %s: %s", file_id, exc)
+            raise
+
     # Alias for backward compatibility
     upload_file_to_folder = upload_file
