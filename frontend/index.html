@@ -655,6 +655,17 @@
               <p style="color:#93c5fd; margin:0;">👤 Chỉ phát hiện <strong>1 người</strong> — không cần tạo Group List.</p>
             </div>
 
+            <!-- Signature Upload (shown when invitation detected) -->
+            <div id="letterGenSignaturePanel" style="display:none; margin-top:16px; background:#1a1a2e; border:1px solid #f59e0b; border-radius:12px; padding:16px;">
+              <h3 style="margin:0 0 8px 0; color:#fbbf24;">✒️ Upload Chữ Ký Cá Nhân (cho Thư Mời)</h3>
+              <p style="color:#94a3b8; font-size:0.85em; margin:0 0 12px 0;">Tải ảnh chữ ký (PNG/JPG, nền trong suốt) để tự động chèn vào thư mời và tạo bản scan.</p>
+              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <input id="letterGenSignatureInput" type="file" accept="image/png,image/jpeg,image/webp" style="flex:1; min-width:200px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:6px;" />
+                <label style="color:#94a3b8; font-size:0.8em;"><input id="letterGenPreserveColor" type="checkbox" checked style="margin-right:4px;"/>Giữ màu chữ ký khi scan</label>
+              </div>
+              <div id="letterGenSignaturePreview" style="margin-top:8px;"></div>
+            </div>
+
             <!-- Generate letter button (shown AFTER group check) -->
             <div id="letterGenGeneratePanel" style="display:none; margin-top:16px; border-top:1px solid #334155; padding-top:16px;">
               <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
@@ -702,10 +713,23 @@
               <button id="letterGenDownloadMainBtn" style="background:#16a34a; padding:10px 24px; font-size:14px;">📥 Tải DOCX — Thư Giải Trình</button>
               <button id="letterGenDownloadRefusalBtn" style="background:#0ea5e9; padding:10px 20px; font-size:14px; display:none;">📥 Tải DOCX — Thư Từ Chối</button>
               <button id="letterGenDownloadInvitationBtn" style="background:#f59e0b; padding:10px 20px; font-size:14px; color:#000; border:none; border-radius:8px; cursor:pointer; font-weight:600; display:none;">✉️ Tải DOCX — Thư Mời</button>
+              <button id="letterGenDownloadInvitationScanBtn" style="background:#e11d48; padding:10px 20px; font-size:14px; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600; display:none;">📥 Tải Scan PDF — Thư Mời đã Ký</button>
               <button id="letterGenBackStep2Btn" style="background:#64748b; padding:10px 20px; font-size:14px;">← Sửa JSON</button>
               <button id="letterGenStartOverBtn" style="background:#dc2626; padding:10px 20px; font-size:14px;">🔄 Làm lại</button>
             </div>
             <div id="letterGenDownloadStatus" style="margin-top:8px; font-size:0.9em;"></div>
+
+            <!-- Standalone Scan PDF Tool -->
+            <div style="margin-top:24px; border-top:2px solid #334155; padding-top:20px;">
+              <h3 style="margin:0 0 8px 0; color:#e2e8f0;">🖨️ Giả lập Scan PDF</h3>
+              <p style="color:#94a3b8; font-size:0.85em; margin:0 0 12px 0;">Upload bất kỳ file PDF nào để chuyển thành dạng scan (nhiễu hạt, mờ, lệch nhẹ — giống scanner thật).</p>
+              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <input id="letterGenScanPdfInput" type="file" accept="application/pdf" style="flex:1; min-width:200px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:6px;" />
+                <label style="color:#94a3b8; font-size:0.8em;"><input id="letterGenScanGrayscale" type="checkbox" checked style="margin-right:4px;"/>Grayscale</label>
+                <button id="letterGenScanPdfBtn" style="background:#7c3aed; padding:8px 18px; font-size:13px; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">🖨️ Scan PDF</button>
+              </div>
+              <div id="letterGenScanPdfStatus" style="margin-top:8px; font-size:0.85em;"></div>
+            </div>
           </section>
         </div>
 

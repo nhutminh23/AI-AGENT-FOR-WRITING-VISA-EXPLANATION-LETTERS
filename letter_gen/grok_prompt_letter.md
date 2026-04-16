@@ -14,14 +14,37 @@ I need you to read ALL attached documents and extract structured data to generat
 3. Dates must be in **DD Month YYYY** format (e.g., "15 March 2026").
 4. All names in **UPPERCASE ENGLISH** (no diacritics). E.g., "NGUYEN VAN A" not "Nguyễn Văn A".
 5. Country/city names in **English**. E.g., "Viet Nam", "Ho Chi Minh City".
-6. Currency amounts: include both local currency AND approximate USD/AUD equivalent.
-7. If there is a **previous visa refusal letter** or **refusal notification**, extract ALL details into `refusal_history`.
-8. If the applicant has a **previous explanation letter** (old one), extract key points into `previous_letter_summary`.
+6. **Company names / Business entity types MUST be translated to English.** NEVER leave Vietnamese terms (even without diacritics). Use this mapping:
+   - "Hộ kinh doanh" / "Ho kinh doanh" → **"Sole Proprietorship"** or **"Business Household"**
+   - "Công ty TNHH" / "Cong ty TNHH" → **"Company Limited"** or **"Co., Ltd."**
+   - "Công ty TNHH MTV" → **"Single-Member Limited Liability Company"**
+   - "Công ty Cổ phần" / "CTCP" → **"Joint Stock Company"** or **"Corporation"**
+   - "Doanh nghiệp tư nhân" → **"Private Enterprise"**
+   - "Hợp tác xã" → **"Cooperative"**
+   - "Chi nhánh" → **"Branch"**
+   - "Văn phòng đại diện" → **"Representative Office"**
+   - Example: "Hộ kinh doanh Nhà Hàng Phong Lan" → **"Sole Proprietorship — Phong Lan Restaurant"**
+   - Example: "Công ty TNHH Thương Mại ABC" → **"ABC Trading Co., Ltd."**
+   - Example: "CTCP Đầu tư XYZ" → **"XYZ Investment Corporation"**
+7. **Job titles / Positions MUST be in English:**
+   - "Chủ hộ kinh doanh" → **"Business Owner"** or **"Sole Proprietor"**
+   - "Giám đốc" / "Giam doc" → **"Director"**
+   - "Phó giám đốc" → **"Deputy Director"**
+   - "Kế toán trưởng" → **"Chief Accountant"**
+   - "Nhân viên" → **"Employee"** or **"Staff"**
+   - "Công nhân" → **"Worker"**
+   - "Nội trợ" → **"Homemaker"**
+   - "Hưu trí" → **"Retiree"**
+   - "Buôn bán" / "Kinh doanh tự do" → **"Self-employed"** or **"Freelance Business"**
+8. Currency amounts: include both local currency AND approximate USD/AUD equivalent.
+9. If there is a **previous visa refusal letter** or **refusal notification**, extract ALL details into `refusal_history`.
+10. If the applicant has a **previous explanation letter** (old one), extract key points into `previous_letter_summary`.
 
 **⚠️ STRICTLY FORBIDDEN:**
 - DO NOT use "N/A" — if data not found, use `null`
 - DO NOT abbreviate — write full details
 - DO NOT skip any document — read everything
+- DO NOT leave ANY Vietnamese text in the output (even without diacritics) — translate EVERYTHING to English
 
 **Return JSON in this EXACT format (NO extra text outside JSON):**
 

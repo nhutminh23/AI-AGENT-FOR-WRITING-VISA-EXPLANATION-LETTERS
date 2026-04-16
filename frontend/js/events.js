@@ -123,22 +123,88 @@ if (exportCombinedHotelPdfBtn) exportCombinedHotelPdfBtn.addEventListener("click
 });
 
 function buildCombinedHotelsHtml(htmls, autoPrint = false) {
-  const escapeSrcdoc = (html) => html.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-  const frames = (htmls || []).map((html, i) => {
-    return `<div class="doc-section">
-      <iframe id="hotel-frame-${i}" srcdoc="${escapeSrcdoc(html)}" scrolling="no" style="width:100%;border:none;display:block;"></iframe>
-    </div>`;
+  // Extract <style> blocks from HTML string
+  const extractStyles = (html) => {
+    const styles = [];
+    const regex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      styles.push(match[1]);
+    }
+    return styles.join("\n");
+  };
+
+  // Extract <body> content from HTML string
+  const extractBody = (html) => {
+    const match = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    return match ? match[1] : html;
+  };
+
+  // Scope CSS: prefix every selector with .hotel-N to avoid conflicts
+  const scopeStyles = (css, scopeClass) => {
+    let remaining = css;
+
+    // Process @media blocks
+    const mediaRegex = /@media\s+[^{]+\{([\s\S]*?\})\s*\}/g;
+    let mediaMatch;
+    const mediaBlocks = [];
+    while ((mediaMatch = mediaRegex.exec(css)) !== null) {
+      const inner = mediaMatch[1];
+      const scoped = inner.replace(/([^{}@]+)\{([^{}]+)\}/g, (m, sel, body) => {
+        const scopedSel = sel.split(',').map(s => {
+          s = s.trim();
+          if (!s || s.startsWith('@')) return s;
+          if (s === 'body' || s === 'html') return '.' + scopeClass;
+          return '.' + scopeClass + ' ' + s;
+        }).join(', ');
+        return scopedSel + '{' + body + '}';
+      });
+      mediaBlocks.push(mediaMatch[0].replace(mediaMatch[1], scoped));
+    }
+
+    // Remove @media from remaining
+    remaining = remaining.replace(mediaRegex, '');
+
+    // Scope remaining rules
+    const scoped = remaining.replace(/([^{}@]+)\{([^{}]+)\}/g, (m, sel, body) => {
+      const scopedSel = sel.split(',').map(s => {
+        s = s.trim();
+        if (!s || s.startsWith('@') || s.startsWith('/*')) return s;
+        if (s === 'body' || s === 'html') return '.' + scopeClass;
+        return '.' + scopeClass + ' ' + s;
+      }).join(', ');
+      return scopedSel + '{' + body + '}';
+    });
+
+    return scoped + '\n' + mediaBlocks.join('\n');
+  };
+
+  let allStyles = '';
+  let allSections = '';
+
+  (htmls || []).forEach((html, i) => {
+    const scopeClass = 'hotel-' + i;
+    const styles = extractStyles(html);
+    const body = extractBody(html);
+
+    allStyles += `
+      /* Hotel ${i} styles */
+      ${scopeStyles(styles, scopeClass)}
+      .${scopeClass} .a4, .${scopeClass} .a4-page {
+        min-height: auto !important;
+        height: auto !important;
+        page-break-after: auto !important;
+      }
+    `;
+
+    const pageBreak = i > 0 ? 'page-break-before: always;' : '';
+    allSections += `<div class="hotel-section ${scopeClass}" style="${pageBreak}">${body}</div>\n`;
   });
 
   const printScript = autoPrint ? `
-    let loaded = 0;
-    const total = document.querySelectorAll('iframe').length;
-    document.querySelectorAll('iframe').forEach(frame => {
-      frame.addEventListener('load', () => {
-        loaded++;
-        if (loaded >= total) setTimeout(() => window.print(), 600);
-      });
-    });` : '';
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 400);
+    };` : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -147,35 +213,31 @@ function buildCombinedHotelsHtml(htmls, autoPrint = false) {
   <title>Hotel Bookings</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #fff; }
-    .doc-section {
-      page-break-after: always;
-      width: 100%;
+    ${autoPrint
+      ? `body { background: #fff; margin: 0; padding: 0; }`
+      : `body { background: #e5e7eb; margin: 0; padding: 20px 0; }`
     }
-    .doc-section:last-child { page-break-after: auto; }
     @media print {
-      body { margin: 0; }
-      @page { size: A4; margin: 0; }
-      .doc-section iframe { page-break-inside: avoid; }
+      @page { size: A4; margin: 10mm; }
+      body { background: #fff !important; padding: 0 !important; }
+      .hotel-section { box-shadow: none !important; margin: 0 !important; }
     }
+    ${!autoPrint ? `
+    .hotel-section {
+      background: #fff;
+      max-width: 800px;
+      margin: 20px auto;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    ` : ''}
+    ${allStyles}
   </style>
 </head>
 <body>
-  ${frames.join("\n")}
-  <script>
-    function resizeFrame(frame) {
-      try {
-        const doc = frame.contentDocument || frame.contentWindow.document;
-        const h = Math.max(doc.body.scrollHeight, doc.body.offsetHeight, doc.documentElement.scrollHeight, doc.documentElement.offsetHeight);
-        frame.style.height = h + 'px';
-      } catch(e) {}
-    }
-    document.querySelectorAll('iframe').forEach(frame => {
-      frame.onload = () => resizeFrame(frame);
-      setTimeout(() => resizeFrame(frame), 500);
-    });
-    ${printScript}
-  </script>
+  ${allSections}
+  <script>${printScript}<\/script>
 </body>
 </html>`;
 }

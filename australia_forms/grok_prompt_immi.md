@@ -50,7 +50,7 @@ Bạn là chuyên gia trích xuất dữ liệu visa Úc. Hãy đọc TẤT CẢ
     "legal_status": "1",
     "purpose_stream": "29",
     "initial_purpose": "2",
-    "visit_reason": "1",
+    "visit_reason": "3",
     "significant_dates": "[Grok tự động chèn ngày và chọn 1 trong 4 câu chuẩn bên dưới tùy hồ sơ]",
     "group_processing": "2",
     "special_category": "2"
@@ -285,7 +285,7 @@ Bạn là chuyên gia trích xuất dữ liệu visa Úc. Hãy đọc TẤT CẢ
 
 ### Page 2 — Application context (Trang 2/20)
 - `purpose_stream`: `"29"` = Tourist, `"30"` = Business, `"61"` = Frequent Traveller
-- `visit_reason`: `"1"` = Holiday, `"3"` = Tourism, `"4"` = Family visit, `"2"` = Business
+- `visit_reason`: `"3"` = Tourism, `"4"` = Family visit, `"2"` = Business
 - `significant_dates`: **ĐIỀN TEXT IN HOA**. Tìm ngày dự định bay trong lịch trình/booking và dùng 1 trong 4 câu chuẩn sau đây tùy theo chức nghiệp và mục đích chuyến đi:
   - Nếu đi Tự túc mà có Khai Công việc / Hợp đồng lđ: `"THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM [NGÀY ĐI] TO [NGÀY VỀ]. THESE DATES HAVE BEEN SPECIFICALLY CHOSEN TO ALIGN WITH THEIR APPROVED ANNUAL LEAVE FROM THEIR EMPLOYER IN VIETNAM."`
   - Nếu có thăm thân nhân (Family visit): `"THE APPLICANT INTENDS TO VISIT AUSTRALIA FROM [NGÀY ĐI] TO [NGÀY VỀ] TO SPEND QUALITY TIME WITH THEIR RELATIVES AND EXPERIENCE THE LOCAL CULTURE, BEFORE RETURNING TO VIETNAM AS PLANNED."`

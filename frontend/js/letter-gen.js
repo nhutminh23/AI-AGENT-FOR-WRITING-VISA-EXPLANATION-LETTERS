@@ -185,6 +185,14 @@ function letterGenCheckGroup() {
   const genPanel = getLetterGenEl('letterGenGeneratePanel');
   if (genPanel) genPanel.style.display = '';
 
+  // Show/hide signature upload panel based on invitation_data presence
+  const sigPanel = getLetterGenEl('letterGenSignaturePanel');
+  if (sigPanel) {
+    const profiles = Array.isArray(parsed) ? parsed : [parsed];
+    const hasInvData = profiles.some(p => p.invitation_data && p.invitation_data.host);
+    sigPanel.style.display = hasInvData ? '' : 'none';
+  }
+
   // Show selected person info
   _updateSelectedPersonInfo(parsed);
 }
@@ -451,9 +459,13 @@ async function letterGenApplyJson() {
       getLetterGenEl('letterGenInvitationText').value = data.invitation_letter || '';
       getLetterGenEl('letterGenTabInvitation').style.display = '';
       getLetterGenEl('letterGenDownloadInvitationBtn').style.display = '';
+      const scanInvBtn = getLetterGenEl('letterGenDownloadInvitationScanBtn');
+      if (scanInvBtn) scanInvBtn.style.display = '';
     } else {
       getLetterGenEl('letterGenTabInvitation').style.display = 'none';
       getLetterGenEl('letterGenDownloadInvitationBtn').style.display = 'none';
+      const scanInvBtn = getLetterGenEl('letterGenDownloadInvitationScanBtn');
+      if (scanInvBtn) scanInvBtn.style.display = 'none';
     }
 
     // Show tabs bar if there's more than 1 letter type
@@ -609,7 +621,12 @@ function letterGenStartOver() {
 }
 
 // ---- Init ----
+let letterGenInitialized = false;
+
 function initLetterGen() {
+  if (letterGenInitialized) return;
+  letterGenInitialized = true;
+
   // Load prompt on init
   letterGenLoadPrompt();
 
@@ -672,6 +689,18 @@ function initLetterGen() {
       }
     });
   });
+
+  // Invitation Scan button (Step 3)
+  const invScanBtn = getLetterGenEl('letterGenDownloadInvitationScanBtn');
+  if (invScanBtn) invScanBtn.addEventListener('click', letterGenDownloadInvitationScan);
+
+  // Standalone Scan PDF button (Step 3)
+  const scanPdfBtn = getLetterGenEl('letterGenScanPdfBtn');
+  if (scanPdfBtn) scanPdfBtn.addEventListener('click', letterGenScanPdf);
+
+  // Signature preview
+  const sigInput = getLetterGenEl('letterGenSignatureInput');
+  if (sigInput) sigInput.addEventListener('change', letterGenPreviewSignature);
 }
 
 // ==========================================
@@ -725,5 +754,157 @@ async function letterGenDownloadInvitation() {
     setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
   } catch(e) {
     statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  }
+}
+
+// ==========================================
+// INVITATION SCAN — Download signed + scanned PDF
+// ==========================================
+
+/**
+ * Download invitation letter as scanned PDF with optional signature.
+ * Sends invitation_data + signature image to /api/letter-gen/build-invitation-scan.
+ */
+async function letterGenDownloadInvitationScan() {
+  const statusEl = getLetterGenEl('letterGenDownloadStatus');
+
+  if (!letterGenResult || !letterGenResult.invitation_data) {
+    statusEl.innerHTML = '<span style="color:#dc2626;">❌ Không có dữ liệu thư mời.</span>';
+    return;
+  }
+
+  statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang tạo Invitation Scan PDF... (có thể mất 15-30 giây)</span>';
+
+  try {
+    const formData = new FormData();
+    formData.append('invitation_data', JSON.stringify(letterGenResult.invitation_data));
+
+    // Attach signature image if available
+    const sigInput = getLetterGenEl('letterGenSignatureInput');
+    if (sigInput && sigInput.files && sigInput.files[0]) {
+      formData.append('signature_image', sigInput.files[0]);
+    }
+
+    // Preserve color option
+    const preserveColor = getLetterGenEl('letterGenPreserveColor');
+    formData.append('preserve_color', (preserveColor && preserveColor.checked) ? 'true' : 'false');
+    formData.append('grayscale', 'true');
+
+    const res = await fetch('/api/letter-gen/build-invitation-scan', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${errData.error || 'Lỗi server'}</span>`;
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const cd = res.headers.get('content-disposition');
+    let filename = 'Invitation_Letter_SCANNED.pdf';
+    if (cd && cd.includes('filename=')) {
+      filename = cd.split('filename=')[1].replace(/["']/g, '');
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải Invitation Letter Scan PDF!</span>';
+    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  }
+}
+
+// ==========================================
+// STANDALONE SCAN PDF
+// ==========================================
+
+/**
+ * Upload any PDF and convert it to a scanned version via /api/tools/simulate-scan.
+ */
+async function letterGenScanPdf() {
+  const fileInput = getLetterGenEl('letterGenScanPdfInput');
+  const statusEl = getLetterGenEl('letterGenScanPdfStatus');
+  const grayscaleCheck = getLetterGenEl('letterGenScanGrayscale');
+
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+    statusEl.innerHTML = '<span style="color:#dc2626;">❌ Vui lòng chọn file PDF.</span>';
+    return;
+  }
+
+  const pdfFile = fileInput.files[0];
+  statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang giả lập scan... (có thể mất 10-30 giây)</span>';
+
+  try {
+    const formData = new FormData();
+    formData.append('pdf_file', pdfFile);
+    formData.append('grayscale', (grayscaleCheck && grayscaleCheck.checked) ? 'true' : 'false');
+
+    const res = await fetch('/api/tools/simulate-scan', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${errData.error || 'Lỗi server'}</span>`;
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const cd = res.headers.get('content-disposition');
+    let filename = pdfFile.name.replace('.pdf', '_scanned.pdf');
+    if (cd && cd.includes('filename=')) {
+      filename = cd.split('filename=')[1].replace(/["']/g, '');
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải bản scan PDF!</span>';
+    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+  }
+}
+
+// ==========================================
+// SIGNATURE PREVIEW
+// ==========================================
+
+function letterGenPreviewSignature() {
+  const input = getLetterGenEl('letterGenSignatureInput');
+  const preview = getLetterGenEl('letterGenSignaturePreview');
+  if (!input || !preview) return;
+
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      preview.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px; margin-top:8px;">
+          <img src="${e.target.result}" alt="Signature preview" style="height:60px; border:1px dashed #f59e0b; border-radius:4px; padding:4px; background:#fff;" />
+          <span style="color:#16a34a; font-size:0.85em;">✅ ${file.name} (${(file.size / 1024).toFixed(1)} KB)</span>
+        </div>
+      `;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    preview.innerHTML = '';
   }
 }

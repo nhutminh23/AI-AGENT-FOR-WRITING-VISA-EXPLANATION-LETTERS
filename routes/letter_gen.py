@@ -6,6 +6,7 @@ Workflow: Copy Prompt → Paste JSON → AI Generate → Review → Download DOC
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 from pathlib import Path
@@ -264,4 +265,148 @@ def letter_gen_build_invitation():
     except Exception as exc:
         logger.exception("Invitation letter build failed")
         return jsonify({"error": f"Invitation letter build failed: {str(exc)}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Simulate Scan — convert any uploaded PDF to "scanned" PDF
+# ---------------------------------------------------------------------------
+@letter_gen_bp.post("/api/tools/simulate-scan")
+def simulate_scan_pdf():
+    """
+    Accept a PDF file upload, apply scan effects, return scanned PDF.
+    Optional form fields:
+      - grayscale: "true"/"false" (default true)
+      - preserve_color: "true"/"false" (default false)
+      - noise: int 0-30 (default 12)
+      - tilt: float 0-3 (default 0.8)
+    """
+    if "pdf_file" not in request.files:
+        return jsonify({"error": "Missing pdf_file in upload"}), 400
+
+    pdf_file = request.files["pdf_file"]
+    if not pdf_file.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    try:
+        from services.scan_simulator import simulate_scan
+
+        pdf_bytes = pdf_file.read()
+
+        # Parse optional params
+        grayscale = request.form.get("grayscale", "true").lower() == "true"
+        preserve_color = request.form.get("preserve_color", "false").lower() == "true"
+        noise = int(request.form.get("noise", "12"))
+        tilt = float(request.form.get("tilt", "0.8"))
+
+        scanned_bytes = simulate_scan(
+            pdf_bytes,
+            grayscale=grayscale,
+            preserve_signature_color=preserve_color,
+            noise_level=min(max(noise, 0), 30),
+            tilt_max=min(max(tilt, 0), 3.0),
+        )
+
+        result_stream = io.BytesIO(scanned_bytes)
+        result_stream.seek(0)
+
+        # Derive filename
+        orig_name = pdf_file.filename.rsplit(".", 1)[0] if "." in pdf_file.filename else pdf_file.filename
+        filename = f"{orig_name}_scanned.pdf"
+
+        return send_file(
+            result_stream,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/pdf",
+        )
+    except Exception as exc:
+        logger.exception("Scan simulation failed")
+        return jsonify({"error": f"Scan simulation failed: {str(exc)}"}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Build Invitation Letter DOCX with Signature → Convert to PDF → Scan
+# ---------------------------------------------------------------------------
+@letter_gen_bp.post("/api/letter-gen/build-invitation-scan")
+def letter_gen_build_invitation_scan():
+    """
+    Build invitation letter DOCX, optionally insert signature image,
+    convert to PDF via docx2pdf (MS Word on Windows),
+    then apply scan simulation effects.
+
+    Accepts multipart/form-data:
+      - invitation_data: JSON string with host/guests/trip info
+      - signature_image: (optional) PNG/JPG signature image file
+      - grayscale: "true"/"false" (default true)
+      - preserve_color: "true"/"false" (default false)
+    """
+    import tempfile
+    import os
+
+    invitation_json = request.form.get("invitation_data")
+    if not invitation_json:
+        return jsonify({"error": "Missing invitation_data"}), 400
+
+    try:
+        data = json.loads(invitation_json)
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Invalid invitation_data JSON: {e}"}), 400
+
+    host = data.get("host")
+    guests = data.get("guests")
+    if not guests and data.get("guest"):
+        guests = [data["guest"]]
+        data["guests"] = guests
+        data.pop("guest", None)
+
+    if not host or not guests or len(guests) < 1:
+        return jsonify({"error": "Missing host or guests data"}), 400
+
+    try:
+        from letter_gen.invitation_builder import build_invitation_letter_docx
+        from services.scan_simulator import simulate_scan
+
+        # --- Step 1: Build invitation DOCX (in memory) ---
+        signature_file = request.files.get("signature_image")
+        file_stream = build_invitation_letter_docx(data, signature_image=signature_file)
+
+        # --- Step 2: DOCX → PDF via docx2pdf (needs temp files) ---
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, "invitation.docx")
+            pdf_path = os.path.join(tmpdir, "invitation.pdf")
+
+            with open(docx_path, "wb") as f:
+                f.write(file_stream.read())
+
+            from docx2pdf import convert
+            convert(docx_path, pdf_path)
+
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+
+        # --- Step 3: Apply scan effects ---
+        grayscale = request.form.get("grayscale", "true").lower() == "true"
+        preserve_color = request.form.get("preserve_color", "false").lower() == "true"
+
+        scanned_bytes = simulate_scan(
+            pdf_bytes,
+            grayscale=grayscale,
+            preserve_signature_color=preserve_color,
+        )
+
+        result_stream = io.BytesIO(scanned_bytes)
+        result_stream.seek(0)
+
+        first_guest_name = (guests[0].get("full_name") or "Guest").replace(" ", "_")
+        filename = f"Invitation_Letter_{first_guest_name}_SCANNED.pdf"
+
+        return send_file(
+            result_stream,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/pdf",
+        )
+    except Exception as exc:
+        logger.exception("Invitation scan build failed")
+        return jsonify({"error": f"Invitation scan build failed: {str(exc)}"}), 500
 

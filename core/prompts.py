@@ -37,6 +37,7 @@ Quy tắc:
 IDENTITY_EXTRACT_PROMPT = """Nhiệm vụ: Trích xuất thông tin NHÂN THÂN (IDENTITY) phục vụ viết thư giải trình visa.
 
 Quy tắc bắt buộc:
+- ⚠️ CHÚ Ý ĐẶC BIỆT: BẮT BUỘC trích xuất TÌM KIẾM cực kỳ kỹ lưỡng giới tính (sex/gender) và ngày hết hạn hộ chiếu (passport expiry/date of expiration). Cấm bỏ sót nếu có trên mặt hộ chiếu hoặc tờ khai.
 - Chỉ dùng thông tin có trong dữ liệu.
 - Không suy đoán, không thêm.
 - Nếu không có thông tin thì để chuỗi rỗng hoặc mảng rỗng.
@@ -47,6 +48,7 @@ Quy tắc bắt buộc:
 Trả về JSON theo cấu trúc:
 {{
   "full_name": "",
+  "sex": "",
   "date_of_birth": "",
   "place_of_birth": "",
   "nationality": "",
@@ -382,7 +384,7 @@ Mục tiêu nội dung:
 5) Ràng buộc quay về hoặc kế hoạch hợp lý sau khi hoàn thành mục tiêu visa dài hạn.
 
 Nguyên tắc bắt buộc:
-- Tên và địa chỉ viết bằng tiếng Anh.
+- Tên và địa chỉ BẮT BUỘC viết bằng chuẩn TIẾNG ANH (Tuyệt đối không dùng từ tiếng Việt không dấu kiểu "Xa", "Huyen", "Xom", "Thon", "Khu pho"). Phải dịch toàn bộ đơn vị hành chính: Xã/Phường -> Commune/Ward, Huyện/Quận -> District, Xóm/Ấp/Thôn/Bản -> Hamlet/Village, Đường -> Street, Tỉnh/Thành phố -> Province/City.
 - Chỉ dùng thông tin có trong summary_profile.
 - Không suy đoán, không thêm chi tiết ngoài dữ liệu.
 - Không mô tả như bên thứ ba (không dùng "the applicant", "đương đơn").

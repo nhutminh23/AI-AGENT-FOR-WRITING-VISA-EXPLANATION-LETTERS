@@ -1223,13 +1223,15 @@ async function bulkCreateTranslateStreams() {
     if (fileInfoEl) fileInfoEl.innerHTML = `📄 <b>${escapeHtml(r.filename)}</b> — <span style="color:#16a34a;">Đã upload sẵn</span>`;
     if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;">✅ File đã sẵn sàng để dịch.</span>';
 
-    // Workspace mode: set Drive file ID + show stamp area
+    // Workspace mode: set Drive file ID
     if (isWorkspaceMode) {
       const driveFileIdEl = document.getElementById(`transDriveFileId-${flowId}`);
-      const stampArea = document.getElementById(`transStampArea-${flowId}`);
       if (driveFileIdEl && r.drive_file_id) driveFileIdEl.value = r.drive_file_id;
-      if (stampArea) stampArea.style.display = "block";
     }
+
+    // Show stamp area for ALL modes (workspace + manual), same as manual flow
+    const stampArea = document.getElementById(`transStampArea-${flowId}`);
+    if (stampArea) stampArea.style.display = "block";
 
     // Store browser File object for combined PDF export (original pages)
     const matchedFile = fileByName[r.filename];

@@ -9,7 +9,7 @@ Dynamic fields (filled from JSON profile):
   - Accompanying persons (if any)
   - Financial commitments
 
-Signature section is LEFT BLANK for manual addition.
+Signature section supports optional auto-insertion of signature image (PNG/JPG).
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _sanitize(val: Any, fallback: str = "___________") -> str:
     return s if s else fallback
 
 
-def build_invitation_letter_docx(data: Dict[str, Any]) -> io.BytesIO:
+def build_invitation_letter_docx(data: Dict[str, Any], signature_image=None) -> io.BytesIO:
     """
     Build the Invitation Letter DOCX from structured data.
 
@@ -241,16 +241,39 @@ def build_invitation_letter_docx(data: Dict[str, Any]) -> io.BytesIO:
     doc.add_paragraph("Thank you for your time and consideration.")
 
     # ============================================================
-    # SIGNATURE BLOCK (left blank for manual addition)
+    # SIGNATURE BLOCK (with optional signature image)
     # ============================================================
     closing = doc.add_paragraph()
     closing.paragraph_format.space_before = Pt(18)
     closing.add_run("Yours sincerely,")
 
-    # Blank space for signature
-    sig_space = doc.add_paragraph()
-    sig_space.paragraph_format.space_before = Pt(36)
-    sig_space.paragraph_format.space_after = Pt(0)
+    # Insert signature image if provided, otherwise leave blank space
+    if signature_image is not None:
+        sig_para = doc.add_paragraph()
+        sig_para.paragraph_format.space_before = Pt(6)
+        sig_para.paragraph_format.space_after = Pt(0)
+        sig_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        try:
+            # Read image bytes (supports Flask FileStorage or file-like objects)
+            if hasattr(signature_image, 'read'):
+                sig_bytes = signature_image.read()
+                if hasattr(signature_image, 'seek'):
+                    signature_image.seek(0)  # reset for potential re-use
+            else:
+                sig_bytes = signature_image
+            sig_stream = io.BytesIO(sig_bytes)
+            run_img = sig_para.add_run()
+            run_img.add_picture(sig_stream, width=Inches(2.0))
+            logger.info("Signature image inserted into invitation letter")
+        except Exception as e:
+            logger.warning(f"Failed to insert signature image: {e}")
+            # Fallback: blank space
+            sig_para.paragraph_format.space_before = Pt(36)
+    else:
+        # Blank space for manual signature
+        sig_space = doc.add_paragraph()
+        sig_space.paragraph_format.space_before = Pt(36)
+        sig_space.paragraph_format.space_after = Pt(0)
 
     # Host name under signature
     name_para = doc.add_paragraph()

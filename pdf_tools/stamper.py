@@ -228,9 +228,10 @@ def _apply_edge_seal(
     for group_idx, (group_start, group_end) in enumerate(groups):
         group_size = group_end - group_start
 
-        # U-shaped distribution: edge strips get slightly MORE pixels (circle is thin at edges)
-        # Keep boost moderate to avoid center pages looking too thin
-        edge_boost = 0.6
+        # U-shaped distribution: edge strips get MORE pixels
+        # Higher boost = bigger difference between edge (page 1 & last) vs center pages
+        # With boost=1.5 and 5 pages: edge pages ≈ 26% vs center ≈ 10% of seal width
+        edge_boost = 1.5
         center = (group_size - 1) / 2.0
         max_dist = center if center > 0 else 1
         weights = []
