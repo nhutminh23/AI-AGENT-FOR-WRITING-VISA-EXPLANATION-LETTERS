@@ -1,6 +1,29 @@
 // Booking + AI Booking Functions
 // Extracted from app.js
 
+// ==================== AUTO-RESIZE IFRAME ====================
+
+/**
+ * Auto-resize an iframe to match its content height.
+ * Listens for the 'load' event so it fires after srcdoc is rendered.
+ */
+function autoResizeBookingIframe(iframe) {
+  if (!iframe) return;
+  iframe.onload = function () {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return;
+      // Wait a tick for full render
+      setTimeout(() => {
+        const contentHeight = doc.documentElement.scrollHeight || doc.body.scrollHeight;
+        iframe.style.height = Math.max(contentHeight + 20, 200) + 'px';
+      }, 150);
+    } catch (e) {
+      iframe.style.height = '600px';
+    }
+  };
+}
+
 // ==================== BOOKING FUNCTIONS ====================
 
 function renderHotelTabs(htmls) {
@@ -18,6 +41,7 @@ function renderHotelTabs(htmls) {
   hotelBookingTabsEl.innerHTML = tabs;
   
   // Show first hotel
+  autoResizeBookingIframe(hotelBookingResultEl);
   hotelBookingResultEl.srcdoc = htmls[0];
   syncCombinedPreviews();
 
@@ -33,6 +57,7 @@ function renderHotelTabs(htmls) {
 
 function showHotelTab(index) {
   if (hotelHtmls[index]) {
+    autoResizeBookingIframe(hotelBookingResultEl);
     hotelBookingResultEl.srcdoc = hotelHtmls[index];
     syncCombinedPreviews();
     // Update active tab

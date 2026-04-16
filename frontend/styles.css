@@ -547,10 +547,11 @@ button:disabled {
 
 .booking-frame {
   width: 100%;
-  min-height: 600px;
+  min-height: 200px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-input);
+  background: #e5e7eb;
+  overflow: hidden;
 }
 
 /* ===== BOOKING TABS ===== */
