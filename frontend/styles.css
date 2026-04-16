@@ -160,6 +160,14 @@ h3 {
   overflow-x: auto;
 }
 
+.booking-frame {
+  width: 100%;
+  min-height: 600px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
 .tab-btn {
   background: transparent;
   color: var(--text-muted);

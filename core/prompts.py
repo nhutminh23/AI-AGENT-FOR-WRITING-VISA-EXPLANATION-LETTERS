@@ -331,6 +331,16 @@ RULES:
 - If no transport is needed (staying at hotel), write: "On foot within hotel vicinity"
 
 ────────────────────
+⚠️ ADDITIONAL USER REQUIREMENTS & FAMILY VISIT INTEGRATION (CRITICAL)
+
+The APPLICANT PROFILE DESCRIPTION contains an "Additional information" section containing user's specific demands (e.g., visiting relatives, specific places, frequency of visits, overnight stay vs day trips).
+You MUST EXTRACT ALL CONSTRAINTS from this field and STRICTLY IMPLEMENT THEM:
+1. Day Count & Frequency: If the user requests 2-3 days of visiting relatives spaced out, you MUST dedicate exactly 2 or 3 non-consecutive days in the itinerary specifically for the family visit. Do not just put 1 day.
+2. Day Trip Constraints: If the user says it is just visiting or day trip (returning to hotel at night), you MUST explicitly state in the evening program that they will return to their hotel. DO NOT change the hotel_name to the relative's house—they still stay at the booked hotel.
+3. Use Exact Details: If the user provides the relative's name, address, or specific locations, you MUST use them explicitly in the program for those specific days.
+4. If there is a conflict between tourist sightseeing and user's specific demands, the user's specific demands take priority.
+
+────────────────────
 CONTENT GUIDELINES
 
 – Activities should be:

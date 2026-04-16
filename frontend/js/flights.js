@@ -583,6 +583,8 @@ async function serpGenerateTicket() {
     }
 
     flightBookingResultEl.srcdoc = data.flight_html || "<p>Không có kết quả.</p>";
+    flightBookingResultEl.style.minHeight = "600px";
+    flightBookingResultEl.style.height = "600px";
     if (data.flight_html) exportFlightPdfBtn.style.display = "inline-block";
     setBookingMode("flight");
     syncCombinedPreviews();

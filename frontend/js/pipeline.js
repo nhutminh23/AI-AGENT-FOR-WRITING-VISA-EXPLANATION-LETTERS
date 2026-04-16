@@ -382,13 +382,12 @@ async function runItinerary() {
   // Auto-save context silently before generating
   if (summaryProfile) {
     try {
-      await fetch("/api/itinerary/context", {
+      await fetch("/api/itinerary/context/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          input_dir: inputDir,
+          form_data: formData,
           output: outputPath,
-          summary_profile: summaryProfile,
           project_id: getProjectId(),
         }),
       });
@@ -418,7 +417,20 @@ async function runItinerary() {
     </div>
   </body></html>`;
 
-  function updateItStep(step, msg) {
+  // Wait for iframe to be ready before processing SSE events
+  let iframeReady = false;
+  const pendingUpdates = [];
+
+  itineraryResultEl.onload = () => {
+    iframeReady = true;
+    // Flush queued updates
+    for (const u of pendingUpdates) {
+      _doUpdateItStep(u.step, u.msg);
+    }
+    pendingUpdates.length = 0;
+  };
+
+  function _doUpdateItStep(step, msg) {
     const iframe = itineraryResultEl;
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
@@ -438,6 +450,14 @@ async function runItinerary() {
       iconEl.textContent = "❌";
       if (rowEl) { rowEl.style.background = "#fef2f2"; rowEl.style.borderColor = "#fca5a5"; }
       if (msgEl) { msgEl.textContent = msg; msgEl.style.color = "#dc2626"; }
+    }
+  }
+
+  function updateItStep(step, msg) {
+    if (iframeReady) {
+      _doUpdateItStep(step, msg);
+    } else {
+      pendingUpdates.push({ step, msg });
     }
   }
 
