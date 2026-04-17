@@ -694,10 +694,6 @@ function initLetterGen() {
   const invScanBtn = getLetterGenEl('letterGenDownloadInvitationScanBtn');
   if (invScanBtn) invScanBtn.addEventListener('click', letterGenDownloadInvitationScan);
 
-  // Standalone Scan PDF button (Step 3)
-  const scanPdfBtn = getLetterGenEl('letterGenScanPdfBtn');
-  if (scanPdfBtn) scanPdfBtn.addEventListener('click', letterGenScanPdf);
-
   // Signature preview
   const sigInput = getLetterGenEl('letterGenSignatureInput');
   if (sigInput) sigInput.addEventListener('change', letterGenPreviewSignature);
@@ -818,65 +814,6 @@ async function letterGenDownloadInvitationScan() {
     window.URL.revokeObjectURL(url);
 
     statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải Invitation Letter Scan PDF!</span>';
-    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
-  } catch(e) {
-    statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
-  }
-}
-
-// ==========================================
-// STANDALONE SCAN PDF
-// ==========================================
-
-/**
- * Upload any PDF and convert it to a scanned version via /api/tools/simulate-scan.
- */
-async function letterGenScanPdf() {
-  const fileInput = getLetterGenEl('letterGenScanPdfInput');
-  const statusEl = getLetterGenEl('letterGenScanPdfStatus');
-  const grayscaleCheck = getLetterGenEl('letterGenScanGrayscale');
-
-  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-    statusEl.innerHTML = '<span style="color:#dc2626;">❌ Vui lòng chọn file PDF.</span>';
-    return;
-  }
-
-  const pdfFile = fileInput.files[0];
-  statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang giả lập scan... (có thể mất 10-30 giây)</span>';
-
-  try {
-    const formData = new FormData();
-    formData.append('pdf_file', pdfFile);
-    formData.append('grayscale', (grayscaleCheck && grayscaleCheck.checked) ? 'true' : 'false');
-
-    const res = await fetch('/api/tools/simulate-scan', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const errData = await res.json();
-      statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${errData.error || 'Lỗi server'}</span>`;
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const cd = res.headers.get('content-disposition');
-    let filename = pdfFile.name.replace('.pdf', '_scanned.pdf');
-    if (cd && cd.includes('filename=')) {
-      filename = cd.split('filename=')[1].replace(/["']/g, '');
-    }
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-
-    statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải bản scan PDF!</span>';
     setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
   } catch(e) {
     statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;

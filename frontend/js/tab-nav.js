@@ -21,8 +21,8 @@ function setActiveTab(tab) {
     if (typeof initLetterGen === 'function') initLetterGen();
   } else if (tab === "itinerary") {
     itinerarySection.classList.remove("hidden");
-    loadLatestItinerary();
-    loadItineraryContext();
+    // Keep itinerary form clean by default.
+    // Users populate this section via extraction or manual input.
   } else if (tab === "booking") {
     bookingSection.classList.remove("hidden");
     setBookingPart("flight");

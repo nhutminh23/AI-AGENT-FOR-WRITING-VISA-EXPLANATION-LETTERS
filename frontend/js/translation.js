@@ -192,11 +192,29 @@ async function restoreTranslationFlows() {
       set(`transHtmlSource-${flowId}`, f.html_content);
       set(`transSaveName-${flowId}`, f.save_name);
 
-      // Restore workspace-specific fields (drive_file_id + stamp area)
-      if (f.workspace || detectedWorkspace) {
-        set(`transDriveFileId-${flowId}`, f.drive_file_id);
-        const stampArea = document.getElementById(`transStampArea-${flowId}`);
-        if (stampArea) stampArea.style.display = "block";
+      // Restore stamp controls after F5 even in manual mode.
+      set(`transDriveFileId-${flowId}`, f.drive_file_id);
+      const hasUploadedSource = Boolean((f.filename || "").trim() || (f.file_ref || "").trim());
+      const hasTranslatedHtml = Boolean((f.html_content || "").trim());
+      const isWorkspaceFlow = Boolean(f.workspace || detectedWorkspace);
+      const shouldShowStampArea = hasUploadedSource || hasTranslatedHtml || isWorkspaceFlow;
+      const stampArea = document.getElementById(`transStampArea-${flowId}`);
+      if (stampArea && shouldShowStampArea) stampArea.style.display = "block";
+
+      const stampPreviewBtn = document.getElementById(`transStampPreviewBtn-${flowId}`);
+      if (stampPreviewBtn && hasTranslatedHtml) {
+        stampPreviewBtn.textContent = "🔄 Đóng mộc lại";
+        stampPreviewBtn.style.background = "#16a34a";
+      }
+
+      const pushDriveBtn = document.getElementById(`transPushDriveBtn-${flowId}`);
+      if (pushDriveBtn) {
+        pushDriveBtn.style.display = isWorkspaceFlow ? "inline-block" : "none";
+      }
+
+      const stampStatusEl = document.getElementById(`transStampStatus-${flowId}`);
+      if (stampStatusEl && hasTranslatedHtml && shouldShowStampArea) {
+        stampStatusEl.innerHTML = '<span style="color:#475569;">ℹ️ Đã khôi phục sau F5. Có thể sửa HTML rồi bấm "Đóng mộc lại".</span>';
       }
 
       // Show file info

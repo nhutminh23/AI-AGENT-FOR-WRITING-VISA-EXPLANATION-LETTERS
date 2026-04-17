@@ -497,9 +497,7 @@ window.addEventListener("load", async () => {
   setActiveTab("precheck");
   await fetchFiles();
   await loadSteps();
-  await loadLatestItinerary();
   await loadLatestBooking();
-  await loadItineraryContext();
   await loadLatestTripInfo();
   await loadDestinations();
   await loadClassifierFiles();

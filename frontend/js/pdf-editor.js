@@ -23,11 +23,88 @@ function initEditPdfUI() {
   const fileInput = document.getElementById("editPdfFileInput");
   fileInput.addEventListener("change", _epdfOnFileSelect);
 
+  const scanBtn = document.getElementById("editPdfScanBtn");
+  if (scanBtn) scanBtn.addEventListener("click", _epdfSimulateScanPdf);
+
   document.getElementById("editPdfPrevPage").addEventListener("click", () => _epdfGoPage(-1));
   document.getElementById("editPdfNextPage").addEventListener("click", () => _epdfGoPage(1));
   document.getElementById("editPdfZoomIn").addEventListener("click", () => _epdfZoom(0.25));
   document.getElementById("editPdfZoomOut").addEventListener("click", () => _epdfZoom(-0.25));
   document.getElementById("editPdfSaveBtn").addEventListener("click", _epdfSave);
+}
+
+async function _epdfSimulateScanPdf() {
+  const fileInput = document.getElementById("editPdfScanInput");
+  const statusEl = document.getElementById("editPdfScanStatus");
+  const grayscaleCheck = document.getElementById("editPdfScanGrayscale");
+  const scanBtn = document.getElementById("editPdfScanBtn");
+
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+    if (statusEl) {
+      statusEl.innerHTML = '<span style="color:#dc2626;">❌ Vui lòng chọn file PDF.</span>';
+    }
+    return;
+  }
+
+  const originalText = scanBtn ? scanBtn.textContent : "";
+  if (scanBtn) {
+    scanBtn.disabled = true;
+    scanBtn.textContent = "⏳ Đang scan...";
+  }
+  if (statusEl) {
+    statusEl.innerHTML = '<span style="color:#f59e0b;">⏳ Đang giả lập scan... (có thể mất 10-30 giây)</span>';
+  }
+
+  const pdfFile = fileInput.files[0];
+
+  try {
+    const formData = new FormData();
+    formData.append("pdf_file", pdfFile);
+    formData.append("grayscale", (grayscaleCheck && grayscaleCheck.checked) ? "true" : "false");
+
+    const res = await fetch("/api/tools/simulate-scan", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${errData.error || "Lỗi server"}</span>`;
+      }
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const cd = res.headers.get("content-disposition");
+    let filename = pdfFile.name.replace(/\.pdf$/i, "_scanned.pdf");
+    if (cd && cd.includes("filename=")) {
+      filename = cd.split("filename=")[1].replace(/["']/g, "");
+    }
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    if (statusEl) {
+      statusEl.innerHTML = '<span style="color:#16a34a;">✅ Đã tải bản scan PDF!</span>';
+      setTimeout(() => { statusEl.innerHTML = ""; }, 5000);
+    }
+  } catch (e) {
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:#dc2626;">❌ Lỗi: ${e.message}</span>`;
+    }
+  } finally {
+    if (scanBtn) {
+      scanBtn.disabled = false;
+      scanBtn.textContent = originalText || "🖨️ Scan PDF";
+    }
+  }
 }
 
 async function _epdfOnFileSelect() {
