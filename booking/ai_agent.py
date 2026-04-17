@@ -113,7 +113,7 @@ QUY TẮC BẮT BUỘC CHO KHÁCH SẠN:
 4. Phân chia đêm HỢP LÝ giữa các thành phố:
    - Nếu chỉ 1 thành phố: 1 khách sạn
    - Nếu 2+ thành phố: chia đều, thành phố chính nhiều đêm hơn
-5. Chọn hạng 4-5 sao, phù hợp profile khách
+5. Chọn hạng 3-4 sao, ưu tiên khách sạn bình dân (budget-friendly), phù hợp profile khách
 6. Giá PHẢI HỢP LÝ theo thị trường thực tế (USD/đêm hoặc local currency)
 7. Loại phòng phải có thật tại khách sạn đó. ⚠️ Tên loại phòng phải NGẮN GỌN (tối đa 2-3 từ, ví dụ: "Superior King", "Deluxe Twin", "Premier Suite"). KHÔNG dùng tên dài quá 20 ký tự.
 8. 🕒 QUAN TRỌNG VỀ NGÀY CHECK-IN/CHECK-OUT KHÁCH SẠN:
