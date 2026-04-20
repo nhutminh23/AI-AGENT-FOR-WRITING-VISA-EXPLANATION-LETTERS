@@ -10,11 +10,8 @@ The XFA engine handles auto-sizing, text wrapping, and visual rendering.
 from __future__ import annotations
 
 import logging
-import re
 import xml.etree.ElementTree as ET
-from copy import deepcopy
 from datetime import date
-from io import BytesIO
 from pathlib import Path
 
 

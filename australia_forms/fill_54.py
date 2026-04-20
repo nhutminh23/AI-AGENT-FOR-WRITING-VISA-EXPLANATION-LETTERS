@@ -13,7 +13,6 @@ Field naming convention in the PDF:
 from __future__ import annotations
 
 import logging
-import uuid
 from pathlib import Path
 
 import pypdf
@@ -248,7 +247,6 @@ def fill_form54(
     - prev_country fields removed — ap.prev etc. = "Previous visits to Australia"
       which is a date the user fills in manually if they've been to AU before.
     """
-    from datetime import date as _date
     template_path = Path(template_path)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

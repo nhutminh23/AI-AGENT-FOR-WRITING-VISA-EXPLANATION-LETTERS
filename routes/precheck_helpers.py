@@ -8,7 +8,7 @@ import json
 import logging
 import os
 import re
-from typing import Dict, List
+from typing import Dict
 
 from core.errors import QuotaExhaustedError, check_and_raise_quota
 
@@ -237,13 +237,13 @@ If this is ONE single document or package: {{"documents": [{{"doc_type_en": "REN
     try:
         parsed = json.loads(text)
     except Exception:
-        import logging, sys; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", sys.exc_info()[1])
+        logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: invalid JSON from vision classifier")
         match = re.search(r"\{[\s\S]*\}", text)
         if match:
             try:
                 parsed = json.loads(match.group())
             except Exception:
-                import logging, sys; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", sys.exc_info()[1])
+                logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: fallback JSON parse failed")
                 return []
         else:
             return []
@@ -283,8 +283,6 @@ def enrich_doc_type(doc_type: str, filename: str, sub_path: str) -> str:
     context_upper = (filename + " " + sub_path).upper()
     fname_only = os.path.splitext(filename)[0].upper()
 
-    financial_keywords = ['BANK STATEMENT', 'SAVINGS', 'BALANCE', 'ACCOUNT STATEMENT',
-                          'DEPOSIT', 'SỔ PHỤ', 'SAO KÊ']
     is_financial = any(kw in upper_type for kw in ['BANK', 'STATEMENT', 'SAVINGS', 'BALANCE', 'DEPOSIT', 'ACCOUNT'])
     if not is_financial:
         is_financial = any(kw in context_upper for kw in ['SỔ PHỤ', 'SAO KÊ', 'BANK', 'SỔ TIẾT KIỆM'])
@@ -496,7 +494,7 @@ def classify_one(file_info: dict, person_name: str, llm, quota_stop) -> dict:
                 has_scanned_pages = any(tl < 30 for tl in page_texts_len)
                 all_scanned = all(tl < 30 for tl in page_texts_len)
             except Exception:
-                import logging, sys; logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: %s", sys.exc_info()[1])
+                logging.exception("[Safe Log] Unhandled exception in precheck_helpers.py: PDF scan pre-check failed")
                 total_pages = 1
                 has_scanned_pages = True
                 all_scanned = True
