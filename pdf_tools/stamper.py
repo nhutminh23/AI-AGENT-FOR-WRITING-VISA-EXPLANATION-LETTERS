@@ -132,13 +132,21 @@ def _normalize_pages_to_a4(doc: fitz.Document) -> None:
     while maintaining aspect ratio. Pages already at A4 (within tolerance) are
     left unchanged.
     """
+    def _a4_target_size_for_page(width: float, height: float) -> tuple[float, float]:
+        # Preserve page orientation: landscape pages become A4 landscape,
+        # portrait pages become A4 portrait.
+        if width > height:
+            return A4_HEIGHT_PT, A4_WIDTH_PT
+        return A4_WIDTH_PT, A4_HEIGHT_PT
+
     # Find pages that need resizing
     pages_to_resize = []
     for page_idx in range(len(doc)):
         page = doc[page_idx]
         pw, ph = page.rect.width, page.rect.height
-        w_ratio = pw / A4_WIDTH_PT
-        h_ratio = ph / A4_HEIGHT_PT
+        target_w, target_h = _a4_target_size_for_page(pw, ph)
+        w_ratio = pw / target_w
+        h_ratio = ph / target_h
         if abs(w_ratio - 1.0) > _A4_TOLERANCE or abs(h_ratio - 1.0) > _A4_TOLERANCE:
             pages_to_resize.append(page_idx)
 
@@ -155,18 +163,19 @@ def _normalize_pages_to_a4(doc: fitz.Document) -> None:
         src_page = src_doc[page_idx]
         pw, ph = src_page.rect.width, src_page.rect.height
 
-        scale = min(A4_WIDTH_PT / pw, A4_HEIGHT_PT / ph)
+        target_w, target_h = _a4_target_size_for_page(pw, ph)
+        scale = min(target_w / pw, target_h / ph)
         new_w = pw * scale
         new_h = ph * scale
-        x_offset = (A4_WIDTH_PT - new_w) / 2
-        y_offset = (A4_HEIGHT_PT - new_h) / 2
+        x_offset = (target_w - new_w) / 2
+        y_offset = (target_h - new_h) / 2
         target_rect = fitz.Rect(x_offset, y_offset, x_offset + new_w, y_offset + new_h)
 
         # Delete original page
         doc.delete_page(page_idx)
 
         # Insert new blank A4 page at same position
-        doc.insert_page(page_idx, width=A4_WIDTH_PT, height=A4_HEIGHT_PT)
+        doc.insert_page(page_idx, width=target_w, height=target_h)
         new_page = doc[page_idx]
 
         # Render source page content onto new A4 page
@@ -199,10 +208,14 @@ def _apply_edge_seal(
     """
     from PIL import Image
     import io
-    import random
 
     seal_img = Image.open(str(seal_path)).convert("RGBA")
+    # Trim transparent padding so first/last strips are not mostly empty.
+    alpha_bbox = seal_img.split()[-1].getbbox()
+    if alpha_bbox:
+        seal_img = seal_img.crop(alpha_bbox)
     seal_w, seal_h = seal_img.size
+
     page_count = len(doc)
 
     # Split pages into groups of max_pages_per_seal
@@ -225,66 +238,71 @@ def _apply_edge_seal(
         page_count, len(groups), max_pages_per_seal,
     )
 
+    has_portrait = any(doc[i].rect.height >= doc[i].rect.width for i in range(page_count))
+    has_landscape = any(doc[i].rect.width > doc[i].rect.height for i in range(page_count))
+    mixed_orientations = has_portrait and has_landscape
+    if mixed_orientations:
+        logger.info("  📐 Mixed page orientations detected: enable orientation-aware seal scaling")
+
     for group_idx, (group_start, group_end) in enumerate(groups):
         group_size = group_end - group_start
 
-        # U-shaped distribution: edge strips get MORE pixels
-        # Higher boost = bigger difference between edge (page 1 & last) vs center pages
-        # With boost=1.5 and 5 pages: edge pages ≈ 26% vs center ≈ 10% of seal width
-        edge_boost = 1.5
-        center = (group_size - 1) / 2.0
-        max_dist = center if center > 0 else 1
-        weights = []
-        for j in range(group_size):
-            dist = abs(j - center) / max_dist  # 0=center, 1=edge
-            weights.append(1.0 + edge_boost * dist)
-        total_w = sum(weights)
-        # Convert weights to cumulative pixel boundaries
+        # Split across the full seal image so outer-edge strips keep full rim.
+        reference_pages = max(max_pages_per_seal, 1)
+        base_strip_w = seal_w // group_size
+        extra_pixels = seal_w % group_size
         strip_boundaries = [0]
+        running_x = 0
         for j in range(group_size):
-            strip_boundaries.append(strip_boundaries[-1] + (weights[j] / total_w) * seal_w)
+            running_x += base_strip_w + (1 if j < extra_pixels else 0)
+            strip_boundaries.append(running_x)
 
-        # Deterministic RNG per group for consistent randomization
-        rng = random.Random(page_count * 7 + seal_w + group_idx * 31)
+        # Keep total seal visual size consistent across groups.
+        # Baseline at reference group (4): strip=25pt => total≈100pt.
+        # Examples: group 5 -> 20pt, group 3 -> 33.33pt, group 2 -> 50pt.
+        # Clamp protects edge cases (especially single-page docs).
+        base_strip_display_w = 25.0
+        target_total_display_w = base_strip_display_w * reference_pages
+        min_strip_display_w = base_strip_display_w * 0.70
+        max_strip_display_w = base_strip_display_w * 2.00
+        raw_strip_display_w = target_total_display_w / max(group_size, 1)
+        group_strip_display_w = max(min_strip_display_w, min(max_strip_display_w, raw_strip_display_w))
 
         for local_i in range(group_size):
             page_idx = group_start + local_i
             page = doc[page_idx]
 
-            # Slice: weighted boundaries (edge strips are wider)
-            left = round(strip_boundaries[local_i])
-            right = round(strip_boundaries[local_i + 1])
+            # Slice using equal-width boundaries per page.
+            left = strip_boundaries[local_i]
+            right = strip_boundaries[local_i + 1]
             right = min(right, seal_w)
+            if right <= left:
+                right = min(left + 1, seal_w)
+            if right <= left:
+                continue
 
             strip = seal_img.crop((left, 0, right, seal_h))
-
-            # Random rotation: ±6 degrees for natural hand-stamp look
-            rotation_deg = rng.uniform(-6.0, 6.0)
-            strip = strip.rotate(rotation_deg, expand=True, resample=Image.BICUBIC)
 
             # Convert strip to bytes
             buf = io.BytesIO()
             strip.save(buf, format="PNG")
             strip_bytes = buf.getvalue()
 
-            # Calculate display size on page (fixed A4 size after normalization)
-            strip_pixel_w = right - left
-            strip_pixel_h = seal_h
-            strip_aspect_wh = strip_pixel_w / max(strip_pixel_h, 1)
-            strip_display_h = seal_height_pt
-            strip_display_w = seal_height_pt * strip_aspect_wh
-
-            # Random Y offset: ±15 points for natural variation
-            y_offset = rng.uniform(-15.0, 15.0)
-
-            # Position: right edge, vertically centered + random offset
+            # Calculate display size on page.
+            # In mixed portrait+landscape docs, scale by page width so the seal
+            # appears visually consistent in width-fitted viewers.
             page_rect = page.rect
-            # Last page of each group → push seal to outer edge (rightmost strip)
-            is_last_in_group = (local_i == group_size - 1)
-            overhang = 35 if is_last_in_group else 0
-            x1 = page_rect.width - margin_right_pt + overhang
+            page_scale = 1.0
+            if mixed_orientations:
+                page_scale = page_rect.width / A4_WIDTH_PT
+
+            strip_display_h = seal_height_pt * page_scale
+            strip_display_w = group_strip_display_w * page_scale
+
+            # Position: right edge, vertically centered
+            x1 = page_rect.width - margin_right_pt
             x0 = x1 - strip_display_w
-            y_center = (page_rect.height / 2) + y_offset
+            y_center = page_rect.height / 2
             y0 = y_center - strip_display_h / 2
             y1 = y_center + strip_display_h / 2
 
@@ -298,8 +316,8 @@ def _apply_edge_seal(
             )
 
         logger.info(
-            "    Group %d: pages %d–%d (%d strips)",
-            group_idx + 1, group_start + 1, group_end, group_size,
+            "    Group %d: pages %d–%d (%d strips, width=%.2fpt)",
+            group_idx + 1, group_start + 1, group_end, group_size, group_strip_display_w,
         )
 
     logger.info("  📍 Edge seal complete: %d groups applied", len(groups))

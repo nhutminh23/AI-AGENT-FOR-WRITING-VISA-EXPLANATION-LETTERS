@@ -616,33 +616,139 @@ def _check_single_file_bilingual(filepath: str, filename: str, llm) -> dict:
 
 
 def _html_to_pdf(html_path: str, output_pdf_path: str):
-    """Convert an HTML file to PDF using pdfkit (wkhtmltopdf) or browser fallback."""
+    """Convert an HTML file to PDF.
+
+    Priority:
+    1) Playwright page.pdf (respects CSS @page incl. landscape/portrait)
+    2) pdfkit/wkhtmltopdf
+    3) Browser CLI print-to-pdf fallback
+    """
     import subprocess
 
+    def _prune_blank_pages(pdf_path: str) -> None:
+        """Remove synthetic trailing blank / near-blank pages.
+
+        Some HTML->PDF engines can emit a trailing page containing only tiny
+        artifacts when mixing landscape + portrait content. We only prune pages
+        from the END of the document (safe) and treat a page as removable when:
+        - no extracted text
+        - no embedded images
+        - very low rendered ink density
+        """
+        import fitz
+
+        if not os.path.isfile(pdf_path):
+            return
+
+        INK_DPI = 24
+        INK_DARK_THRESHOLD = 245
+        INK_RATIO_NEAR_BLANK = 0.0015
+
+        def _ink_ratio(page: fitz.Page) -> float:
+            pix = page.get_pixmap(dpi=INK_DPI, colorspace=fitz.csGRAY, alpha=False)
+            samples = pix.samples
+            if not samples:
+                return 0.0
+            dark = sum(1 for b in samples if b < INK_DARK_THRESHOLD)
+            return dark / len(samples)
+
+        doc = fitz.open(pdf_path)
+        trailing_blank_pages = []
+
+        # Only trim at document tail to avoid touching intentional interior pages.
+        for idx in range(len(doc) - 1, -1, -1):
+            page = doc[idx]
+            text = (page.get_text("text") or "").strip()
+            if text:
+                break
+            if page.get_images(full=True):
+                break
+
+            if _ink_ratio(page) > INK_RATIO_NEAR_BLANK:
+                break
+
+            trailing_blank_pages.append(idx)
+
+        # Do nothing if there is nothing to prune, or everything is blank.
+        if not trailing_blank_pages or len(trailing_blank_pages) >= len(doc):
+            doc.close()
+            return
+
+        for idx in sorted(trailing_blank_pages, reverse=True):
+            doc.delete_page(idx)
+
+        target_dir = os.path.dirname(os.path.abspath(pdf_path)) or tempfile.gettempdir()
+        fd, tmp_path = tempfile.mkstemp(suffix=".pdf", prefix="pruned_pdf_", dir=target_dir)
+        os.close(fd)
+        try:
+            doc.save(tmp_path, garbage=4, deflate=True)
+            doc.close()
+            try:
+                os.replace(tmp_path, pdf_path)
+            except OSError:
+                import shutil
+                shutil.move(tmp_path, pdf_path)
+        finally:
+            if os.path.isfile(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+        logging.info("Pruned %d trailing blank PDF page(s): %s", len(trailing_blank_pages), pdf_path)
+
+    html_uri = SplitterPath(html_path).resolve().as_uri()
+    browser_paths = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    ]
+    browser_path = next((p for p in browser_paths if os.path.isfile(p)), None)
+
+    # 1) Best path: Playwright honors CSS page sizing per page.
+    try:
+        from playwright.sync_api import sync_playwright
+
+        launch_kwargs = {"headless": True}
+        if browser_path:
+            launch_kwargs["executable_path"] = browser_path
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(**launch_kwargs)
+            page = browser.new_page()
+            page.goto(html_uri, wait_until="networkidle")
+            page.emulate_media(media="print")
+            page.pdf(
+                path=output_pdf_path,
+                print_background=True,
+                prefer_css_page_size=True,
+                margin={"top": "0mm", "right": "0mm", "bottom": "0mm", "left": "0mm"},
+            )
+            browser.close()
+        _prune_blank_pages(output_pdf_path)
+        return
+    except Exception as playwright_err:
+        logging.warning("Playwright PDF export failed, trying pdfkit/browser fallback: %s", playwright_err)
+
+    # 2) Fallback: wkhtmltopdf via pdfkit.
     try:
         import pdfkit
         pdfkit.from_file(html_path, output_pdf_path, options={
             "page-size": "A4",
-            "margin-top": "15mm",
-            "margin-bottom": "15mm",
-            "margin-left": "18mm",
-            "margin-right": "18mm",
+            "margin-top": "0mm",
+            "margin-bottom": "0mm",
+            "margin-left": "0mm",
+            "margin-right": "0mm",
             "encoding": "UTF-8",
+            "print-media-type": "",
             "enable-local-file-access": "",
         })
+        _prune_blank_pages(output_pdf_path)
+        return
     except Exception as pdfkit_err:
         logging.warning("pdfkit failed, trying browser: %s", pdfkit_err)
-        edge_paths = [
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        ]
-        browser_path = None
-        for p in edge_paths:
-            if os.path.isfile(p):
-                browser_path = p
-                break
 
+        # 3) Last resort: browser CLI print-to-pdf.
         if browser_path:
             subprocess.run([
                 browser_path,
@@ -650,8 +756,9 @@ def _html_to_pdf(html_path: str, output_pdf_path: str):
                 "--disable-gpu",
                 f"--print-to-pdf={output_pdf_path}",
                 "--no-pdf-header-footer",
-                f"file:///{html_path.replace(os.sep, '/')}",
+                html_uri,
             ], capture_output=True, timeout=30, check=True)
+            _prune_blank_pages(output_pdf_path)
         else:
             raise RuntimeError("No PDF converter found (install wkhtmltopdf or Chrome/Edge)")
 

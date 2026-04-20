@@ -128,6 +128,11 @@ async function applyRename() {
     // Re-check Drive folder status → show Push to Drive button if applicable
     checkDriveFolderStatus();
 
+    // Persist current precheck UI state so F5 can resume mid-work.
+    if (typeof savePrecheckSnapshot === "function") {
+      savePrecheckSnapshot(window._precheckLastScanData || null);
+    }
+
   } catch (e) {
     renameStatus.textContent = `Lỗi: ${e.message}`;
   }

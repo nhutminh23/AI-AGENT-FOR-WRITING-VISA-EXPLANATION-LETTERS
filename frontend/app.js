@@ -356,6 +356,7 @@ const bulkManualFallbackEl = document.getElementById("bulkManualFallback");
 const workspaceSelectEl = document.getElementById("workspaceSelect");
 const refreshWorkspacesBtn = document.getElementById("refreshWorkspacesBtn");
 const workspaceScanBtn = document.getElementById("workspaceScanBtn");
+const workspaceScanAllBtn = document.getElementById("workspaceScanAllBtn");
 const workspaceScanStatusEl = document.getElementById("workspaceScanStatus");
 const workspaceScanProgressEl = document.getElementById("workspaceScanProgress");
 const workspaceScanProgressBarEl = document.getElementById("workspaceScanProgressBar");

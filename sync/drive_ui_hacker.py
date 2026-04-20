@@ -125,6 +125,15 @@ class DriveUIHacker:
         new_name = f"🔍 {base_name} - Đang check đã đủ file chưa ?"
         return self.rename(folder_id, new_name)
 
+    def mark_splitting(self, folder_id: str, base_name: str) -> dict:
+        """
+        Mark a folder as currently being split in the local input pipeline.
+
+        Example: ``"🔍 UC - NGUYEN VAN A - NHAN - Đang tách file"``
+        """
+        new_name = f"🔍 {base_name} - Đang tách file"
+        return self.rename(folder_id, new_name)
+
     # ------------------------------------------------------------------
     # Read helpers
     # ------------------------------------------------------------------
@@ -295,11 +304,11 @@ class DriveUIHacker:
 
     def mark_done_translating(self, folder_id: str, base_name: str) -> dict:
         """
-        Mark a folder as DONE TRANSLATING → move to 'Đang khai' phase.
+        Mark a folder as fully translated.
 
-        Example: ``"✅ UC - NGUYEN VAN A - NHAN - Đang khai"``
+        Example: ``"DONE - UC - NGUYEN VAN A - NHAN"``
         """
-        new_name = f"✅ {base_name} - Đang khai"
+        new_name = f"DONE - {base_name}"
         return self.rename(folder_id, new_name)
 
     def rename_file(self, file_id: str, new_name: str) -> dict:

@@ -63,6 +63,9 @@ class Config:
     # --- Google Drive Sync (Traffic Light) ---
     GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
     DRIVE_ROOT_FOLDER = os.getenv("DRIVE_ROOT_FOLDER", "HỒ SƠ VISA 2026")
+    DRIVE_TRANSLATION_FOLDER = os.getenv("DRIVE_TRANSLATION_FOLDER", "Dịch Thuật")
+    DRIVE_TRANSLATION_FOLDER_ID = os.getenv("DRIVE_TRANSLATION_FOLDER_ID", "")
+    DRIVE_TRANSLATION_DONE_PREFIX = os.getenv("DRIVE_TRANSLATION_DONE_PREFIX", "DONE")
     DRIVE_POLL_INTERVAL = int(os.getenv("DRIVE_POLL_INTERVAL", "10"))
     DRIVE_LOCAL_INPUT = os.path.join(os.path.dirname(__file__), "input")
 

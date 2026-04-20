@@ -486,6 +486,9 @@ if (bulkPrintAllPdfBtn) {
 if (workspaceScanBtn) {
   workspaceScanBtn.addEventListener("click", () => runWorkspaceScan());
 }
+if (workspaceScanAllBtn) {
+  workspaceScanAllBtn.addEventListener("click", () => runAllWorkspacesScan());
+}
 if (refreshWorkspacesBtn) {
   refreshWorkspacesBtn.addEventListener("click", () => loadTranslationWorkspaces());
 }
@@ -495,20 +498,44 @@ if (markCompleteBtn) {
 
 window.addEventListener("load", async () => {
   setActiveTab("precheck");
-  await fetchFiles();
-  await loadSteps();
-  await loadLatestBooking();
-  await loadLatestTripInfo();
-  await loadDestinations();
-  await loadClassifierFiles();
-  await initTranslationSection();
-  await loadLatestLetterV2();
-  initSerpFlightUI();
-  setBookingMode("hotel");
-  syncCombinedPreviews();
-  await loadOutputHistory();
-  checkDriveFolderStatus();  // Show Push-to-Drive button if Drive folders exist
-  loadTranslationWorkspaces();  // Load workspace dropdown
+
+  // Keep boot resilient: one failing task must not block the rest.
+  const safeAwait = async (label, fn) => {
+    try {
+      await fn();
+    } catch (e) {
+      console.warn(`[boot] ${label} failed:`, e);
+    }
+  };
+
+  await safeAwait("fetchFiles", () => fetchFiles());
+  await safeAwait("loadSteps", () => loadSteps());
+  await safeAwait("loadLatestBooking", () => loadLatestBooking());
+  await safeAwait("loadLatestTripInfo", () => loadLatestTripInfo());
+  await safeAwait("loadDestinations", () => loadDestinations());
+  await safeAwait("loadClassifierFiles", () => loadClassifierFiles());
+  await safeAwait("initTranslationSection", () => initTranslationSection());
+  await safeAwait("loadLatestLetterV2", () => loadLatestLetterV2());
+
+  try {
+    initSerpFlightUI();
+  } catch (e) {
+    console.warn("[boot] initSerpFlightUI failed:", e);
+  }
+  try {
+    setBookingMode("hotel");
+  } catch (e) {
+    console.warn("[boot] setBookingMode failed:", e);
+  }
+  try {
+    syncCombinedPreviews();
+  } catch (e) {
+    console.warn("[boot] syncCombinedPreviews failed:", e);
+  }
+
+  await safeAwait("loadOutputHistory", () => loadOutputHistory());
+  await safeAwait("checkDriveFolderStatus", () => checkDriveFolderStatus()); // Show Push-to-Drive button if Drive folders exist
+  await safeAwait("loadTranslationWorkspaces", () => loadTranslationWorkspaces()); // Load workspace dropdown
 });
 
 

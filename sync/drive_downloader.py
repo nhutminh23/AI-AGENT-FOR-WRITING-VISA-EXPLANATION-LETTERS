@@ -108,10 +108,16 @@ class DriveDownloader:
         Path
             Absolute path to the created local directory.
         """
-        safe_name = self._sanitize_dirname(local_folder_name)
-        dir_name = f"{safe_name}_{folder_id}"
-        dest = self._local_root / dir_name
-        dest.mkdir(parents=True, exist_ok=True)
+        existing_dest = self._find_existing_download_dir(folder_id)
+        if existing_dest:
+            dest = existing_dest
+            dir_name = dest.name
+            logger.info("  ♻️ Reusing existing local folder for Drive ID %s: %s", folder_id, dest)
+        else:
+            safe_name = self._sanitize_dirname(local_folder_name)
+            dir_name = f"{safe_name}_{folder_id}"
+            dest = self._local_root / dir_name
+            dest.mkdir(parents=True, exist_ok=True)
 
         # Write _meta.json for Push-to-Drive reverse lookup
         meta_path = dest / "_meta.json"
@@ -141,6 +147,26 @@ class DriveDownloader:
             downloaded, dest, elapsed,
         )
         return dest
+
+    def _find_existing_download_dir(self, folder_id: str) -> Path | None:
+        """
+        Find a previously created local folder for the same Drive folder ID.
+
+        This prevents duplicate local directories when the display/base name
+        changes across polling cycles.
+        """
+        suffix = f"_{folder_id}"
+        matches: list[Path] = []
+        for child in self._local_root.iterdir():
+            if child.is_dir() and child.name.endswith(suffix):
+                matches.append(child)
+
+        if not matches:
+            return None
+
+        # Prefer the shortest name (usually the cleanest canonical one).
+        matches.sort(key=lambda p: (len(p.name), p.name.lower()))
+        return matches[0]
 
     def download_folder_for_translation(
         self,

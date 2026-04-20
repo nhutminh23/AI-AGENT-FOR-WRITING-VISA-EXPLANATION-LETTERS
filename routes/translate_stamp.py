@@ -365,18 +365,18 @@ def push_stamped_to_drive():
 
 
 # =====================================================================
-# Mark Translation Complete (rename Drive folder to "Đang khai")
+# Mark Translation Complete (rename Drive folder to "DONE")
 # =====================================================================
 
 @splitter_translate_bp.post("/api/translate/mark_complete")
 def mark_translation_complete():
-    """Mark a workspace as fully translated → rename Drive folder to 'Đang khai'.
+    """Mark a workspace as fully translated → rename Drive folder to 'DONE'.
 
     Expects JSON body: { "workspace": "ÚC - CHÚ HIỆP CÔ CHÍNH - NHÂN" }
 
     Workflow:
     1. Read _files_meta.json to get root_folder_id and base_name.
-    2. Rename Drive folder from '✅ ... - Đang dịch' to '✅ ... - Đang khai'.
+    2. Rename Drive folder from '✅ ... - Đang dịch' to 'DONE - ...'.
     3. Clean up local workspace directory.
     """
     import shutil
@@ -409,7 +409,7 @@ def mark_translation_complete():
         ui = _get_drive_ui()
         ui.mark_done_translating(root_folder_id, base_name)
     except Exception as exc:
-        logging.exception("Failed to rename Drive folder to 'Đang khai'")
+        logging.exception("Failed to rename Drive folder to DONE")
         return jsonify({"error": "drive_rename_failed", "detail": str(exc)}), 500
 
     # 2. Move workspace to "Khai Imm/" archive folder (instead of deleting)
@@ -434,7 +434,7 @@ def mark_translation_complete():
 
     return jsonify({
         "status": "done",
-        "message": f"Đã chuyển '{base_name}' sang trạng thái Đang khai",
+        "message": f"Đã chuyển '{base_name}' sang trạng thái DONE",
         "drive_folder_id": root_folder_id,
         "archived_to": str(archive_dest),
     })

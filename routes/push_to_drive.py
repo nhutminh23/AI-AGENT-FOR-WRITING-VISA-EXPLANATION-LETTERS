@@ -5,7 +5,9 @@ After IT finishes renaming/splitting in the Precheck UI, this endpoint:
 1. Reads _meta.json to find the original Drive folder.
 2. Creates a 'Final' subfolder on Drive.
 3. Uploads all files from the local folder into Final/.
-4. Renames the Drive folder to '-CHECK' to trigger bot validation.
+4. Renames the Drive folder to next stage:
+    - default flow: ``-CHECK`` (validation)
+    - translation flow: ``✅ ... - Đang dịch``
 5. Cleans up the local folder.
 """
 from __future__ import annotations
@@ -43,7 +45,7 @@ def push_to_drive():
     1. Read _meta.json → get drive_folder_id + base_name
     2. Create 'Final' subfolder on Drive
     3. Upload every file (skip _meta.json and hidden files)
-    4. Rename Drive folder to '{base_name} - CHECK'
+    4. Rename Drive folder to next stage (CHECK or Đang dịch)
     5. Delete local folder
     """
     payload = request.get_json(force=True) or {}
@@ -66,6 +68,8 @@ def push_to_drive():
 
     drive_folder_id = meta.get("drive_folder_id")
     base_name = meta.get("base_name", "Unknown")
+    flow_type = (meta.get("flow_type") or "").strip().lower()
+    is_translation_flow = flow_type == "translation"
 
     if not drive_folder_id:
         return jsonify({"error": "invalid_meta", "detail": "drive_folder_id missing"}), 400
@@ -118,11 +122,14 @@ def push_to_drive():
         logger.exception("Upload loop failed")
         return jsonify({"error": "upload_failed", "detail": str(exc)}), 500
 
-    # 5. Rename Drive folder to trigger -CHECK
+    # 5. Rename Drive folder to next stage
     try:
         from sync.validator import extract_base_name
         clean_base = extract_base_name(base_name)
-        new_name = f"{clean_base} - CHECK"
+        if is_translation_flow:
+            new_name = f"✅ {clean_base} - Đang dịch"
+        else:
+            new_name = f"{clean_base} - CHECK"
         ui.rename(drive_folder_id, new_name)
         logger.info("Renamed Drive folder to '%s'", new_name)
     except Exception as exc:
@@ -143,6 +150,8 @@ def push_to_drive():
         "errors": errors,
         "drive_folder_id": drive_folder_id,
         "base_name": base_name,
+        "flow_type": flow_type or "default",
+        "next_status": "dang_dich" if is_translation_flow else "check",
     })
 
 

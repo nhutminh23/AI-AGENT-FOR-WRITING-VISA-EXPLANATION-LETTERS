@@ -18,6 +18,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -91,6 +92,17 @@ def is_check_trigger(folder_name: str) -> bool:
     return bool(_CHECK_PATTERN.search(folder_name.strip()))
 
 
+def _normalize_drive_text(text: str) -> str:
+    """Normalize Drive folder text for accent-insensitive status matching."""
+    # Vietnamese 'đ' does not decompose with NFKD, normalize it explicitly.
+    raw = (text or "").replace("đ", "d").replace("Đ", "D")
+    folded = unicodedata.normalize("NFKD", raw)
+    folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+    folded = folded.lower()
+    folded = re.sub(r"\s+", " ", folded)
+    return folded.strip()
+
+
 # ---------------------------------------------------------------------------
 # Main watcher loop
 # ---------------------------------------------------------------------------
@@ -110,11 +122,17 @@ class DriveWatcher:
         local_input_dir: str | Path,
         root_folder_name: str = "HỒ SƠ VISA 2026",
         poll_interval: int = 10,
+        translation_parent_name: str = "Dịch Thuật",
+        translation_parent_id: str = "",
+        translation_done_prefix: str = "DONE",
     ):
         self._credentials_path = credentials_path
         self._local_input_dir = Path(local_input_dir)
         self._root_folder_name = root_folder_name
         self._poll_interval = poll_interval
+        self._translation_parent_name = translation_parent_name
+        self._translation_parent_id = (translation_parent_id or "").strip()
+        self._translation_done_prefix = translation_done_prefix
 
         # Components
         self._ui = DriveUIHacker(credentials_path)
@@ -144,6 +162,7 @@ class DriveWatcher:
         logger.info("=" * 60)
         logger.info("  DRIVE WATCHER - Traffic Light System")
         logger.info("  Root folder : %s", self._root_folder_name)
+        logger.info("  Translation parent: %s", self._translation_parent_name)
         logger.info("  Local input : %s", self._local_input_dir)
         logger.info("  Poll interval: %ds", self._poll_interval)
         logger.info("=" * 60)
@@ -165,10 +184,17 @@ class DriveWatcher:
         root_id = self._ensure_root_folder()
         subfolders = self._ui.list_subfolders(root_id)
 
+        # Dedicated parent folder for translation flow
+        translation_parent = self._resolve_translation_parent_folder(subfolders)
+
         for folder in subfolders:
             fid = folder["id"]
             fname = folder["name"]
             modified = folder.get("modifiedTime", "")
+
+            # Skip the dedicated translation parent itself; we scan its children separately.
+            if translation_parent and fid == translation_parent["id"]:
+                continue
 
             # Skip if already processed with same modifiedTime
             prev = self._state["processed"].get(fid)
@@ -181,6 +207,209 @@ class DriveWatcher:
             elif is_check_trigger(fname):
                 logger.info("--- Found -CHECK trigger: %s ---", fname)
                 self._process_check(fid, fname, modified)
+
+        # Translation-only flow: child folders under the dedicated translation parent.
+        if translation_parent:
+            self._poll_translation_subfolders(translation_parent["id"])
+
+    def _is_translation_parent_folder(self, folder_name: str) -> bool:
+        """Check if a folder is the dedicated parent for translation-only flow."""
+        return _normalize_drive_text(folder_name) == _normalize_drive_text(self._translation_parent_name)
+
+    def _resolve_translation_parent_folder(self, root_subfolders: list[dict]) -> dict | None:
+        """
+        Resolve translation parent folder with this priority:
+        1. Child folder under configured root by name (preferred)
+        2. Explicit folder ID from env (DRIVE_TRANSLATION_FOLDER_ID)
+        3. Global exact-name fallback (for legacy layouts outside root)
+        """
+        # 1) Preferred: translation folder as a direct child of root
+        for folder in root_subfolders:
+            if self._is_translation_parent_folder(folder.get("name", "")):
+                self._translation_parent_id = folder["id"]
+                return folder
+
+        # 2) Explicit ID fallback
+        if self._translation_parent_id:
+            try:
+                meta = self._ui._service.files().get(
+                    fileId=self._translation_parent_id,
+                    fields="id,name,mimeType",
+                ).execute()
+                if meta.get("mimeType") == "application/vnd.google-apps.folder":
+                    return {"id": meta["id"], "name": meta.get("name", self._translation_parent_name)}
+            except Exception as exc:
+                logger.warning(
+                    "Cannot access translation parent by ID %s: %s",
+                    self._translation_parent_id,
+                    exc,
+                )
+
+        # 3) Global name fallback for legacy structures not under root
+        fallback_id = self._ui.find_root_folder(self._translation_parent_name)
+        if fallback_id and fallback_id != self._root_id:
+            self._translation_parent_id = fallback_id
+            logger.info(
+                "Using translation parent outside root: %s (%s)",
+                self._translation_parent_name,
+                fallback_id,
+            )
+            return {"id": fallback_id, "name": self._translation_parent_name}
+
+        return None
+
+    def _has_translation_done_marker(self, folder_name: str) -> bool:
+        """DONE can be either prefix (`DONE - ...`) or suffix (`... - DONE`)."""
+        normalized_name = _normalize_drive_text(folder_name)
+        done_token = _normalize_drive_text(self._translation_done_prefix) or "done"
+        if re.search(rf"^{re.escape(done_token)}(?:\\b|\\s*[-_])", normalized_name):
+            return True
+        return bool(re.search(rf"(?:[-_\\s]){re.escape(done_token)}$", normalized_name))
+
+    @staticmethod
+    def _is_translation_splitting_status(folder_name: str) -> bool:
+        """Status while files are in input/split processing."""
+        normalized_name = _normalize_drive_text(folder_name)
+        return "dang tach file" in normalized_name
+
+    @staticmethod
+    def _canonical_translation_splitting_name(folder_name: str) -> str:
+        """Build canonical split-status name with a single suffix."""
+        base_name = extract_base_name(folder_name)
+        return f"🔍 {base_name} - Đang tách file"
+
+    @staticmethod
+    def _is_translation_ready_status(folder_name: str) -> bool:
+        """Status indicating files are ready for translation workspace sync."""
+        normalized_name = _normalize_drive_text(folder_name)
+        return "dang dich" in normalized_name
+
+    def _poll_translation_subfolders(self, parent_folder_id: str) -> None:
+        """Handle dedicated translation folders under ``Dịch Thuật`` parent."""
+        subfolders = self._ui.list_subfolders(parent_folder_id)
+
+        for folder in subfolders:
+            fid = folder["id"]
+            fname = folder["name"]
+            modified = folder.get("modifiedTime", "")
+            prev = self._state["processed"].get(fid, {})
+
+            # Translation flow is complete; do not re-process.
+            if self._has_translation_done_marker(fname):
+                continue
+
+            # Phase 2: already pushed from input and marked as translating.
+            if self._is_translation_ready_status(fname):
+                if prev.get("translation_workspace_ready"):
+                    continue
+                logger.info("--- Found translation-ready trigger: %s ---", fname)
+                self._process_translation_ready(fid, fname, modified)
+                continue
+
+            # Still in split phase; wait for push-back stage.
+            if self._is_translation_splitting_status(fname):
+                canonical_name = self._canonical_translation_splitting_name(fname)
+                if _normalize_drive_text(fname) != _normalize_drive_text(canonical_name):
+                    try:
+                        self._ui.rename(fid, canonical_name)
+                        logger.info("  Normalized split-status folder name: %s -> %s", fname, canonical_name)
+                    except Exception as exc:
+                        logger.warning("  Failed to normalize split-status name for %s: %s", fid, exc)
+                continue
+
+            # New folder dropped into translation parent (no DONE marker yet).
+            if prev and prev.get("modifiedTime") == modified:
+                continue
+
+            logger.info("--- Found translation incoming folder: %s ---", fname)
+            self._process_translation_incoming(fid, fname, modified)
+
+    def _tag_local_meta(self, local_path: Path, **extra: str) -> None:
+        """Persist extra metadata in ``_meta.json`` for downstream routes."""
+        meta_path = local_path / "_meta.json"
+        if not meta_path.exists():
+            return
+
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            meta.update(extra)
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(meta, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            logger.warning("  Failed to enrich _meta.json at %s: %s", meta_path, exc)
+
+    def _process_translation_incoming(self, folder_id: str, folder_name: str, modified_time: str) -> None:
+        """Translation-only Stage 1: auto-download new folders without DONE marker."""
+        base_name = extract_base_name(folder_name)
+        logger.info("  Translation base name: %s", base_name)
+
+        try:
+            self._ui.mark_splitting(folder_id, base_name)
+        except Exception as exc:
+            logger.error("  Failed to mark splitting on Drive: %s", exc)
+
+        try:
+            local_path = self._downloader.download_folder(folder_id, base_name)
+            self._tag_local_meta(local_path, flow_type="translation")
+            logger.info("  📁 Translation input downloaded to: %s", local_path)
+        except Exception as exc:
+            logger.error("  ❌ Translation input download failed: %s", exc)
+            self._ui.mark_error(folder_id, base_name, "LỖI khi tải về")
+            self._state["processed"][folder_id] = {
+                "name": folder_name,
+                "modifiedTime": modified_time,
+                "valid": False,
+                "flow_type": "translation",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            _save_state(self._state)
+            return
+
+        self._state["processed"][folder_id] = {
+            "name": folder_name,
+            "modifiedTime": modified_time,
+            "valid": True,
+            "flow_type": "translation",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        _save_state(self._state)
+
+    def _process_translation_ready(self, folder_id: str, folder_name: str, modified_time: str) -> None:
+        """Translation-only Stage 2: sync a ``Đang dịch`` folder into local workspace."""
+        base_name = extract_base_name(folder_name)
+        logger.info("  Translation ready base name: %s", base_name)
+
+        source_folder_id = folder_id
+        subfolders = self._ui.list_files_in_folder(folder_id)
+        for item in subfolders:
+            if (item.get("mimeType") == "application/vnd.google-apps.folder"
+                    and item["name"].lower().strip() == "final"):
+                source_folder_id = item["id"]
+                break
+
+        try:
+            self._prepare_translation_workspace(folder_id, base_name, source_folder_id)
+            self._state["processed"][folder_id] = {
+                "name": folder_name,
+                "modifiedTime": modified_time,
+                "valid": True,
+                "flow_type": "translation",
+                "translation_workspace_ready": True,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            _save_state(self._state)
+        except Exception as exc:
+            logger.error("  ❌ Translation workspace prep failed: %s", exc, exc_info=True)
+            self._state["processed"][folder_id] = {
+                "name": folder_name,
+                "modifiedTime": modified_time,
+                "valid": False,
+                "flow_type": "translation",
+                "translation_workspace_ready": False,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            _save_state(self._state)
 
     def _process_folder(self, folder_id: str, folder_name: str, modified_time: str) -> None:
         """
@@ -292,12 +521,13 @@ class DriveWatcher:
     # Stage 2.5: Prepare translation workspace after CHECK passes
     # ------------------------------------------------------------------
     def _prepare_translation_workspace(
-        self, root_folder_id: str, base_name: str, final_folder_id: str,
+        self, root_folder_id: str, base_name: str, source_folder_id: str,
     ) -> None:
         """
-        After CHECK passes:
-        1. Create a 'Translate' subfolder inside Final/ on Drive.
-        2. Download the entire Final/ structure (incl Translate) to
+        Prepare translation workspace from a Drive source folder (usually ``Final/``):
+
+          1. Create a 'Translate' subfolder inside the source folder on Drive.
+          2. Download the entire source structure (incl Translate) to
            ``translation_workspace/{base_name}/`` on local disk.
         3. Write ``_files_meta.json`` with full Drive ID mapping.
         """
@@ -305,7 +535,7 @@ class DriveWatcher:
 
         # 1. Create 'Translate' folder inside Final/ on Drive
         #    (Check if it already exists first)
-        existing = self._ui.list_files_in_folder(final_folder_id)
+        existing = self._ui.list_files_in_folder(source_folder_id)
         translate_folder_id = None
         for item in existing:
             if (item.get("mimeType") == "application/vnd.google-apps.folder"
@@ -315,7 +545,7 @@ class DriveWatcher:
                 break
 
         if not translate_folder_id:
-            translate_folder_id = self._ui.create_subfolder(final_folder_id, "Translate")
+            translate_folder_id = self._ui.create_subfolder(source_folder_id, "Translate")
             logger.info("  📁 Created Translate folder on Drive: %s", translate_folder_id)
 
         # 2. Download Final/ to translation_workspace/{base_name}/Final/
@@ -324,7 +554,7 @@ class DriveWatcher:
 
         # Use the downloader with ID mapping
         dest = self._downloader.download_folder_for_translation(
-            folder_id=final_folder_id,
+            folder_id=source_folder_id,
             local_folder_name=base_name,
             dest_root=workspace_root,
         )
@@ -335,7 +565,8 @@ class DriveWatcher:
             with open(meta_path, "r", encoding="utf-8") as f:
                 meta = json.load(f)
             meta["root_folder_id"] = root_folder_id
-            meta["final_folder_id"] = final_folder_id
+            meta["final_folder_id"] = source_folder_id
+            meta["source_folder_id"] = source_folder_id
             meta["translate_folder_id"] = translate_folder_id
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, ensure_ascii=False, indent=2)
@@ -369,12 +600,18 @@ def main() -> None:
     rules = _load_rules()
     poll_interval = rules.get("polling_interval_seconds", 10)
     root_folder = rules.get("root_folder_name", "HỒ SƠ VISA 2026")
+    translation_parent = os.getenv("DRIVE_TRANSLATION_FOLDER", "Dịch Thuật")
+    translation_parent_id = os.getenv("DRIVE_TRANSLATION_FOLDER_ID", "")
+    translation_done_prefix = os.getenv("DRIVE_TRANSLATION_DONE_PREFIX", "DONE")
 
     watcher = DriveWatcher(
         credentials_path=creds_path,
         local_input_dir=local_input,
         root_folder_name=root_folder,
         poll_interval=poll_interval,
+        translation_parent_name=translation_parent,
+        translation_parent_id=translation_parent_id,
+        translation_done_prefix=translation_done_prefix,
     )
     watcher.run_forever()
 

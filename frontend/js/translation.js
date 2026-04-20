@@ -9,6 +9,9 @@ function wrapForPrintPreview(html) {
   // @page content-page { margin: 15mm 18mm; size: A4; }
   const PAGE_MARGIN_TB = '15mm';  // top/bottom @page margin
   const PAGE_MARGIN_LR = '18mm';  // left/right @page margin
+  const hasA4Landscape = /@page[^}]*\bA4\s+landscape\b/i.test(html);
+  const defaultPageWidth = hasA4Landscape ? '297mm' : '210mm';
+  const defaultPageHeight = hasA4Landscape ? '210mm' : '297mm';
   const printPreviewCSS = `<style data-print-preview>
     /* ===== PAGINATED A4 PREVIEW (synced with print output) ===== */
     body {
@@ -19,9 +22,11 @@ function wrapForPrintPreview(html) {
       flex-direction: column !important;
       align-items: center !important;
     }
-    .a4-page, .a4 {
-      width: 210mm !important;
-      min-height: 297mm !important;
+    .a4-page, .a4, .a4-page-portrait, .a4-page-landscape {
+      --preview-page-width: ${defaultPageWidth};
+      --preview-page-height: ${defaultPageHeight};
+      width: var(--preview-page-width) !important;
+      min-height: var(--preview-page-height) !important;
       height: auto !important;
       margin: 0 auto 24px auto !important;
       /*
@@ -32,13 +37,13 @@ function wrapForPrintPreview(html) {
       padding: ${PAGE_MARGIN_TB} ${PAGE_MARGIN_LR} !important;
 
       background-color: #fff !important;
-      /* Draw a red line every 297mm to show exact physical page breaks */
+      /* Draw a red line every page height to show exact physical page breaks */
       background-image: repeating-linear-gradient(
         to bottom,
         transparent,
-        transparent calc(297mm - 2px),
-        #ef4444 calc(297mm - 2px),
-        #ef4444 297mm
+        transparent calc(var(--preview-page-height) - 2px),
+        #ef4444 calc(var(--preview-page-height) - 2px),
+        #ef4444 var(--preview-page-height)
       ) !important;
 
       box-sizing: border-box !important;
@@ -48,7 +53,15 @@ function wrapForPrintPreview(html) {
       page-break-after: always !important;
       break-after: page !important;
     }
-    .a4-page:last-child, .a4:last-child {
+    .a4-page-portrait {
+      --preview-page-width: 210mm;
+      --preview-page-height: 297mm;
+    }
+    .a4-page-landscape {
+      --preview-page-width: 297mm;
+      --preview-page-height: 210mm;
+    }
+    .a4-page:last-child, .a4:last-child, .a4-page-portrait:last-child, .a4-page-landscape:last-child {
       margin-bottom: 20px !important;
     }
   </style>`;
@@ -67,6 +80,94 @@ async function loadTranslationTemplates() {
   translationTemplatesCache = data.templates || [];
 }
 
+function getWorkspaceForFlow(flowId) {
+  const flowWorkspace = document.getElementById(`transWorkspace-${flowId}`)?.value || "";
+  const normalizedFlowWorkspace = String(flowWorkspace || "").trim();
+  if (normalizedFlowWorkspace) return normalizedFlowWorkspace;
+  return (typeof _activeWorkspaceName !== "undefined" && _activeWorkspaceName)
+    ? _activeWorkspaceName
+    : "";
+}
+
+function setFlowWorkspaceContext(flowId, workspaceName = "", workspaceDisplayName = "") {
+  const normalizedWorkspace = String(workspaceName || "").trim();
+  let display = String(workspaceDisplayName || "").trim();
+
+  if (!display && normalizedWorkspace) {
+    if (typeof _workspaceDisplayName === "function") {
+      display = String(_workspaceDisplayName(normalizedWorkspace) || normalizedWorkspace).trim();
+    } else {
+      display = normalizedWorkspace;
+    }
+  }
+
+  const workspaceInput = document.getElementById(`transWorkspace-${flowId}`);
+  if (workspaceInput) workspaceInput.value = normalizedWorkspace;
+
+  const workspaceDisplayInput = document.getElementById(`transWorkspaceDisplay-${flowId}`);
+  if (workspaceDisplayInput) workspaceDisplayInput.value = normalizedWorkspace ? display : "";
+
+  const workspaceInfo = document.getElementById(`transWorkspaceInfo-${flowId}`);
+  if (!workspaceInfo) return;
+
+  if (!normalizedWorkspace) {
+    workspaceInfo.style.display = "none";
+    workspaceInfo.innerHTML = "";
+    return;
+  }
+
+  workspaceInfo.style.display = "inline-flex";
+  workspaceInfo.innerHTML = `📁 Hồ sơ: <strong>${escapeHtml(display || normalizedWorkspace)}</strong>`;
+}
+
+function refreshTranslationFlowWorkspaceLabels() {
+  if (!translateFlowsContainerEl) return;
+
+  const cards = translateFlowsContainerEl.querySelectorAll(".translate-flow-card");
+  cards.forEach((card) => {
+    const flowId = Number(String(card.id || "").replace("translateFlow-", ""));
+    if (!Number.isFinite(flowId)) return;
+
+    const workspaceName = String(document.getElementById(`transWorkspace-${flowId}`)?.value || "").trim();
+    const workspaceDisplayName = String(document.getElementById(`transWorkspaceDisplay-${flowId}`)?.value || "").trim();
+    setFlowWorkspaceContext(flowId, workspaceName, workspaceDisplayName);
+  });
+}
+
+if (typeof window !== "undefined") {
+  window.refreshTranslationFlowWorkspaceLabels = refreshTranslationFlowWorkspaceLabels;
+}
+
+function syncWorkspacePanelFromFlowCards() {
+  if (!translateFlowsContainerEl) return;
+
+  const workspaceNames = new Set();
+  const cards = translateFlowsContainerEl.querySelectorAll(".translate-flow-card");
+  cards.forEach((card) => {
+    const flowId = Number(String(card.id || "").replace("translateFlow-", ""));
+    if (!Number.isFinite(flowId)) return;
+    const workspace = String(document.getElementById(`transWorkspace-${flowId}`)?.value || "").trim();
+    if (workspace) workspaceNames.add(workspace);
+  });
+
+  if (typeof syncActiveWorkspacesFromList === "function") {
+    syncActiveWorkspacesFromList(Array.from(workspaceNames));
+    return;
+  }
+
+  if (typeof workspaceCompletePanelEl === "undefined" || !workspaceCompletePanelEl) return;
+  if (typeof workspaceCompleteInfoEl === "undefined" || !workspaceCompleteInfoEl) return;
+
+  if (workspaceNames.size === 0) {
+    workspaceCompletePanelEl.style.display = "none";
+    workspaceCompleteInfoEl.innerHTML = "📂 Đang dịch: <strong>---</strong>";
+    return;
+  }
+
+  workspaceCompletePanelEl.style.display = "block";
+  workspaceCompleteInfoEl.innerHTML = `📂 Đang dịch: <strong>${workspaceNames.size} hồ sơ</strong>`;
+}
+
 // ==================== DB PERSISTENCE HELPERS ====================
 
 /** Save or update a translation flow to the database. */
@@ -81,8 +182,7 @@ async function autoSaveTranslationFlow(flowId) {
     const htmlContent = document.getElementById(`transHtmlSource-${flowId}`)?.value || "";
     const saveName = document.getElementById(`transSaveName-${flowId}`)?.value || "";
     const driveFileId = document.getElementById(`transDriveFileId-${flowId}`)?.value || "";
-    // Workspace: use global active workspace name (set by workspace scan)
-    const workspace = (typeof _activeWorkspaceName !== "undefined" && _activeWorkspaceName) ? _activeWorkspaceName : "";
+    const workspace = getWorkspaceForFlow(flowId);
     const payload = { filename, file_ref: fileRef, template_name: templateName,
       source_lang: sourceLang, ocr_text: ocrText, translated_text: translatedText,
       html_content: htmlContent, save_name: saveName, status: "done",
@@ -124,6 +224,7 @@ async function deleteTranslationFlow(flowId) {
   if (translateFlowsContainerEl && translateFlowsContainerEl.querySelectorAll(".translate-flow-card").length === 0) {
     translationFlowCounter = 0;
   }
+  syncWorkspacePanelFromFlowCards();
 }
 
 /** Delete all translation flows from UI and DB. */
@@ -133,7 +234,11 @@ async function deleteAllTranslationFlows() {
   try { await fetch("/api/translate/flows", { method: "DELETE" }); } catch (_) {}
   Object.keys(_flowDbIds).forEach(k => delete _flowDbIds[k]);
   try { localStorage.removeItem("activeWorkspace"); } catch (_) {}
+  try { localStorage.removeItem("activeWorkspaces"); } catch (_) {}
   _activeWorkspaceName = "";
+  if (typeof syncActiveWorkspacesFromList === "function") {
+    syncActiveWorkspacesFromList([]);
+  }
   translationFlowCounter = 0;  // Reset counter so next flow starts at #1
 }
 
@@ -143,36 +248,48 @@ async function restoreTranslationFlows() {
     const res = await fetch("/api/translate/flows");
     if (!res.ok) return;
     const { flows } = await res.json();
-    if (!flows || flows.length === 0) return;
+    if (!flows || flows.length === 0) {
+      syncWorkspacePanelFromFlowCards();
+      return;
+    }
 
-    // Detect workspace mode from flows (first flow with workspace set)
-    let detectedWorkspace = "";
+    const detectedWorkspaces = new Set();
     for (const f of flows) {
-      if (f.workspace) { detectedWorkspace = f.workspace; break; }
-    }
-    // Fallback: check localStorage
-    if (!detectedWorkspace) {
-      try { detectedWorkspace = localStorage.getItem("activeWorkspace") || ""; } catch (_) {}
+      const workspace = String(f.workspace || "").trim();
+      if (workspace) detectedWorkspaces.add(workspace);
     }
 
-    // If workspace mode detected, restore workspace state
-    if (detectedWorkspace) {
-      _activeWorkspaceName = detectedWorkspace;
-      // Auto-select workspace dropdown
-      if (typeof workspaceSelectEl !== "undefined" && workspaceSelectEl) {
+    // Fallback: keep legacy single workspace for old data that had no workspace field
+    if (detectedWorkspaces.size === 0) {
+      try {
+        const legacyWorkspace = String(localStorage.getItem("activeWorkspace") || "").trim();
+        if (legacyWorkspace) detectedWorkspaces.add(legacyWorkspace);
+      } catch (_) {}
+    }
+
+    if (detectedWorkspaces.size > 0) {
+      if (!detectedWorkspaces.has(_activeWorkspaceName)) {
+        _activeWorkspaceName = Array.from(detectedWorkspaces)[0];
+      }
+
+      // Auto-select the last active workspace if it still exists
+      if (typeof workspaceSelectEl !== "undefined" && workspaceSelectEl && _activeWorkspaceName) {
         for (let i = 0; i < workspaceSelectEl.options.length; i++) {
-          if (workspaceSelectEl.options[i].value === detectedWorkspace) {
+          if (workspaceSelectEl.options[i].value === _activeWorkspaceName) {
             workspaceSelectEl.selectedIndex = i;
             break;
           }
         }
       }
-      // Show workspace complete panel
-      if (typeof workspaceCompletePanelEl !== "undefined" && workspaceCompletePanelEl) {
+
+      if (typeof syncActiveWorkspacesFromList === "function") {
+        syncActiveWorkspacesFromList(Array.from(detectedWorkspaces));
+      } else if (
+        typeof workspaceCompletePanelEl !== "undefined" && workspaceCompletePanelEl &&
+        typeof workspaceCompleteInfoEl !== "undefined" && workspaceCompleteInfoEl
+      ) {
         workspaceCompletePanelEl.style.display = "block";
-      }
-      if (typeof workspaceCompleteInfoEl !== "undefined" && workspaceCompleteInfoEl) {
-        workspaceCompleteInfoEl.innerHTML = `📂 Đang dịch: <strong>${escapeHtml(detectedWorkspace)}</strong> — ${flows.length} luồng (đã khôi phục)`;
+        workspaceCompleteInfoEl.innerHTML = `📂 Đang dịch: <strong>${detectedWorkspaces.size} hồ sơ</strong> — ${flows.length} luồng (đã khôi phục)`;
       }
     }
 
@@ -191,12 +308,14 @@ async function restoreTranslationFlows() {
       set(`transTranslated-${flowId}`, f.translated_text);
       set(`transHtmlSource-${flowId}`, f.html_content);
       set(`transSaveName-${flowId}`, f.save_name);
+      const flowWorkspace = String(f.workspace || _activeWorkspaceName || "").trim();
+      setFlowWorkspaceContext(flowId, flowWorkspace, flowWorkspace);
 
       // Restore stamp controls after F5 even in manual mode.
       set(`transDriveFileId-${flowId}`, f.drive_file_id);
       const hasUploadedSource = Boolean((f.filename || "").trim() || (f.file_ref || "").trim());
       const hasTranslatedHtml = Boolean((f.html_content || "").trim());
-      const isWorkspaceFlow = Boolean(f.workspace || detectedWorkspace);
+      const isWorkspaceFlow = Boolean(flowWorkspace);
       const shouldShowStampArea = hasUploadedSource || hasTranslatedHtml || isWorkspaceFlow;
       const stampArea = document.getElementById(`transStampArea-${flowId}`);
       if (stampArea && shouldShowStampArea) stampArea.style.display = "block";
@@ -238,6 +357,8 @@ async function restoreTranslationFlows() {
         if (reattachBtn) reattachBtn.style.display = "inline-block";
       }
     }
+
+    syncWorkspacePanelFromFlowCards();
   } catch (e) {
     // Silent — don't block init
   }
@@ -308,14 +429,17 @@ function updateTranslateFlowStep(flowId, step, state, message = "") {
   }
 }
 
-function createTranslateFlow() {
+function createTranslateFlow(options = {}) {
   if (!translateFlowsContainerEl) return;
   translationFlowCounter += 1;
   const flowId = translationFlowCounter;
   const html = `
     <section class="translate-flow-card" id="translateFlow-${flowId}" style="border:1px solid #e2e8f0; border-radius:10px; padding:16px; margin-bottom:16px; background:#fff;">
       <div class="card-header-row" style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0;">Luồng dịch #${flowId}</h3>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <h3 style="margin:0;">Luồng dịch #${flowId}</h3>
+          <span id="transWorkspaceInfo-${flowId}" style="display:none; align-items:center; gap:6px; width:fit-content; font-size:0.82em; color:#475569; background:#f8fafc; border:1px solid #cbd5e1; border-radius:999px; padding:2px 10px;"></span>
+        </div>
         <button id="transDeleteBtn-${flowId}" type="button" title="Xóa luồng dịch này" style="background:#ef4444; color:#fff; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.85em;">🗑️ Xóa</button>
       </div>
 
@@ -434,6 +558,8 @@ function createTranslateFlow() {
         </div>
       </div>
       <input id="transDriveFileId-${flowId}" type="hidden" value="" />
+      <input id="transWorkspace-${flowId}" type="hidden" value="" />
+      <input id="transWorkspaceDisplay-${flowId}" type="hidden" value="" />
 
       <!-- HTML Preview iframe -->
       <div style="margin-top:12px;">
@@ -443,6 +569,8 @@ function createTranslateFlow() {
     </section>
   `;
   translateFlowsContainerEl.insertAdjacentHTML("beforeend", html);
+
+  setFlowWorkspaceContext(flowId, options.workspace_name || "", options.workspace_display_name || "");
 
   // Event listeners
   const runBtn = document.getElementById(`transRunBtn-${flowId}`);
@@ -1158,8 +1286,10 @@ async function runBulkBilingualCheck() {
           statusBadge = '<span style="background:#fffbeb; color:#d97706; padding:2px 8px; border-radius:4px; font-size:0.85em;">⏭️ Bỏ qua</span>';
         }
         const docType = r.doc_type ? escapeHtml(r.doc_type) : (r.languages || []).join(", ") || "—";
+        const workspaceLabel = String(r.workspace_display_name || r.workspace_name || "").trim();
         return `<tr style="border-bottom:1px solid #e2e8f0;">
           <td style="padding:6px 8px;">${i + 1}</td>
+          <td style="padding:6px 8px; white-space:nowrap;">${workspaceLabel ? escapeHtml(workspaceLabel) : "—"}</td>
           <td style="padding:6px 8px; word-break:break-all;">${escapeHtml(r.filename)}</td>
           <td style="padding:6px 8px; text-align:center; font-size:0.85em;">${docType}</td>
           <td style="padding:6px 8px; text-align:center;">${statusBadge}</td>
@@ -1216,17 +1346,18 @@ async function bulkCreateTranslateStreams() {
     fileByName[safeName] = f;
   }
 
-  // Detect workspace mode
-  const isWorkspaceMode = typeof _activeWorkspaceName !== "undefined" && _activeWorkspaceName;
-
-  // Persist active workspace name in localStorage (survives F5)
-  if (isWorkspaceMode) {
-    try { localStorage.setItem("activeWorkspace", _activeWorkspaceName); } catch (_) {}
-  }
-
   // Create a stream for each file that needs translation, pre-setting the upload token
   for (const r of needsTranslation) {
-    createTranslateFlow();
+    let resultWorkspace = String(r.workspace_name || "").trim();
+    if (!resultWorkspace && r.drive_file_id && typeof _activeWorkspaceName !== "undefined") {
+      resultWorkspace = String(_activeWorkspaceName || "").trim();
+    }
+    const resultWorkspaceDisplay = String(r.workspace_display_name || "").trim();
+
+    createTranslateFlow({
+      workspace_name: resultWorkspace,
+      workspace_display_name: resultWorkspaceDisplay,
+    });
     const flowId = translationFlowCounter;
 
     // Set the uploaded ref (file_ref) so runTranslateFlow can use it
@@ -1241,11 +1372,12 @@ async function bulkCreateTranslateStreams() {
     if (fileInfoEl) fileInfoEl.innerHTML = `📄 <b>${escapeHtml(r.filename)}</b> — <span style="color:#16a34a;">Đã upload sẵn</span>`;
     if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;">✅ File đã sẵn sàng để dịch.</span>';
 
-    // Workspace mode: set Drive file ID
-    if (isWorkspaceMode) {
-      const driveFileIdEl = document.getElementById(`transDriveFileId-${flowId}`);
-      if (driveFileIdEl && r.drive_file_id) driveFileIdEl.value = r.drive_file_id;
+    if (resultWorkspace) {
+      setFlowWorkspaceContext(flowId, resultWorkspace, resultWorkspaceDisplay);
     }
+
+    const driveFileIdEl = document.getElementById(`transDriveFileId-${flowId}`);
+    if (driveFileIdEl && r.drive_file_id) driveFileIdEl.value = r.drive_file_id;
 
     // Show stamp area for ALL modes (workspace + manual), same as manual flow
     const stampArea = document.getElementById(`transStampArea-${flowId}`);
@@ -1266,6 +1398,8 @@ async function bulkCreateTranslateStreams() {
     // Immediately persist to DB (workspace + drive_file_id)
     autoSaveTranslationFlow(flowId);
   }
+
+  syncWorkspacePanelFromFlowCards();
 
   // Show translate-all button
   if (bulkTranslateAllBtn) bulkTranslateAllBtn.style.display = "inline-block";

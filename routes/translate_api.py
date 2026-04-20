@@ -128,7 +128,10 @@ def scan_workspace_for_translation():
     if meta_path.is_file():
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
-        file_id_map = meta.get("file_ids", {})
+        # Backward-compatible key support:
+        # - new downloader writes `file_id_map`
+        # - legacy snapshots may use `file_ids`
+        file_id_map = meta.get("file_id_map") or meta.get("file_ids") or {}
 
     # Scan workspace for image/PDF files
     file_entries = []
@@ -191,12 +194,14 @@ def scan_workspace_for_translation():
                 result = future.result()
                 result["upload_token"] = file_entries[idx]["token"]
                 result["file_ref"] = file_entries[idx]["file_ref"]
+                result["rel_path"] = file_entries[idx].get("rel_path", "")
                 result["drive_file_id"] = file_entries[idx].get("drive_file_id", "")
                 results[idx] = result
             except Exception as e:
                 logging.exception("[Safe Log] Unhandled exception in workspace scan: %s", e)
                 results[idx] = {
                     "filename": file_entries[idx]["filename"],
+                    "rel_path": file_entries[idx].get("rel_path", ""),
                     "needs_translation": True,
                     "is_bilingual": False,
                     "reason": f"Error: {str(e)}",

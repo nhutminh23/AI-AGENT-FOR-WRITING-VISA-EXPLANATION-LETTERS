@@ -3,6 +3,45 @@
 
 // --------------- Push to Drive Logic ---------------
 
+function _setPushButtonReady(pushBtn, folderCount) {
+  if (!pushBtn) return;
+  if (folderCount <= 0) {
+    pushBtn.style.display = "none";
+    return;
+  }
+
+  const suffix = folderCount === 1 ? "folder" : "folders";
+  pushBtn.style.display = "inline-block";
+  pushBtn.disabled = false;
+  pushBtn.style.background = "#4f46e5";
+  pushBtn.textContent = `📤 Gửi lên Drive (${folderCount} ${suffix})`;
+  pushBtn.title = "Upload tất cả folder local có _meta.json lên đúng folder gốc trên Google Drive";
+}
+
+async function _fetchDriveFolders() {
+  const res = await fetch("/api/processor/drive-folders");
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Không lấy được danh sách folder từ Drive");
+  }
+  return data.folders || [];
+}
+
+async function _hasRealInputFiles(inputDir = "input") {
+  const res = await fetch(`/api/files?input_dir=${encodeURIComponent(inputDir)}`);
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Không đọc được danh sách file input");
+  }
+
+  const files = Array.isArray(data.files) ? data.files : [];
+  const realFiles = files.filter((f) => {
+    const name = String(f?.name || "");
+    return name && !name.startsWith(".") && !name.startsWith("_") && name !== "_meta.json";
+  });
+  return realFiles.length > 0;
+}
+
 /**
  * Check if the current input directory was downloaded from Drive
  * by querying /api/processor/drive-folders.
@@ -10,126 +49,171 @@
  */
 async function checkDriveFolderStatus() {
   const pushBtn = document.getElementById("pushToDriveBtn");
-  if (!pushBtn) return;
+  if (!pushBtn) return [];
 
   try {
-    const res = await fetch("/api/processor/drive-folders");
-    const data = await res.json();
-    const folders = data.folders || [];
-
-    // Get current input dir
-    const inputDir = (document.getElementById("precheckInputDir")?.value || "input").trim();
-
-    // Check if ANY subfolder in current input dir has _meta.json
-    const hasDriveFolder = folders.length > 0;
-
-    pushBtn.style.display = hasDriveFolder ? "inline-block" : "none";
-
-    // Store folders data for later use
+    const folders = await _fetchDriveFolders();
     window._driveFolders = folders;
+
+    // Avoid overriding loading state while an upload batch is running.
+    if (pushBtn.dataset.uploading !== "true") {
+      _setPushButtonReady(pushBtn, folders.length);
+    }
+
+    return folders;
   } catch (e) {
     console.warn("Could not check drive folder status:", e);
-    pushBtn.style.display = "none";
+    const cachedFolders = Array.isArray(window._driveFolders) ? window._driveFolders : [];
+    if (cachedFolders.length > 0 && pushBtn.dataset.uploading !== "true") {
+      _setPushButtonReady(pushBtn, cachedFolders.length);
+    } else {
+      pushBtn.style.display = "none";
+    }
+    return cachedFolders;
   }
 }
 
 /**
- * Push all processed files from a local input folder back to Google Drive.
- * Shows a folder selection dialog if multiple Drive-sourced folders exist.
+ * Push all processed files from every Drive-linked local folder back to Google Drive.
+ * No folder picker prompt: each local folder uploads to its own target by _meta.json.
  */
 async function pushPipelineToDrive() {
   const pushBtn = document.getElementById("pushToDriveBtn");
-  const folders = window._driveFolders || [];
+  if (!pushBtn || pushBtn.dataset.uploading === "true") return;
+
+  let folders = await checkDriveFolderStatus();
+  if (folders.length === 0) {
+    folders = window._driveFolders || [];
+  }
 
   if (folders.length === 0) {
     alert("❌ Không tìm thấy folder nào có _meta.json.\nFolder phải được download từ Drive trước.");
     return;
   }
 
-  // If multiple folders, show selection dialog
-  let selectedFolder;
-  if (folders.length === 1) {
-    selectedFolder = folders[0];
-  } else {
-    // Build a selection dialog
-    const options = folders.map((f, i) =>
-      `${i + 1}. ${f.base_name} (${f.file_count} files)`
-    ).join("\n");
-    const choice = prompt(
-      `Có ${folders.length} folder từ Drive. Chọn folder để gửi lên:\n\n${options}\n\nNhập số (1-${folders.length}):`
-    );
-    if (!choice) return;
-    const idx = parseInt(choice, 10) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= folders.length) {
-      alert("❌ Lựa chọn không hợp lệ.");
-      return;
-    }
-    selectedFolder = folders[idx];
-  }
+  const preview = folders
+    .slice(0, 8)
+    .map((f, i) => `${i + 1}. ${f.base_name} (${f.file_count} files)`)
+    .join("\n");
+  const more = folders.length > 8 ? `\n... và ${folders.length - 8} folder nữa` : "";
 
-  // Confirm
-  const confirmMsg = `📤 Gửi lên Drive:\n\n` +
-    `📁 Folder: ${selectedFolder.base_name}\n` +
-    `📄 Số file: ${selectedFolder.file_count}\n` +
-    `🆔 Drive ID: ${selectedFolder.drive_folder_id}\n\n` +
+  const confirmMsg = `📤 Gửi lên Drive tất cả ${folders.length} folder:\n\n` +
+    `${preview}${more}\n\n` +
     `Hệ thống sẽ:\n` +
-    `1. Tạo thư mục "Final" trong folder gốc trên Drive\n` +
-    `2. Upload tất cả file vào Final/\n` +
-    `3. Đổi tên folder thành "... - CHECK"\n` +
-    `4. Bot tự động kiểm tra hồ sơ đã đủ chưa\n\n` +
+    `1. Tự map từng folder local vào đúng folder gốc trên Drive bằng _meta.json\n` +
+    `2. Tạo thư mục "Final" và upload toàn bộ file của từng folder\n` +
+    `3. Đổi trạng thái folder trên Drive theo flow tương ứng\n\n` +
     `Tiếp tục?`;
 
   if (!confirm(confirmMsg)) return;
 
-  // Disable button and show progress
+  pushBtn.dataset.uploading = "true";
   pushBtn.disabled = true;
-  pushBtn.textContent = "⏳ Đang upload lên Drive...";
+  pushBtn.style.background = "#6366f1";
+  pushBtn.textContent = `⏳ Đang upload 0/${folders.length}...`;
 
   const renameProgress = document.getElementById("renameProgress");
   const renameStatus = document.getElementById("renameStatusText");
   if (renameProgress) renameProgress.style.display = "block";
-  if (renameStatus) renameStatus.textContent = "Đang upload file lên Google Drive...";
+  if (renameStatus) renameStatus.textContent = `Đang upload 0/${folders.length} folder...`;
 
-  try {
-    const res = await fetch("/api/processor/push-to-drive", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ local_folder: selectedFolder.local_path }),
-    });
-    const data = await res.json();
+  const successes = [];
+  const failures = [];
+  let totalUploaded = 0;
+  let totalUploadErrors = 0;
 
-    if (!res.ok) {
-      const errMsg = data.detail || data.error || "Unknown error";
-      alert(`❌ Lỗi: ${errMsg}`);
-      if (renameStatus) renameStatus.textContent = `Lỗi: ${errMsg}`;
-      return;
+  for (let i = 0; i < folders.length; i++) {
+    const folder = folders[i];
+    pushBtn.textContent = `⏳ Đang upload ${i + 1}/${folders.length}...`;
+    if (renameStatus) {
+      renameStatus.textContent = `Đang upload ${i + 1}/${folders.length}: ${folder.base_name}`;
     }
 
-    // Success!
+    try {
+      const res = await fetch("/api/processor/push-to-drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_folder: folder.local_path }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const errMsg = data.detail || data.error || "Unknown error";
+        failures.push({ base_name: folder.base_name, error: errMsg });
+        continue;
+      }
+
+      successes.push({
+        base_name: data.base_name || folder.base_name,
+        uploaded_count: data.uploaded_count || 0,
+        error_count: data.error_count || 0,
+      });
+      totalUploaded += data.uploaded_count || 0;
+      totalUploadErrors += data.error_count || 0;
+    } catch (e) {
+      failures.push({ base_name: folder.base_name, error: e.message || "Network error" });
+    }
+  }
+
+  if (renameProgress) renameProgress.style.display = "none";
+  pushBtn.dataset.uploading = "false";
+
+  const successCount = successes.length;
+  const failCount = failures.length;
+
+  if (failCount === 0) {
     const msg =
-      `✅ Đã upload ${data.uploaded_count} file lên Drive thành công!\n\n` +
-      `📁 Folder: ${data.base_name}\n` +
-      (data.error_count > 0 ? `⚠️ ${data.error_count} file lỗi.\n` : "") +
-      `\n🤖 Bot sẽ tự động kiểm tra hồ sơ (trigger -CHECK).`;
+      `✅ Đã gửi thành công ${successCount}/${folders.length} folder lên Drive!\n\n` +
+      `📄 Tổng file upload: ${totalUploaded}\n` +
+      (totalUploadErrors > 0 ? `⚠️ Tổng lỗi file: ${totalUploadErrors}\n` : "") +
+      `\n🤖 Bot sẽ tự động xử lý trạng thái tiếp theo.`;
     alert(msg);
+    if (renameStatus) renameStatus.textContent = `✅ Hoàn tất upload ${successCount}/${folders.length} folder.`;
+  } else {
+    const topErrors = failures
+      .slice(0, 5)
+      .map((f, i) => `${i + 1}. ${f.base_name}: ${f.error}`)
+      .join("\n");
+    const msg =
+      `⚠️ Upload hoàn tất với lỗi một phần.\n\n` +
+      `✅ Thành công: ${successCount}/${folders.length} folder\n` +
+      `❌ Thất bại: ${failCount} folder\n\n` +
+      `${topErrors}` +
+      (failures.length > 5 ? `\n... và ${failures.length - 5} lỗi khác` : "") +
+      `\n\nBạn có thể bấm lại nút để gửi tiếp các folder còn lỗi.`;
+    alert(msg);
+    if (renameStatus) renameStatus.textContent = `⚠️ Còn ${failCount} folder lỗi. Bấm lại để retry.`;
+  }
 
-    if (renameProgress) renameProgress.style.display = "none";
+  const remainingFolders = await checkDriveFolderStatus();
+  if (remainingFolders.length === 0) {
+    // If upload is fully done and local input has no real files, clear precheck backup snapshot.
+    if (failCount === 0 && typeof clearPrecheckSnapshot === "function") {
+      try {
+        const hasRealInputFiles = await _hasRealInputFiles("input");
+        if (!hasRealInputFiles) {
+          clearPrecheckSnapshot();
+          window._precheckLastScanData = null;
 
-    // Update button state
-    pushBtn.textContent = "✅ Đã gửi lên Drive!";
-    pushBtn.style.background = "#6b7280";
-    pushBtn.disabled = true;
-
-    // Refresh drive folders list
-    checkDriveFolderStatus();
-
-  } catch (e) {
-    alert(`❌ Lỗi kết nối: ${e.message}`);
-    if (renameStatus) renameStatus.textContent = `Lỗi: ${e.message}`;
-  } finally {
-    if (pushBtn.textContent.includes("⏳")) {
-      pushBtn.disabled = false;
-      pushBtn.textContent = "📤 Gửi lên Drive";
+          const resultsCard = document.getElementById("precheckResultsCard");
+          const resultsDiv = document.getElementById("precheckResults");
+          const summaryDiv = document.getElementById("precheckSummary");
+          const statusText = document.getElementById("precheckStatusText");
+          if (resultsDiv) resultsDiv.innerHTML = "";
+          if (summaryDiv) summaryDiv.innerHTML = "";
+          if (resultsCard) resultsCard.style.display = "none";
+          if (statusText) {
+            statusText.textContent = "✅ Đã gửi xong lên Drive và input hiện không còn file nào.";
+          }
+        }
+      } catch (e) {
+        console.warn("Could not verify input emptiness after push:", e);
+      }
     }
+
+    pushBtn.style.display = "inline-block";
+    pushBtn.style.background = "#6b7280";
+    pushBtn.textContent = "✅ Đã gửi lên Drive!";
+    pushBtn.disabled = true;
   }
 }

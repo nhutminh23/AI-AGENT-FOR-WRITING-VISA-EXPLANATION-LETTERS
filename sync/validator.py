@@ -669,6 +669,7 @@ _STATUS_SUFFIXES = [
     "cho it dich", "chờ it dịch",
     "doi hs khach", "đợi hs khách",
     "dang dich", "đang dịch",
+    "dang tach file", "đang tách file",
     "dang check da du file chua",
     "thieu thu muc final",
 ]
@@ -692,14 +693,24 @@ def extract_base_name(folder_name: str) -> str:
     pattern = r"\s*-\s*(?:THIẾU|THIEU)\s*\(.*?\)\s*$"
     name = re.sub(pattern, "", name, flags=re.IGNORECASE)
 
-    # 3. Remove trailing status keywords after last dash
-    parts = name.rsplit("-", 1)
-    if len(parts) == 2:
+    # 3. Remove trailing status keywords after last dash.
+    #    Keep stripping in a loop to handle duplicated suffix chains:
+    #    "... - Đang tách file - Đang tách file" -> "..."
+    while True:
+        parts = name.rsplit("-", 1)
+        if len(parts) != 2:
+            break
+
         trailing = normalize(parts[1])
+        matched = False
         for suffix in _STATUS_SUFFIXES:
             if trailing == suffix or trailing.startswith(suffix):
                 name = parts[0].strip()
+                matched = True
                 break
+
+        if not matched:
+            break
 
     return name.strip()
 
