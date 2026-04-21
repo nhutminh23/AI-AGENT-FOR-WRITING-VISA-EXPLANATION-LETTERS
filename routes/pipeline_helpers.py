@@ -12,13 +12,13 @@ import logging
 import json
 import os
 import re
-from typing import Dict, List
+from typing import Dict
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.errors import is_quota_error
-from core.helpers import get_text_model, get_vision_model, cache_dir
+from core.helpers import get_vision_model, cache_dir
 
 
 # ── Path safety ──────────────────────────────────────────────────────

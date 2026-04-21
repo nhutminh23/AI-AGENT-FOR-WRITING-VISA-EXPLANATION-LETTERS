@@ -528,7 +528,6 @@ def edit_pdf():
 
                 # Try to extract & register the actual embedded font from the PDF
                 use_fontname = None
-                use_fontfile = None
                 logging.info(f"[PDF-EDIT] Detected font='{span_font}', size={span_size}, color={span_color}")
                 try:
                     page_fonts = page.get_fonts(full=True)

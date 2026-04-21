@@ -35,6 +35,7 @@
         <button class="tab-btn" data-tab="outputs"> Kết quả</button>
         <button class="tab-btn" data-tab="translate"> Dịch thuật</button>
         <button class="tab-btn" data-tab="editpdf"> Sửa PDF</button>
+        <button class="tab-btn" data-tab="compress"> Nén</button>
       </div>
 
       <!-- ⓪ Xử lý hồ sơ Section -->
@@ -1218,6 +1219,43 @@
       </div>
 
       <!-- ⑩ Insurance Section -->
+      <div id="compressSection" class="section hidden">
+        <section class="card">
+          <h2>🗜️ Nén File Dưới 5MB (Manual Batch)</h2>
+          <div class="hint">
+            Chọn thư mục trên máy → quét đệ quy toàn bộ file trong các thư mục con <code>Final/</code> → nén file &gt; giới hạn.
+            Không liên quan Drive, không upload tự động.
+          </div>
+
+          <div class="row" style="margin-top:12px; align-items:flex-end; gap:10px;">
+            <div style="flex:1; min-width:260px;">
+              <label for="compressRootPath">Thư mục gốc cần quét</label>
+              <input id="compressRootPath" type="text" placeholder="Ví dụ: D:\\Ho so\\Batch 0421" />
+            </div>
+            <div style="width:140px;">
+              <label for="compressMaxMb">Giới hạn MB</label>
+              <input id="compressMaxMb" type="number" min="1" step="0.1" value="5" />
+            </div>
+            <button id="compressPickFolderBtn" style="background:#0ea5e9;">📁 Chọn thư mục</button>
+            <button id="compressScanBtn" style="background:#4f46e5;">🔍 Quét file trong Final</button>
+          </div>
+
+          <div id="compressScanStatus" style="margin-top:10px; font-size:13px; color:#94a3b8;">Chưa quét.</div>
+        </section>
+
+        <section class="card" id="compressResultsCard" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <h2 style="margin:0;">📋 Danh sách file vượt giới hạn trong Final</h2>
+            <button id="compressAllBtn" style="background:#16a34a;">🗜️ Nén tất cả file &gt; giới hạn</button>
+          </div>
+
+          <div id="compressSummary" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
+          <div id="compressResultsTableWrap" style="margin-top:12px; overflow:auto;"></div>
+          <div id="compressActionStatus" style="margin-top:10px; font-size:13px; color:#94a3b8;"></div>
+        </section>
+      </div>
+
+      <!-- ⑩ Insurance Section -->
       <div id="insuranceSection" class="section hidden">
         <section class="card">
           <h2>🛡️ Bảo Hiểm Du Lịch — Chỉnh sửa thông tin</h2>
@@ -1390,6 +1428,7 @@ Ví dụ:
     <script src="js/pipeline.js"></script>
     <script src="js/translation.js"></script>
     <script src="js/workspace.js"></script>
+    <script src="js/compress-tools.js"></script>
     <script src="js/tab-nav.js"></script>
     <script src="js/booking.js"></script>
     <script src="js/flights.js"></script>

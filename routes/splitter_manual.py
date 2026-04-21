@@ -8,7 +8,6 @@ import os
 import shutil
 import tempfile
 import uuid
-import re
 import logging
 from typing import Any
 from pathlib import Path as SplitterPath
@@ -54,7 +53,6 @@ def manual_split_upload_and_split():
     output_dir = str(SPLITTER_OUTPUT_DIR / manual_id)
     os.makedirs(output_dir, exist_ok=True)
 
-    import tempfile
     tmp_dir = tempfile.mkdtemp()
     tmp_path = os.path.join(tmp_dir, file.filename)
     file.save(tmp_path)

@@ -7,7 +7,6 @@ and matches against alias dictionaries defined in rules.json.
 from __future__ import annotations
 
 import json
-import os
 import re
 import unicodedata
 from pathlib import Path
@@ -688,6 +687,19 @@ def extract_base_name(folder_name: str) -> str:
 
     # 1. Strip emoji prefixes (🚨, ✅, 🔍, etc.)
     name = re.sub(r"^[\U0001f300-\U0001f9ff\u2705\u274c\u26a0\u2b50\U0001f4a1]+\s*", "", name)
+
+    # 1.5 Strip legacy DONE prefix chains:
+    #     "DONE - UC - ..." -> "UC - ..."
+    #     "DONE - DONE - UC - ..." -> "UC - ..."
+    while True:
+        parts = name.split("-", 1)
+        if len(parts) != 2:
+            break
+        leading = normalize(parts[0])
+        if leading == "done":
+            name = parts[1].strip()
+            continue
+        break
 
     # 2. Remove anything after " - THIẾU" or " - THIEU" (including parentheses)
     pattern = r"\s*-\s*(?:THIẾU|THIEU)\s*\(.*?\)\s*$"

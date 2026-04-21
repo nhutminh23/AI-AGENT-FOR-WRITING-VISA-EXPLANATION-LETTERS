@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 
 from googleapiclient.discovery import build  # type: ignore
-from googleapiclient.discovery import build  # type: ignore
 from google.oauth2.credentials import Credentials  # type: ignore
 from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore
 from google.auth.transport.requests import Request  # type: ignore
@@ -306,9 +305,12 @@ class DriveUIHacker:
         """
         Mark a folder as fully translated.
 
-        Example: ``"DONE - UC - NGUYEN VAN A - NHAN"``
+        Example: ``"✅ UC - NGUYEN VAN A - NHAN - DONE"``
         """
-        new_name = f"DONE - {base_name}"
+        from sync.validator import extract_base_name
+
+        clean_base = extract_base_name(base_name) or base_name.strip()
+        new_name = f"✅ {clean_base} - DONE"
         return self.rename(folder_id, new_name)
 
     def rename_file(self, file_id: str, new_name: str) -> dict:

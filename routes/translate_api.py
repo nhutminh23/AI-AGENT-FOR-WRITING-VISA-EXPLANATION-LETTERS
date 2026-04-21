@@ -16,9 +16,8 @@ from typing import Dict, List
 from flask import jsonify, request
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.errors import QuotaExhaustedError, is_quota_error
+from core.errors import QuotaExhaustedError
 from config import Config
 import database as db
 from routes.translate_core import (
@@ -26,7 +25,6 @@ from routes.translate_core import (
     _BASE_DIR,
     TRANSLATE_TEMPLATE_DIR,
     TRANSLATE_DEFAULT_TEMPLATE,
-    TRANSLATE_OUTPUT_DIR,
     TRANSLATE_HTML_SAVE_DIR,
     TRANSLATION_ORIGINALS_DIR,
     SCAN_EXTS,
@@ -35,9 +33,7 @@ from routes.translate_core import (
     _safe_name,
     _resolve_translate_source_path,
     _check_single_file_bilingual,
-    _should_skip_by_filename,
     _ensure_translate_template_dir,
-    _auto_detect_template,
     _build_translation_html,
     _embed_template_images,
     _convert_image_to_a4_pdf,

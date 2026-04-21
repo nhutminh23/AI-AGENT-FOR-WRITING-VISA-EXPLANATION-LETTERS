@@ -16,7 +16,6 @@ from langchain_openai import ChatOpenAI
 import database as db
 from core.agents import itinerary_writer, extract_text_with_openai
 from core.helpers import get_text_model
-from config import Config
 
 from routes.pipeline_helpers import _resolve_input_file_path, _cache_dir
 

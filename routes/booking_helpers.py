@@ -2,7 +2,6 @@
 Shared constants and helper functions for booking routes.
 """
 from __future__ import annotations
-import logging
 
 import os
 

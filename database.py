@@ -1,4 +1,3 @@
-import logging
 """
 Database module using SQLAlchemy ORM.
 SQLite for development, easily switchable to PostgreSQL for cloud deployment.

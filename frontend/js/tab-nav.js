@@ -10,9 +10,11 @@ function setActiveTab(tab) {
   const aisplitterSection = document.getElementById("aisplitterSection");
   const precheckSection = document.getElementById("precheckSection");
   const insSection = document.getElementById("insuranceSection");
+  const compressSection = document.getElementById("compressSection");
   if (aisplitterSection) allSections.push(aisplitterSection);
   if (precheckSection) allSections.push(precheckSection);
   if (insSection) allSections.push(insSection);
+  if (compressSection) allSections.push(compressSection);
   allSections.forEach((s) => { if (s) s.classList.add("hidden"); });
 
   if (tab === "letter") {
@@ -53,6 +55,9 @@ function setActiveTab(tab) {
     initEditPdfUI();
   } else if (tab === "insurance") {
     if (insSection) insSection.classList.remove("hidden");
+  } else if (tab === "compress") {
+    if (compressSection) compressSection.classList.remove("hidden");
+    if (typeof initCompressToolsSection === "function") initCompressToolsSection();
   }
 }
 

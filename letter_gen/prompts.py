@@ -17,6 +17,13 @@ Rules:
 - AVOID REPETITION: Never repeat information (like itineraries or evidence) across multiple sections.
 - Maintain a respectful, confident, and highly professional tone. No begging.
 - Use specific numbers, dates, addresses — not vague statements.
+- EMBASSY-FIRST DECISION LOGIC: Structure the narrative by officer review order (purpose credibility -> itinerary consistency -> financial sufficiency -> return incentives/ties).
+- EVIDENCE CHAIN DISCIPLINE: Every major claim must be backed by concrete profile facts (who pays, source of funds, amounts, timeline, family/work/property obligations).
+- 4-PILLAR COVERAGE IS MANDATORY:
+   1) Embassy-grade structure and adjudication logic
+   2) Tourism purpose backed by bookings (flights/hotels/dates)
+   3) Full profile picture (financial chain, relatives, ties)
+   4) Deep applicant personalization (no generic template language)
 - Output plain text (no markdown, no HTML tags).
 """
 
@@ -27,6 +34,23 @@ Rules:
 LETTER_NO_REFUSAL_PROMPT = """\
 Write a Visa Explanation Letter for this applicant based on the JSON profile below.
 CRITICAL INSTRUCTION: You MUST follow the EXACT structure, header format, section titles, and style of this REFERENCE LETTER (adapt content to the applicant's data). DO NOT use a generic letter template.
+
+QUALITY TARGET (MANDATORY): The final letter must satisfy this 4-pillar framework:
+Pillar 1 - Embassy Structure
+- Use an officer-friendly adjudication flow: identity/purpose -> itinerary consistency -> financial sufficiency -> return intent.
+- Every section must answer a clear visa concern; avoid filler.
+
+Pillar 2 - Booking-backed Tourism Purpose
+- Use exact dates, routes, flights, hotel names, city sequence, and duration from profile.
+- Show consistency between stated purpose and booking evidence.
+
+Pillar 3 - Full Profile Picture
+- Build a complete financial chain: fund owner, source continuity, balances/deposits, and trip-cost sufficiency.
+- Present home ties with specifics: relatives/dependents, work/business continuity, property/assets, and obligations requiring return.
+
+Pillar 4 - Deep Personalization
+- Keep details specific to this applicant's life pattern and evidence set.
+- Remove generic statements that could apply to any applicant.
 
 --- START REFERENCE LETTER ---
 Explanation Letter for Australian Visitor Visa Application
@@ -94,6 +118,14 @@ CRITICAL RULES:
    - If the applicant has NO travel history → either skip this section entirely OR write one short sentence acknowledging it.
    - If the applicant has additional strong evidence not in the reference (e.g., business ownership, property, sponsor) → mention it under the most relevant existing section.
    - Adapt section content to the applicant's destination country, visa type, and personal circumstances.
+6. FINANCIAL CHAIN MUST BE COMPLETE: In 'Financial Capacity', explicitly cover:
+   - who funds the trip (self/sponsor),
+   - source continuity (salary/business/pension/savings history if available),
+   - available amount(s) and currency,
+   - why funds are sufficient for the exact trip duration/bookings,
+   - whether support from Australia is used or not.
+7. RELATIVES & TIES MUST BE SPECIFIC: In 'Strong Ties', include concrete family and obligation anchors from profile (spouse/children/elder care, job/business continuity, assets/property, legal/financial commitments).
+8. PERSONALIZATION CHECK: Before final output, remove any sentence not traceable to the applicant JSON profile.
 """
 
 # ---------------------------------------------------------------------------
@@ -104,6 +136,19 @@ LETTER_WITH_REFUSAL_PROMPT = """\
 Write a Visa Explanation Letter for this applicant who has been PREVIOUSLY REFUSED a visa.
 The letter must ACKNOWLEDGE the prior refusal(s) and explain why circumstances have changed.
 CRITICAL INSTRUCTION: You MUST follow the EXACT structure, header format, section titles, and style of this REFERENCE LETTER (adapt content to the applicant's data). DO NOT use a generic letter template.
+
+QUALITY TARGET (MANDATORY): The final letter must satisfy this 4-pillar framework:
+Pillar 1 - Embassy Structure
+- Keep officer-friendly adjudication flow and ensure each section directly addresses a likely refusal concern.
+
+Pillar 2 - Booking-backed Tourism Purpose
+- Present coherent flights/hotels/dates/duration and show why the trip is temporary and credible.
+
+Pillar 3 - Full Profile Picture
+- Build a complete financial chain and ties narrative with concrete facts, especially where prior refusal questioned credibility.
+
+Pillar 4 - Deep Personalization
+- Use only applicant-specific facts; avoid generic refusal-template wording.
 
 --- START REFERENCE LETTER ---
 Letter of Explanation
@@ -198,6 +243,9 @@ CRITICAL RULES:
    - "Quan 1" → "District 1"
    - "Phuong Binh Trung Tay" → "Binh Trung Tay Ward"
    Keep personal names and street names in romanized Vietnamese without diacritics.
+9. REFUSAL-TO-EVIDENCE CHAIN (MANDATORY): For each refusal concern, provide direct updated evidence with concrete numbers/dates/documents from profile.
+10. FINANCIAL CHAIN DEPTH (MANDATORY): Explicitly cover fund owner, source continuity, available funds, trip-cost sufficiency logic, and no-overstay incentive.
+11. RELATIVES & HOME TIES DEPTH (MANDATORY): Include concrete family anchors and home-country obligations (dependents, employment/business continuity, property/assets, legal/financial responsibilities).
 """
 # ---------------------------------------------------------------------------
 # Prompt 3: Separate Refusal Explanation Letter

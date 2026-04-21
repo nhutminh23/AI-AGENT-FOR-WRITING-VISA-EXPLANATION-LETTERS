@@ -262,9 +262,18 @@ class DriveWatcher:
         """DONE can be either prefix (`DONE - ...`) or suffix (`... - DONE`)."""
         normalized_name = _normalize_drive_text(folder_name)
         done_token = _normalize_drive_text(self._translation_done_prefix) or "done"
-        if re.search(rf"^{re.escape(done_token)}(?:\\b|\\s*[-_])", normalized_name):
+
+        # Allow non-word prefixes (emoji/symbols), e.g. "✅ DONE - ..."
+        normalized_leading_trimmed = re.sub(r"^[^a-z0-9]+", "", normalized_name)
+        if re.search(rf"^{re.escape(done_token)}(?:\b|\s*[-_])", normalized_leading_trimmed):
             return True
-        return bool(re.search(rf"(?:[-_\\s]){re.escape(done_token)}$", normalized_name))
+        return bool(re.search(rf"(?:[-_\s]){re.escape(done_token)}$", normalized_name))
+
+    @staticmethod
+    def _canonical_translation_done_name(folder_name: str) -> str:
+        """Build canonical done name with green tick and suffix marker."""
+        base_name = extract_base_name(folder_name)
+        return f"✅ {base_name} - DONE"
 
     @staticmethod
     def _is_translation_splitting_status(folder_name: str) -> bool:
@@ -296,6 +305,13 @@ class DriveWatcher:
 
             # Translation flow is complete; do not re-process.
             if self._has_translation_done_marker(fname):
+                canonical_name = self._canonical_translation_done_name(fname)
+                if _normalize_drive_text(fname) != _normalize_drive_text(canonical_name):
+                    try:
+                        self._ui.rename(fid, canonical_name)
+                        logger.info("  Normalized done folder name: %s -> %s", fname, canonical_name)
+                    except Exception as exc:
+                        logger.warning("  Failed to normalize done folder name for %s: %s", fid, exc)
                 continue
 
             # Phase 2: already pushed from input and marked as translating.

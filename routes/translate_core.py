@@ -12,18 +12,15 @@ import logging
 import os
 import re
 import tempfile
-import uuid
 from pathlib import Path as SplitterPath
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.errors import QuotaExhaustedError, is_quota_error
+from core.errors import is_quota_error
 from config import Config
-import database as db
 
 # ─── Blueprint ────────────────────────────────────────────────────────
 splitter_translate_bp = Blueprint("splitter_translate", __name__)

@@ -6,17 +6,11 @@ and produce corrected PDFs with exact font/position matching.
 from __future__ import annotations
 import logging
 
-import json
 import os
-import re
-import copy
-import random
 import traceback
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, send_file
-import requests as http_requests
 
-import fitz  # PyMuPDF
 
 insurance_bp = Blueprint("insurance_bp", __name__)
 

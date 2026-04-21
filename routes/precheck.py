@@ -2,7 +2,6 @@
 Pre-check routes: file listing, document scanning with AI classification.
 """
 from __future__ import annotations
-import logging
 
 import os
 import threading

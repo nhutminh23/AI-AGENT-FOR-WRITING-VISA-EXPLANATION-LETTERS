@@ -5,27 +5,21 @@ from __future__ import annotations
 
 import json
 import logging
-import io
 import os
-import re
 import shutil
-import uuid
-import zipfile
 from pathlib import Path as SplitterPath
 from typing import Any, Dict, List, Optional
 
-from flask import Blueprint, Response, jsonify, request, send_file
+from flask import Blueprint, Response, jsonify, request
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from pypdf import PdfReader, PdfWriter
 
 import database as db
-from core.agents import detect_domain, itinerary_writer, extract_text_with_openai
+from core.agents import detect_domain, extract_text_with_openai
 from core.errors import QuotaExhaustedError, is_quota_error
-from core.helpers import get_text_model, get_vision_model, list_input_files, cache_dir
+from core.helpers import get_vision_model, cache_dir
 from core.state import GraphState
-from classifier.agent import classify_files_in_folder
 from config import Config
 from routes.pipeline_helpers import (
     _resolve_input_file_path as _resolve_input_file_path,
@@ -389,7 +383,6 @@ def _batch_detect_cert_pages_vision(llm, page_images_b64: list, page_numbers: li
     """Batch vision: check multiple pages at once for translation certification.
     Sends bottom 40% crop of each page to save tokens.
     Returns list of page numbers that ARE certification pages."""
-    from langchain_core.messages import HumanMessage, SystemMessage
 
     content_parts = [
         {"type": "text", "text": f"""You are analyzing {len(page_images_b64)} scanned document pages.

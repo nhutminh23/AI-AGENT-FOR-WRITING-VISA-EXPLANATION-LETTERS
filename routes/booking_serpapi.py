@@ -4,15 +4,12 @@ SerpAPI-based booking routes: flights search, hotels search, ticket generation.
 from __future__ import annotations
 import logging
 
-import json
 import os
-import re
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from flask import Blueprint, jsonify, request
 
-from langchain_openai import ChatOpenAI
 
 import database as db
 from booking.generator import (

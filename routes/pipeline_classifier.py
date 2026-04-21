@@ -10,7 +10,7 @@ import re
 import shutil
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from flask import Blueprint, jsonify, request
 from pypdf import PdfReader, PdfWriter
@@ -117,7 +117,6 @@ def classifier_last_result():
             parts = stem.split("_", 2)  # DOMAIN_PERSON_DOCTYPE or just name
             doc_type = parts[-1] if len(parts) >= 3 else stem
             # Remove trailing (1), (2) etc
-            import re
             doc_type = re.sub(r'\s*\(\d+\)$', '', doc_type).strip()
 
             rel_path = os.path.join(person_dir, fname).replace("\\", "/")

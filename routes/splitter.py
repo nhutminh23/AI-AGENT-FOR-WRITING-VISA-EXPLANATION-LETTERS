@@ -12,13 +12,12 @@ import uuid
 import zipfile
 import threading
 from pathlib import Path as SplitterPath
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 from pypdf import PdfReader, PdfWriter
 
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
-from core.errors import is_quota_error
 
 from pdf_tools.pdf_service import pdf_to_images, get_page_count, create_output_files
 from pdf_tools.ai_service import classify_all_pages
@@ -399,7 +398,6 @@ def splitter_download_zip(file_id: str):
             if os.path.isfile(fpath) and fname.lower().endswith(".pdf"):
                 z.write(fpath, fname)
     buf.seek(0)
-    from flask import Response
     return Response(
         buf.read(),
         mimetype="application/zip",

@@ -39,12 +39,24 @@ I need you to read ALL attached documents and extract structured data to generat
 8. Currency amounts: include both local currency AND approximate USD/AUD equivalent.
 9. If there is a **previous visa refusal letter** or **refusal notification**, extract ALL details into `refusal_history`.
 10. If the applicant has a **previous explanation letter** (old one), extract key points into `previous_letter_summary`.
+11. For each applicant, extract **booking consistency details** (flight + hotel + trip dates + duration + payment/booking status if shown).
+12. For each applicant, extract a **financial chain** clearly: fund owner, source(s) of funds, balance/deposit, income continuity, and whether funds are sufficient for trip length.
+13. For each applicant, extract **strong ties** with concrete home-country anchors: relatives/dependents, work/business continuity, assets/property, obligations.
+14. Add `applicant.personalization_highlights` (3-8 bullets) with applicant-specific facts that can be used verbatim as individualized evidence points in cover letters.
+15. For group applications, keep each person's profile fully individualized (no copy-paste summaries across members).
 
 **⚠️ STRICTLY FORBIDDEN:**
 - DO NOT use "N/A" — if data not found, use `null`
 - DO NOT abbreviate — write full details
 - DO NOT skip any document — read everything
 - DO NOT leave ANY Vietnamese text in the output (even without diacritics) — translate EVERYTHING to English
+
+**4-PILLAR JSON COMPLETENESS CHECK (MANDATORY):**
+- Pillar 1 (Embassy structure readiness): enough identity/visa-purpose/return-intent facts to draft officer-friendly sections.
+- Pillar 2 (Booking-backed tourism): trip dates, flights, hotels, duration, and booking/payment evidence consistency.
+- Pillar 3 (Full profile picture): financial chain + relatives/dependents + home-country ties.
+- Pillar 4 (Deep personalization): applicant-specific highlights that differentiate this person from other group members.
+- If any pillar lacks evidence in documents, still return the field with `null` or empty list and explain the gap in `consistency_checks.missing_evidence`.
 
 **Return JSON in this EXACT format (NO extra text outside JSON):**
 
@@ -55,6 +67,8 @@ I need you to read ALL attached documents and extract structured data to generat
     "dob": "10 June 1961",
     "passport_no": "E00438172",
     "nationality": "Vietnamese",
+    "current_residence": "Viet Nam",
+    "current_visa": null,
     "current_address": "Group 1, New Hamlet 1, My Hanh Nam Commune, Duc Hoa District, Long An Province, Viet Nam",
     "phone": "+84 345 529 453",
     "email": null,
@@ -67,7 +81,12 @@ I need you to read ALL attached documents and extract structured data to generat
     ],
     "age": 64,
     "occupation_status": "Retiree",
-    "health_notes": "Health is not strong due to age"
+    "health_notes": "Health is not strong due to age",
+    "personalization_highlights": [
+      "64-year-old retiree applying for a short 11-day tourism trip",
+      "Previously visited Australia and complied with visa conditions",
+      "Will do day visits to sister and return to hotel each evening"
+    ]
   },
 
   "employment": {
@@ -75,6 +94,9 @@ I need you to read ALL attached documents and extract structured data to generat
     "company_name": null,
     "job_title": null,
     "income": null,
+    "income_sources": [
+      {"source": "Savings", "amount": "VND 200,000,000", "frequency": null}
+    ],
     "contract_details": null,
     "business_info": null,
     "retirement_details": "Retired, living on personal savings"
@@ -85,10 +107,14 @@ I need you to read ALL attached documents and extract structured data to generat
     "bank_balance": "VND 200,000,000 (approximately USD 7,589)",
     "savings_type": "Term deposit",
     "deposit_date": "30 March 2026",
+    "fund_owner": "Applicant",
+    "fund_source_summary": "Personal life savings accumulated over many years",
     "assets": [],
     "other_financial": [],
     "sponsor": null,
-    "trip_funding": "Entirely self-funded from personal life savings"
+    "trip_funding": "Entirely self-funded from personal life savings",
+    "estimated_trip_cost": null,
+    "trip_cost_coverage_statement": "Available funds are sufficient for flights, hotels, meals, and local transport for 11 days"
   },
 
   "trip": {
@@ -116,6 +142,12 @@ I need you to read ALL attached documents and extract structured data to generat
       {"name": "Hyatt Centric Melbourne", "dates": "10-12 May 2026"},
       {"name": "LyLo Brisbane", "dates": "12-14 May 2026"}
     ],
+    "booking_evidence": {
+      "flights_confirmed": true,
+      "hotels_confirmed": true,
+      "payment_status": "Confirmed/paid if shown in provided documents",
+      "booking_consistency_notes": "Dates, duration, and route are consistent across itinerary and bookings"
+    },
     "travel_insurance": null,
     "special_notes": "Will make day visits to sister but NOT stay overnight at sister's house"
   },
@@ -125,10 +157,20 @@ I need you to read ALL attached documents and extract structured data to generat
       "Three adult children living in Vietnam — strong family roots",
       "Permanent registered residence and home in Long An Province"
     ],
+    "relatives_and_dependents": [
+      {"name": "CHILD 1", "relationship": "Adult child", "lives_in": "Viet Nam"},
+      {"name": "CHILD 2", "relationship": "Adult child", "lives_in": "Viet Nam"},
+      {"name": "CHILD 3", "relationship": "Adult child", "lives_in": "Viet Nam"}
+    ],
     "property": ["Home in Long An Province"],
     "employment_ties": "Stable savings and ongoing financial commitments in Vietnam",
     "health_ties": "Age 64, health not strong — cannot work or remain abroad for extended period",
-    "other_ties": []
+    "other_ties": [],
+    "return_drivers": [
+      "Family roots in Viet Nam",
+      "Permanent residence in Viet Nam",
+      "Ongoing obligations in Viet Nam"
+    ]
   },
 
   "travel_history": {
@@ -145,6 +187,13 @@ I need you to read ALL attached documents and extract structured data to generat
   "refusal_history": null,
 
   "previous_letter_summary": null,
+
+  "consistency_checks": {
+    "booking_dates_consistent": true,
+    "funding_and_trip_duration_consistent": true,
+    "group_information_consistent": true,
+    "missing_evidence": []
+  },
 
   "additional_context": "Applicant will visit sister in Kialla, Victoria but will NOT stay overnight — only day visits by train, returning to hotel each evening"
 }
@@ -215,6 +264,8 @@ If the documents contain information for MORE THAN ONE applicant (e.g., husband 
 - `accompanying_persons` lists the OTHER people (NOT the applicant themselves)
 - `sex` and `passport_expiry` in `accompanying_persons` are REQUIRED — read from passport/CCCD
 - If a parent is deceased, use `"Deceased"` for their address fields
+- For EACH person, fill `applicant.personalization_highlights` with that person's own role/evidence (do not duplicate the exact same bullets for all members).
+- For minors, clearly extract dependency context (parental funding/representation/schooling) under `strong_ties` and `additional_context`.
 
 **Example for 2 applicants (husband + wife):**
 

@@ -1,6 +1,4 @@
-import logging
 import re
-from datetime import datetime
 
 def parse_trip_from_html(flight_html: str, hotel_htmls: list) -> dict:
     def _strip_tags(html_str):

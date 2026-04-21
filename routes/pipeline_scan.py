@@ -17,7 +17,6 @@ from routes.pipeline_helpers import (
     _scan_split_progress,
     _is_certification_page_by_text,
     _batch_detect_cert_pages_vision,
-    _is_quota_error,
 )
 
 
@@ -209,7 +208,6 @@ def scan_splitter_split():
             _scan_split_progress["running"] = False
 
     # Run in background thread
-    import threading
     t = threading.Thread(target=_do_scan_split, daemon=True)
     t.start()
 

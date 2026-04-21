@@ -7,9 +7,7 @@ Simplified workflow: Copy Prompt → Paste JSON → Review → Fill PDF
 """
 from __future__ import annotations
 
-import json
 import logging
-import os
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_from_directory, send_file

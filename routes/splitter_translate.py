@@ -30,7 +30,6 @@ from routes.translate_core import (
     _is_quota_error,
     _safe_name,
     _resolve_translate_source_path,
-    _resize_image_b64,
     _ocr_and_translate_document,
     _build_translation_html,
     _build_html_vision_clone,

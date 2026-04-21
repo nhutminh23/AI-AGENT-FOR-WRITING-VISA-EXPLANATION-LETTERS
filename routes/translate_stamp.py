@@ -339,7 +339,7 @@ def push_stamped_to_drive():
                     )
                     drive_upload_ok = True
                     logging.info("Uploaded stamped PDF to Drive: %s → folder %s", translated_pdf_name, translate_folder_id)
-                except Exception as exc:
+                except Exception:
                     logging.exception("Drive upload failed")
 
             # Delete original file from Drive (Final folder) after successful upload
@@ -370,13 +370,13 @@ def push_stamped_to_drive():
 
 @splitter_translate_bp.post("/api/translate/mark_complete")
 def mark_translation_complete():
-    """Mark a workspace as fully translated → rename Drive folder to 'DONE'.
+    """Mark a workspace as fully translated → rename Drive folder to green-tick DONE status.
 
     Expects JSON body: { "workspace": "ÚC - CHÚ HIỆP CÔ CHÍNH - NHÂN" }
 
     Workflow:
     1. Read _files_meta.json to get root_folder_id and base_name.
-    2. Rename Drive folder from '✅ ... - Đang dịch' to 'DONE - ...'.
+    2. Rename Drive folder from '✅ ... - Đang dịch' to '✅ ... - DONE'.
     3. Clean up local workspace directory.
     """
     import shutil
@@ -400,6 +400,9 @@ def mark_translation_complete():
     root_folder_id = meta.get("root_folder_id", "")
     base_name = meta.get("base_name", workspace_name)
 
+    from sync.validator import extract_base_name
+    clean_base_name = extract_base_name(base_name) or workspace_name
+
     if not root_folder_id:
         return jsonify({"error": "no_root_folder_id", "detail": "Cannot find Drive root folder ID in metadata"}), 400
 
@@ -407,7 +410,7 @@ def mark_translation_complete():
     try:
         from routes.push_to_drive import _get_drive_ui
         ui = _get_drive_ui()
-        ui.mark_done_translating(root_folder_id, base_name)
+        ui.mark_done_translating(root_folder_id, clean_base_name)
     except Exception as exc:
         logging.exception("Failed to rename Drive folder to DONE")
         return jsonify({"error": "drive_rename_failed", "detail": str(exc)}), 500
@@ -434,7 +437,7 @@ def mark_translation_complete():
 
     return jsonify({
         "status": "done",
-        "message": f"Đã chuyển '{base_name}' sang trạng thái DONE",
+        "message": f"Đã chuyển '{clean_base_name}' sang trạng thái DONE",
         "drive_folder_id": root_folder_id,
         "archived_to": str(archive_dest),
     })

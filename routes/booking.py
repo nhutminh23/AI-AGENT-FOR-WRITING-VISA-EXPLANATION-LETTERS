@@ -9,7 +9,6 @@ import os
 import re
 import traceback
 from datetime import datetime, timedelta
-from typing import Any, Dict
 
 from flask import Blueprint, Response, jsonify, request
 
@@ -22,7 +21,6 @@ from booking.generator import (
     generate_all_bookings,
     fill_hotel_template,
     fill_flight_template,
-    fill_vivavivu_template,
     generate_bookings_from_ai,
 )
 from booking.ai_agent import (
@@ -31,7 +29,7 @@ from booking.ai_agent import (
     ai_select_bookings,
     generate_ai_booking,
 )
-from routes.booking_helpers import _BASE_DIR, _OUTPUT_DIR, get_text_model, get_vision_model
+from routes.booking_helpers import _BASE_DIR, get_text_model, get_vision_model
 
 booking_bp = Blueprint("booking", __name__)
 
