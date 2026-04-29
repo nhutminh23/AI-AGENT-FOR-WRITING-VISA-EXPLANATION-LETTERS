@@ -74,6 +74,175 @@ def stamp_pdf_endpoint():
 
 
 # =====================================================================
+# Generate Combined PDF (Original + Translated + Certification, NO stamp)
+# =====================================================================
+
+@splitter_translate_bp.post("/api/translate/generate_combined_pdf")
+def generate_combined_pdf():
+    """Merge Original PDF + Translated PDF + Certification PDF → return combined PDF.
+
+    Same merge logic as stamp_preview but WITHOUT grayscale or stamp steps.
+    Used for inline PDF preview + direct download (replaces window.print popup).
+
+    Accepts JSON body:
+    {
+        "filename": "original_file.pdf",
+        "file_ref": "upload_token:abc123",
+        "html_content": "<html>...</html>"
+    }
+
+    Returns the merged PDF inline for preview/download.
+    """
+    import re
+    import tempfile
+
+    payload = request.get_json(force=True) or {}
+    filename = payload.get("filename", "")
+    file_ref = payload.get("file_ref", "")
+    html_content = payload.get("html_content", "")
+
+    if not html_content:
+        return jsonify({"error": "missing_fields", "detail": "html_content is required"}), 400
+
+    # Use a temp directory for all intermediate files
+    tmp_dir = tempfile.mkdtemp(prefix="combined_pdf_")
+    base_name = os.path.splitext(filename)[0] if filename else "document"
+    final_pdf_name = f"{base_name}_combined.pdf"
+
+    html_tmp_path = os.path.join(tmp_dir, f"{base_name}_translate.html")
+    translated_pdf_path = os.path.join(tmp_dir, f"{base_name}_translated.pdf")
+    cert_html_tmp_path = os.path.join(tmp_dir, f"{base_name}_cert.html")
+    cert_pdf_path_tmp = os.path.join(tmp_dir, f"{base_name}_cert.pdf")
+    merged_pdf_path = os.path.join(tmp_dir, final_pdf_name)
+    _converted_img_tmp = None
+
+    try:
+        import time as _time
+        _t_total = _time.perf_counter()
+
+        # ──── Step 1: Convert Translated HTML → PDF ────
+        with open(html_tmp_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+        _t0 = _time.perf_counter()
+        _html_to_pdf(html_tmp_path, translated_pdf_path)
+        logging.info("  [CombinedPDF] Step 1 - HTML->PDF (translated): %.0fms", (_time.perf_counter() - _t0) * 1000)
+
+        # ──── Step 2: Build Certification HTML → PDF ────
+        cert_pdf_path = None
+        try:
+            cert_template_path = os.path.join("dich", "HTML template", "Xác nhận dịch.html")
+            cert_logo_path = os.path.join("dich", "HTML template", "passport_lounge.jpg")
+
+            if os.path.isfile(cert_template_path):
+                with open(cert_template_path, "r", encoding="utf-8") as cf:
+                    cert_html = cf.read()
+
+                # Embed logo as base64
+                if os.path.isfile(cert_logo_path):
+                    cert_logo_b64 = base64.b64encode(open(cert_logo_path, "rb").read()).decode("ascii")
+                    cert_html = cert_html.replace('src="./passport_lounge.jpg"', f'src="data:image/jpeg;base64,{cert_logo_b64}"')
+
+                # Replace date
+                from datetime import datetime as _dt
+                now = _dt.now()
+                current_date = now.strftime("%d/%m/%Y")
+                cert_html = re.sub(r"Date:\s*\d{2}/\d{2}/\d{4}", f"Date: {current_date}", cert_html)
+
+                with open(cert_html_tmp_path, "w", encoding="utf-8") as cert_f:
+                    cert_f.write(cert_html)
+
+                cert_pdf_path = cert_pdf_path_tmp
+                _t0 = _time.perf_counter()
+                _html_to_pdf(cert_html_tmp_path, cert_pdf_path)
+                logging.info("  [CombinedPDF] Step 2 - HTML->PDF (cert): %.0fms", (_time.perf_counter() - _t0) * 1000)
+        except Exception as cert_err:
+            logging.warning("Certification PDF generation failed (skipping): %s", cert_err)
+            cert_pdf_path = None
+
+        # ──── Step 3: Locate Original PDF via file_ref ────
+        _t0 = _time.perf_counter()
+        import fitz
+        original_pdf_path = None
+
+        if file_ref:
+            resolved = _resolve_translate_source_path("input", file_ref)
+            if resolved and os.path.isfile(resolved):
+                ext = os.path.splitext(resolved)[1].lower()
+                if ext in (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"):
+                    _converted_img_tmp = _convert_image_to_a4_pdf(resolved)
+                    original_pdf_path = _converted_img_tmp
+                else:
+                    original_pdf_path = resolved
+                logging.info("  [CombinedPDF] Found original via file_ref: %s", resolved)
+        logging.info("  [CombinedPDF] Step 3 - Locate original: %.0fms", (_time.perf_counter() - _t0) * 1000)
+
+        # ──── Step 4: Merge → Original + Translated + Certification ────
+        _t0 = _time.perf_counter()
+        merged_doc = fitz.open()
+
+        # Part A: Original pages
+        if original_pdf_path and os.path.isfile(original_pdf_path):
+            try:
+                orig_doc = fitz.open(original_pdf_path)
+                merged_doc.insert_pdf(orig_doc)
+                orig_doc.close()
+                logging.info("  [CombinedPDF] Merged original: %s (%d pages)", original_pdf_path, merged_doc.page_count)
+            except Exception as e:
+                logging.warning("Failed to merge original PDF: %s", e)
+
+        # Part B: Translated pages
+        if os.path.isfile(translated_pdf_path):
+            try:
+                trans_doc = fitz.open(translated_pdf_path)
+                merged_doc.insert_pdf(trans_doc)
+                trans_doc.close()
+                logging.info("  [CombinedPDF] Merged translated: %d total pages", merged_doc.page_count)
+            except Exception as e:
+                logging.warning("Failed to merge translated PDF: %s", e)
+
+        # Part C: Certification page
+        if cert_pdf_path and os.path.isfile(cert_pdf_path):
+            try:
+                cert_doc = fitz.open(cert_pdf_path)
+                merged_doc.insert_pdf(cert_doc)
+                cert_doc.close()
+                logging.info("  [CombinedPDF] Merged certification: %d total pages", merged_doc.page_count)
+            except Exception as e:
+                logging.warning("Failed to merge certification PDF: %s", e)
+
+        if merged_doc.page_count == 0:
+            merged_doc.close()
+            return jsonify({"error": "empty_merge", "detail": "No pages to merge"}), 500
+
+        merged_doc.save(merged_pdf_path, garbage=4, deflate=True)
+        merged_doc.close()
+        logging.info("  [CombinedPDF] Step 4 - Merge PDFs: %.0fms", (_time.perf_counter() - _t0) * 1000)
+        logging.info("  [CombinedPDF] TOTAL: %.0fms", (_time.perf_counter() - _t_total) * 1000)
+
+        # Return the combined PDF inline for preview/download
+        return send_file(
+            merged_pdf_path,
+            mimetype="application/pdf",
+            as_attachment=False,
+            download_name=final_pdf_name,
+        )
+
+    except Exception as exc:
+        logging.exception("generate_combined_pdf failed")
+        return jsonify({"error": str(exc)}), 500
+
+    finally:
+        # Cleanup temp files (but NOT merged_pdf_path until response is sent)
+        for p in [html_tmp_path, translated_pdf_path, cert_html_tmp_path, cert_pdf_path_tmp]:
+            try: os.remove(p)
+            except OSError: pass
+        if _converted_img_tmp:
+            try: os.remove(_converted_img_tmp)
+            except OSError: pass
+
+
+# =====================================================================
 # Stamp Preview (merge Original + Translated + Certification → stamp)
 # =====================================================================
 
@@ -132,11 +301,16 @@ def stamp_preview():
         except OSError: pass
 
     try:
+        import time as _time
+        _t_total = _time.perf_counter()
+
         # ──── Step 1: Convert Translated HTML → PDF ────
         with open(html_tmp_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
+        _t0 = _time.perf_counter()
         _html_to_pdf(html_tmp_path, translated_pdf_path)
+        logging.info("  [TIMING] Step 1 - HTML->PDF (translated): %.0fms", (_time.perf_counter() - _t0) * 1000)
 
         # ──── Step 2: Build Certification HTML → PDF ────
         cert_pdf_path = None
@@ -164,12 +338,15 @@ def stamp_preview():
                     cert_f.write(cert_html)
 
                 cert_pdf_path = cert_pdf_path_tmp
+                _t0 = _time.perf_counter()
                 _html_to_pdf(cert_html_tmp_path, cert_pdf_path)
+                logging.info("  [TIMING] Step 2 - HTML->PDF (cert): %.0fms", (_time.perf_counter() - _t0) * 1000)
         except Exception as cert_err:
             logging.warning("Certification PDF generation failed (skipping): %s", cert_err)
             cert_pdf_path = None
 
         # ──── Step 3: Locate Original PDF via file_ref ────
+        _t0 = _time.perf_counter()
         import fitz
         original_pdf_path = None
 
@@ -183,7 +360,7 @@ def stamp_preview():
                     original_pdf_path = _converted_img_tmp
                 else:
                     original_pdf_path = resolved
-                logging.info("  📄 Found original via file_ref: %s", resolved)
+                logging.info("  Found original via file_ref: %s", resolved)
 
         # Fallback: try workspace folder (in case file was placed there directly)
         if not original_pdf_path:
@@ -200,8 +377,10 @@ def stamp_preview():
                         else:
                             original_pdf_path = candidate
                         break
+        logging.info("  [TIMING] Step 3 - Locate original: %.0fms", (_time.perf_counter() - _t0) * 1000)
 
         # ──── Step 4: Merge → Original + Translated + Certification ────
+        _t0 = _time.perf_counter()
         merged_doc = fitz.open()
 
         # Part A: Original pages
@@ -210,7 +389,7 @@ def stamp_preview():
                 orig_doc = fitz.open(original_pdf_path)
                 merged_doc.insert_pdf(orig_doc)
                 orig_doc.close()
-                logging.info("  📄 Merged original: %s (%d pages)", original_pdf_path, merged_doc.page_count)
+                logging.info("  Merged original: %s (%d pages)", original_pdf_path, merged_doc.page_count)
             except Exception as e:
                 logging.warning("Failed to merge original PDF: %s", e)
 
@@ -220,7 +399,7 @@ def stamp_preview():
                 trans_doc = fitz.open(translated_pdf_path)
                 merged_doc.insert_pdf(trans_doc)
                 trans_doc.close()
-                logging.info("  📝 Merged translated: %d total pages", merged_doc.page_count)
+                logging.info("  Merged translated: %d total pages", merged_doc.page_count)
             except Exception as e:
                 logging.warning("Failed to merge translated PDF: %s", e)
 
@@ -230,7 +409,7 @@ def stamp_preview():
                 cert_doc = fitz.open(cert_pdf_path)
                 merged_doc.insert_pdf(cert_doc)
                 cert_doc.close()
-                logging.info("  📜 Merged certification: %d total pages", merged_doc.page_count)
+                logging.info("  Merged certification: %d total pages", merged_doc.page_count)
             except Exception as e:
                 logging.warning("Failed to merge certification PDF: %s", e)
 
@@ -240,17 +419,24 @@ def stamp_preview():
 
         merged_doc.save(merged_pdf_path, garbage=4, deflate=True)
         merged_doc.close()
+        logging.info("  [TIMING] Step 4 - Merge PDFs: %.0fms", (_time.perf_counter() - _t0) * 1000)
 
         # ──── Step 4.5: Convert to Grayscale (black & white) ────
+        _t0 = _time.perf_counter()
         grayscale_pdf_path = os.path.join(str(workspace_path), f"{base_name}_grayscale.pdf")
         _convert_pdf_to_grayscale(merged_pdf_path, grayscale_pdf_path)
+        logging.info("  [TIMING] Step 4.5 - Grayscale: %.0fms", (_time.perf_counter() - _t0) * 1000)
 
         # ──── Step 5: Stamp the grayscale PDF ────
         # Save into Translate/ subfolder (maps to Google Drive Translate folder)
+        _t0 = _time.perf_counter()
         translate_folder = os.path.join(str(workspace_path), "Translate")
         os.makedirs(translate_folder, exist_ok=True)
         stamped_pdf_path = os.path.join(translate_folder, final_pdf_name)
         stamp_pdf(grayscale_pdf_path, stamped_pdf_path)
+        logging.info("  [TIMING] Step 5 - Stamp: %.0fms", (_time.perf_counter() - _t0) * 1000)
+
+        logging.info("  [TIMING] TOTAL stamp_preview: %.0fms", (_time.perf_counter() - _t_total) * 1000)
 
         # Return the stamped PDF inline for preview
         return send_file(
@@ -338,7 +524,7 @@ def push_stamped_to_drive():
                         translate_folder_id, stamped_pdf_path, translated_pdf_name
                     )
                     drive_upload_ok = True
-                    logging.info("Uploaded stamped PDF to Drive: %s → folder %s", translated_pdf_name, translate_folder_id)
+                    logging.info("Uploaded stamped PDF to Drive: %s -> folder %s", translated_pdf_name, translate_folder_id)
                 except Exception:
                     logging.exception("Drive upload failed")
 
@@ -399,6 +585,7 @@ def mark_translation_complete():
 
     root_folder_id = meta.get("root_folder_id", "")
     base_name = meta.get("base_name", workspace_name)
+    flow_type = (meta.get("flow_type") or "visa").strip().lower()
 
     from sync.validator import extract_base_name
     clean_base_name = extract_base_name(base_name) or workspace_name
@@ -406,17 +593,24 @@ def mark_translation_complete():
     if not root_folder_id:
         return jsonify({"error": "no_root_folder_id", "detail": "Cannot find Drive root folder ID in metadata"}), 400
 
-    # 1. Rename on Drive
+    # 1. Rename on Drive (different behavior per flow)
     try:
         from routes.push_to_drive import _get_drive_ui
         ui = _get_drive_ui()
-        ui.mark_done_translating(root_folder_id, clean_base_name)
+        if flow_type == "translation":
+            # Dịch Thuật flow → mark as DONE
+            ui.mark_done_translating(root_folder_id, clean_base_name)
+            drive_status = "DONE"
+        else:
+            # Hồ Sơ Visa flow → mark as Đang khai
+            ui.mark_khai(root_folder_id, clean_base_name)
+            drive_status = "Đang khai"
     except Exception as exc:
-        logging.exception("Failed to rename Drive folder to DONE")
+        logging.exception("Failed to rename Drive folder")
         return jsonify({"error": "drive_rename_failed", "detail": str(exc)}), 500
 
-    # 2. Move workspace to "Khai Imm/" archive folder (instead of deleting)
-    archive_root = SplitterPath(_BASE_DIR) / "Khai Imm"
+    # 2. Move workspace to archive folder (storage/archive/)
+    archive_root = SplitterPath(_BASE_DIR) / Config.ARCHIVE_DIR
     archive_root.mkdir(parents=True, exist_ok=True)
     archive_dest = archive_root / workspace_name
 
@@ -425,9 +619,9 @@ def mark_translation_complete():
         if archive_dest.is_dir():
             shutil.rmtree(archive_dest)
         shutil.move(str(workspace_path), str(archive_dest))
-        logging.info("Moved workspace to archive: %s → %s", workspace_path, archive_dest)
+        logging.info("Moved workspace to archive: %s -> %s", workspace_path, archive_dest)
     except Exception as exc:
-        logging.warning("Failed to move workspace to Khai Imm (non-fatal): %s", exc)
+        logging.warning("Failed to move workspace to archive (non-fatal): %s", exc)
         # Fallback: try to delete if move fails
         try:
             shutil.rmtree(workspace_path)
@@ -437,7 +631,9 @@ def mark_translation_complete():
 
     return jsonify({
         "status": "done",
-        "message": f"Đã chuyển '{clean_base_name}' sang trạng thái DONE",
+        "message": f"Đã chuyển '{clean_base_name}' sang trạng thái {drive_status}",
         "drive_folder_id": root_folder_id,
+        "drive_status": drive_status,
+        "flow_type": flow_type,
         "archived_to": str(archive_dest),
     })

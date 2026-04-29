@@ -92,6 +92,14 @@ def is_check_trigger(folder_name: str) -> bool:
     return bool(_CHECK_PATTERN.search(folder_name.strip()))
 
 
+def is_dich_trigger(folder_name: str) -> bool:
+    """
+    Check if a folder name ends with ``-Dịch`` or ``-Dich`` (case insensitive).
+    """
+    name = _normalize_drive_text(folder_name)
+    return bool(re.search(r"-\s*dich\s*$", name))
+
+
 def _normalize_drive_text(text: str) -> str:
     """Normalize Drive folder text for accent-insensitive status matching."""
     # Vietnamese 'đ' does not decompose with NFKD, normalize it explicitly.
@@ -207,6 +215,9 @@ class DriveWatcher:
             elif is_check_trigger(fname):
                 logger.info("--- Found -CHECK trigger: %s ---", fname)
                 self._process_check(fid, fname, modified)
+            elif is_dich_trigger(fname):
+                logger.info("--- Found -DỊCH trigger: %s ---", fname)
+                self._process_translate_now(fid, fname, modified)
 
         # Translation-only flow: child folders under the dedicated translation parent.
         if translation_parent:
@@ -405,7 +416,7 @@ class DriveWatcher:
                 break
 
         try:
-            self._prepare_translation_workspace(folder_id, base_name, source_folder_id)
+            self._prepare_translation_workspace(folder_id, base_name, source_folder_id, flow_type="translation")
             self._state["processed"][folder_id] = {
                 "name": folder_name,
                 "modifiedTime": modified_time,
@@ -517,7 +528,7 @@ class DriveWatcher:
 
             # --- NEW: Create Translate folder on Drive & download for translation ---
             try:
-                self._prepare_translation_workspace(folder_id, base_name, final_folder["id"])
+                self._prepare_translation_workspace(folder_id, base_name, final_folder["id"], flow_type="visa")
             except Exception as exc:
                 logger.error("  ⚠️ Translation workspace prep failed (non-fatal): %s", exc, exc_info=True)
         else:
@@ -534,10 +545,51 @@ class DriveWatcher:
         _save_state(self._state)
 
     # ------------------------------------------------------------------
+    # Stage 2.5: Bypass validation and push to translation directly (-Dịch)
+    # ------------------------------------------------------------------
+    def _process_translate_now(self, folder_id: str, folder_name: str, modified_time: str) -> None:
+        """Directly push to translation workspace bypassing validation (-Dịch trigger)."""
+        base_name = extract_base_name(folder_name)
+        logger.info("  Base name for direct translation: %s", base_name)
+
+        # Try to find a 'Final' subfolder, if not, use the root folder
+        subfolders = self._ui.list_files_in_folder(folder_id)
+        source_id = folder_id
+        for item in subfolders:
+            if (item.get("mimeType") == "application/vnd.google-apps.folder"
+                    and item["name"].lower().strip() == "final"):
+                source_id = item["id"]
+                break
+
+        logger.info("  ✅ DIRECT TRANSLATION TRIGGERED → Preparing workspace")
+        new_name = f"✅ {base_name} - Đang dịch"
+        try:
+            self._ui.rename(folder_id, new_name)
+        except Exception as exc:
+            logger.warning("  Failed to rename folder to %s: %s", new_name, exc)
+
+        try:
+            self._prepare_translation_workspace(folder_id, base_name, source_id, flow_type="visa")
+        except Exception as exc:
+            logger.error("  ⚠️ Translation workspace prep failed: %s", exc, exc_info=True)
+
+        # Record state
+        self._state["processed"][folder_id] = {
+            "name": new_name,
+            "modifiedTime": modified_time,
+            "valid": True,
+            "flow_type": "translation",
+            "translation_workspace_ready": True,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        _save_state(self._state)
+
+    # ------------------------------------------------------------------
     # Stage 2.5: Prepare translation workspace after CHECK passes
     # ------------------------------------------------------------------
     def _prepare_translation_workspace(
         self, root_folder_id: str, base_name: str, source_folder_id: str,
+        flow_type: str = "visa",
     ) -> None:
         """
         Prepare translation workspace from a Drive source folder (usually ``Final/``):
@@ -584,6 +636,7 @@ class DriveWatcher:
             meta["final_folder_id"] = source_folder_id
             meta["source_folder_id"] = source_folder_id
             meta["translate_folder_id"] = translate_folder_id
+            meta["flow_type"] = flow_type
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, ensure_ascii=False, indent=2)
 

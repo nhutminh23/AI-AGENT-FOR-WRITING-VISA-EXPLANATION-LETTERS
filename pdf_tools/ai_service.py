@@ -9,6 +9,7 @@ Features:
 """
 
 import json
+import logging
 import re
 import asyncio
 from typing import Dict, List, Optional
@@ -19,6 +20,8 @@ from openai import OpenAI
 import google.generativeai as genai
 
 load_dotenv()
+
+logger = logging.getLogger("pdf_tools.ai_service")
 
 _openai_client = None
 _gemini_configured = False
@@ -136,7 +139,7 @@ def parse_batch_response(text: str, expected_count: int, start_idx: int) -> List
                         "confidence": float(item.get("confidence", 0.8))
                     })
     except json.JSONDecodeError:
-        print(f"  ❌ JSON parse failed on batch. Raw text:\n{text[:200]}...")
+        logger.error("JSON parse failed on batch. Raw text: %s...", text[:200])
     
     # Pad or truncate to ensure exactly expected_count items
     while len(results) < expected_count:
@@ -284,23 +287,23 @@ async def classify_batch(
             use_gemini = gemini_fallback_active and configure_gemini()
             
             if use_gemini:
-                print(f"  [AI] Gemini → batch {start_idx}-{end_idx}")
+                logger.info("[AI] Gemini -> batch %d-%d", start_idx, end_idx)
                 result_text = await call_gemini(prompt, images_base64)
             else:
                 try:
-                    print(f"  [AI] OpenAI ({openai_model}) → batch {start_idx}-{end_idx}")
+                    logger.info("[AI] OpenAI (%s) -> batch %d-%d", openai_model, start_idx, end_idx)
                     result_text = await call_openai(openai_model, prompt, images_base64)
                 except openai.RateLimitError as e:
-                    print(f"  ⚠️ OpenAI Rate Limit (429)")
+                    logger.warning("OpenAI Rate Limit (429)")
                     if configure_gemini():
-                        print(f"  🔄 Switching to Gemini!")
+                        logger.info("Switching to Gemini fallback")
                         gemini_fallback_active = True
                         result_text = await call_gemini(prompt, images_base64)
                     else:
                         raise e
             
             if not result_text or not result_text.strip():
-                print(f"  [attempt {attempt}] Empty response, retrying...")
+                logger.warning("[attempt %d] Empty response, retrying...", attempt)
                 last_error = "Empty response"
                 await asyncio.sleep(RETRY_DELAY)
                 continue
@@ -314,18 +317,18 @@ async def classify_batch(
                 result["document_type"] = result["document_type_en"]
                 result["person_name"] = result["person_name_en"]
                 
-                print(f"  ✅ P{start_idx + i}: {result['document_type_en']} | {result['person_name_en']}" + 
-                      (" ↳" if result.get("is_continuation") else ""))
+                logger.info("  P%d: %s | %s%s", start_idx + i, result['document_type_en'], result['person_name_en'],
+                            " (cont)" if result.get("is_continuation") else "")
             return results
             
         except Exception as e:
             last_error = str(e)
-            print(f"  [attempt {attempt}] Error: {last_error[:100]}")
+            logger.error("  [attempt %d] Error: %s", attempt, last_error[:100])
             if attempt < MAX_RETRIES:
                 await asyncio.sleep(RETRY_DELAY * attempt)
     
     # All retries failed
-    print(f"  ❌ All {MAX_RETRIES} attempts failed for batch {start_idx}-{end_idx}: {last_error}")
+    logger.error("All %d attempts failed for batch %d-%d: %s", MAX_RETRIES, start_idx, end_idx, last_error)
     return _generate_error_batch(last_error, num_pages, start_idx)
 
 
@@ -349,7 +352,7 @@ def post_process_classifications(classifications: List[Dict]) -> List[Dict]:
             prev_type = prev.get("document_type_en", "").upper().replace("_", "")
             curr_type = curr.get("document_type_en", "").upper().replace("_", "")
             if prev_type != curr_type and curr_type and prev_type:
-                print(f"  [Fix] P{i+1}: {curr['document_type_en']} != {prev['document_type_en']}, removing continuation flag")
+                logger.info("[Fix] P%d: %s != %s, removing continuation flag", i+1, curr['document_type_en'], prev['document_type_en'])
                 results[i]["is_continuation"] = False
     
     # Pass 3: If the same document_type appears consecutively with same person,
@@ -422,9 +425,9 @@ async def classify_all_pages(
     
     total_batches = len(batch_tasks)
     
-    print(f"\n{'='*60}")
-    print(f"[AI] {total_pages} pages | {BATCH_SIZE} pages/batch | {total_batches} batches | {MAX_PARALLEL} parallel")
-    print(f"{'='*60}")
+    logger.info("="*60)
+    logger.info("[AI] %d pages | %d pages/batch | %d batches | %d parallel", total_pages, BATCH_SIZE, total_batches, MAX_PARALLEL)
+    logger.info("="*60)
     
     # Process batches in parallel waves of MAX_PARALLEL
     all_results = [None] * total_batches  # Preserve order
@@ -437,8 +440,8 @@ async def classify_all_pages(
         wave_batch_info = [batch_tasks[idx] for idx in wave_indices]
         
         page_range = f"{wave_batch_info[0][1]}-{wave_batch_info[-1][1] + len(wave_batch_info[-1][0]) - 1}"
-        print(f"\n{'─'*40}")
-        print(f"[Wave] {len(wave_indices)} batches parallel (pages {page_range})")
+        logger.info("-"*40)
+        logger.info("[Wave] %d batches parallel (pages %s)", len(wave_indices), page_range)
         
         # Create async tasks for this wave
         async_tasks = []
@@ -452,7 +455,7 @@ async def classify_all_pages(
         # Collect results in order
         for i, (batch_idx, result) in enumerate(zip(wave_indices, wave_results)):
             if isinstance(result, Exception):
-                print(f"  ❌ Batch {batch_idx + 1} failed: {result}")
+                logger.error("Batch %d failed: %s", batch_idx + 1, result)
                 num_pages = len(batch_tasks[batch_idx][0])
                 start_idx = batch_tasks[batch_idx][1]
                 all_results[batch_idx] = _generate_error_batch(str(result), num_pages, start_idx)
@@ -474,18 +477,18 @@ async def classify_all_pages(
             classifications.extend(batch_result)
     
     # Post-process to fix cross-batch continuity and errors
-    print(f"\n[Post-processing {len(classifications)} pages...]")
+    logger.info("[Post-processing %d pages...]", len(classifications))
     classifications = post_process_classifications(classifications)
     
-    print(f"\n{'='*60}")
-    print(f"[AI] Done! Summary:")
+    logger.info("="*60)
+    logger.info("[AI] Done! Summary:")
     doc_types = {}
     for c in classifications:
         t = c.get("document_type_en", "Unknown")
         doc_types[t] = doc_types.get(t, 0) + 1
     for t, count in sorted(doc_types.items()):
-        print(f"  {t}: {count} pages")
-    print(f"{'='*60}\n")
+        logger.info("  %s: %d pages", t, count)
+    logger.info("="*60)
     
     return classifications
 

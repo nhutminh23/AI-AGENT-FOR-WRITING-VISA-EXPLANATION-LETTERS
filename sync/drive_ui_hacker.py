@@ -303,7 +303,7 @@ class DriveUIHacker:
 
     def mark_done_translating(self, folder_id: str, base_name: str) -> dict:
         """
-        Mark a folder as fully translated.
+        Mark a folder as fully translated (Dịch Thuật flow only).
 
         Example: ``"✅ UC - NGUYEN VAN A - NHAN - DONE"``
         """
@@ -311,6 +311,21 @@ class DriveUIHacker:
 
         clean_base = extract_base_name(base_name) or base_name.strip()
         new_name = f"✅ {clean_base} - DONE"
+        return self.rename(folder_id, new_name)
+
+    def mark_khai(self, folder_id: str, base_name: str) -> dict:
+        """
+        Mark a Hồ Sơ Visa folder as ready for immigration form filing.
+
+        Used when translation is complete for folders in ``HỒ SƠ VISA 2026``.
+        The next stage is filling out immigration application forms (khai Imm).
+
+        Example: ``"✅ UC - NGUYEN VAN A - NHAN - Đang khai"``
+        """
+        from sync.validator import extract_base_name
+
+        clean_base = extract_base_name(base_name) or base_name.strip()
+        new_name = f"✅ {clean_base} - Đang khai"
         return self.rename(folder_id, new_name)
 
     def rename_file(self, file_id: str, new_name: str) -> dict:

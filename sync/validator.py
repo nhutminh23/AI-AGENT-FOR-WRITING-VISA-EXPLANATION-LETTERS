@@ -668,6 +668,7 @@ _STATUS_SUFFIXES = [
     "cho it dich", "chờ it dịch",
     "doi hs khach", "đợi hs khách",
     "dang dich", "đang dịch",
+    "dich", "dịch",
     "dang tach file", "đang tách file",
     "dang check da du file chua",
     "thieu thu muc final",

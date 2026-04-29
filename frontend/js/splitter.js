@@ -114,14 +114,16 @@ async function splitAllFiles() {
   const allClassifications = []; // accumulated classifications with source filename
   let completedCount = 0;
 
+  // Grab progress elements once (used inside loop and after loop)
+  const progressBar = document.getElementById("splitterProgressBar");
+  const progressText = document.getElementById("splitterProgressText");
+
   for (let i = 0; i < filenames.length; i++) {
     const fname = filenames[i];
     if (splitAllBtn) splitAllBtn.textContent = `⏳ ${i + 1}/${totalFiles}: ${fname}`;
     if (statusText) statusText.textContent = `📄 [${i + 1}/${totalFiles}] Đang tách: ${fname}...`;
 
     // Update progress bar
-    const progressBar = document.getElementById("splitterProgressBar");
-    const progressText = document.getElementById("splitterProgressText");
     if (progressBar) { progressBar.value = Math.round((i / totalFiles) * 100); progressBar.max = 100; }
     if (progressText) progressText.textContent = `File ${i + 1}/${totalFiles}`;
 

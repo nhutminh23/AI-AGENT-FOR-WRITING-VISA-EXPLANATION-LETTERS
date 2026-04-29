@@ -30,7 +30,7 @@ def stamp_pdf(
     stamp_path: str | Path | None = None,
     seal_path: str | Path | None = None,
     stamp_width_pt: float = 180,
-    seal_height_pt: float = 150,
+    seal_height_pt: float = 110,
     seal_margin_right_pt: float = 0,
     stamp_center_x_pt: float | None = None,
     stamp_center_y_pt: float = 370,
@@ -94,7 +94,7 @@ def stamp_pdf(
         return output_path
 
     logger.info(
-        "Stamping PDF: %s (%d pages) → %s",
+        "Stamping PDF: %s (%d pages) -> %s",
         input_path.name, page_count, output_path.name,
     )
 
@@ -115,7 +115,7 @@ def stamp_pdf(
     doc.save(str(output_path), garbage=4, deflate=True)
     doc.close()
 
-    logger.info("✅ Stamped PDF saved: %s", output_path)
+    logger.info("Stamped PDF saved: %s", output_path)
     return output_path
 
 
@@ -151,7 +151,7 @@ def _normalize_pages_to_a4(doc: fitz.Document) -> None:
             pages_to_resize.append(page_idx)
 
     if not pages_to_resize:
-        logger.info("  📐 All pages already A4, no normalization needed")
+        logger.info("  All pages already A4, no normalization needed")
         return
 
     # Open a SEPARATE copy of the document as source (PyMuPDF requires src != target)
@@ -182,12 +182,12 @@ def _normalize_pages_to_a4(doc: fitz.Document) -> None:
         new_page.show_pdf_page(target_rect, src_doc, page_idx)
 
         logger.debug(
-            "  📐 Page %d: %.0f×%.0f → A4 (scale=%.2f)",
+            "  Page %d: %.0fx%.0f -> A4 (scale=%.2f)",
             page_idx + 1, pw, ph, scale,
         )
 
     src_doc.close()
-    logger.info("  📐 Normalized %d oversized pages to A4", len(pages_to_resize))
+    logger.info("  Normalized %d oversized pages to A4", len(pages_to_resize))
 
 
 def _apply_edge_seal(
@@ -195,19 +195,22 @@ def _apply_edge_seal(
     seal_path: Path,
     seal_height_pt: float,
     margin_right_pt: float,
-    max_pages_per_seal: int = 4,
 ) -> None:
     """
-    Slice the seal image into groups of at most `max_pages_per_seal` pages.
-    Each group gets ONE FULL seal image divided among its pages.
+    Slice ONE seal image across ALL pages of the document.
 
-    For example, 14 pages with max_pages_per_seal=5 → 3 groups:
-      Group 1: pages 1–5  (seal ÷ 5 strips)
-      Group 2: pages 6–10 (seal ÷ 5 strips)
-      Group 3: pages 11–14 (seal ÷ 4 strips)
+    The seal is divided into equal-width vertical strips — one per page.
+    Each strip is placed on the right edge of its page, vertically centered.
+    The display size is FIXED regardless of page orientation (portrait vs landscape)
+    so the seal looks consistent across mixed-orientation documents.
+
+    Performance: pre-crops all strips into PNG bytes first, then inserts in bulk.
     """
     from PIL import Image
     import io
+    import time as _time
+
+    t0 = _time.perf_counter()
 
     seal_img = Image.open(str(seal_path)).convert("RGBA")
     # Trim transparent padding so first/last strips are not mostly empty.
@@ -217,110 +220,77 @@ def _apply_edge_seal(
     seal_w, seal_h = seal_img.size
 
     page_count = len(doc)
+    if page_count == 0:
+        return
 
-    # Split pages into groups of max_pages_per_seal
-    # Rule: last group must have >= 2 pages (avoid full seal on cert page alone)
-    groups = []
-    for start in range(0, page_count, max_pages_per_seal):
-        end = min(start + max_pages_per_seal, page_count)
-        groups.append((start, end))
+    # --- Divide the seal image into equal-width strips, one per page ---
+    base_strip_w = seal_w // page_count
+    extra_pixels = seal_w % page_count
+    strip_boundaries = [0]
+    running_x = 0
+    for j in range(page_count):
+        running_x += base_strip_w + (1 if j < extra_pixels else 0)
+        strip_boundaries.append(running_x)
 
-    # If last group has only 1 page, merge it into the previous group
-    if len(groups) >= 2:
-        last_start, last_end = groups[-1]
-        if last_end - last_start == 1:
-            prev_start, _ = groups[-2]
-            groups[-2] = (prev_start, last_end)
-            groups.pop()
+    # --- Fixed display width per strip ---
+    # Total seal display width ≈ 100pt, spread across all pages.
+    # Clamp individual strip width between 10pt and 50pt for readability.
+    TOTAL_SEAL_DISPLAY_W = 100.0
+    MIN_STRIP_DISPLAY_W = 10.0
+    MAX_STRIP_DISPLAY_W = 50.0
+    strip_display_w = TOTAL_SEAL_DISPLAY_W / max(page_count, 1)
+    strip_display_w = max(MIN_STRIP_DISPLAY_W, min(MAX_STRIP_DISPLAY_W, strip_display_w))
 
-    logger.info(
-        "  📍 Edge seal: %d pages → %d groups (max %d pages/seal)",
-        page_count, len(groups), max_pages_per_seal,
-    )
+    # --- Fixed display height (same as portrait A4 — never scaled by orientation) ---
+    strip_display_h = seal_height_pt
 
-    has_portrait = any(doc[i].rect.height >= doc[i].rect.width for i in range(page_count))
-    has_landscape = any(doc[i].rect.width > doc[i].rect.height for i in range(page_count))
-    mixed_orientations = has_portrait and has_landscape
-    if mixed_orientations:
-        logger.info("  📐 Mixed page orientations detected: enable orientation-aware seal scaling")
+    # --- Phase 1: Pre-crop ALL strips into PNG bytes (batch) ---
+    strip_bytes_list = []
+    for page_idx in range(page_count):
+        left = strip_boundaries[page_idx]
+        right = strip_boundaries[page_idx + 1]
+        right = min(right, seal_w)
+        if right <= left:
+            right = min(left + 1, seal_w)
+        if right <= left:
+            strip_bytes_list.append(None)
+            continue
 
-    for group_idx, (group_start, group_end) in enumerate(groups):
-        group_size = group_end - group_start
+        strip = seal_img.crop((left, 0, right, seal_h))
+        buf = io.BytesIO()
+        strip.save(buf, format="PNG")
+        strip_bytes_list.append(buf.getvalue())
 
-        # Split across the full seal image so outer-edge strips keep full rim.
-        reference_pages = max(max_pages_per_seal, 1)
-        base_strip_w = seal_w // group_size
-        extra_pixels = seal_w % group_size
-        strip_boundaries = [0]
-        running_x = 0
-        for j in range(group_size):
-            running_x += base_strip_w + (1 if j < extra_pixels else 0)
-            strip_boundaries.append(running_x)
+    # Release PIL image immediately — no longer needed
+    del seal_img
 
-        # Keep total seal visual size consistent across groups.
-        # Baseline at reference group (4): strip=25pt => total≈100pt.
-        # Examples: group 5 -> 20pt, group 3 -> 33.33pt, group 2 -> 50pt.
-        # Clamp protects edge cases (especially single-page docs).
-        base_strip_display_w = 25.0
-        target_total_display_w = base_strip_display_w * reference_pages
-        min_strip_display_w = base_strip_display_w * 0.70
-        max_strip_display_w = base_strip_display_w * 2.00
-        raw_strip_display_w = target_total_display_w / max(group_size, 1)
-        group_strip_display_w = max(min_strip_display_w, min(max_strip_display_w, raw_strip_display_w))
+    # --- Phase 2: Insert pre-cropped strips into pages ---
+    for page_idx in range(page_count):
+        strip_bytes = strip_bytes_list[page_idx]
+        if strip_bytes is None:
+            continue
 
-        for local_i in range(group_size):
-            page_idx = group_start + local_i
-            page = doc[page_idx]
+        page = doc[page_idx]
+        page_rect = page.rect
+        x1 = page_rect.width - margin_right_pt
+        x0 = x1 - strip_display_w
+        y_center = page_rect.height / 2
+        y0 = y_center - strip_display_h / 2
+        y1 = y_center + strip_display_h / 2
 
-            # Slice using equal-width boundaries per page.
-            left = strip_boundaries[local_i]
-            right = strip_boundaries[local_i + 1]
-            right = min(right, seal_w)
-            if right <= left:
-                right = min(left + 1, seal_w)
-            if right <= left:
-                continue
+        stamp_rect = fitz.Rect(x0, y0, x1, y1)
 
-            strip = seal_img.crop((left, 0, right, seal_h))
-
-            # Convert strip to bytes
-            buf = io.BytesIO()
-            strip.save(buf, format="PNG")
-            strip_bytes = buf.getvalue()
-
-            # Calculate display size on page.
-            # In mixed portrait+landscape docs, scale by page width so the seal
-            # appears visually consistent in width-fitted viewers.
-            page_rect = page.rect
-            page_scale = 1.0
-            if mixed_orientations:
-                page_scale = page_rect.width / A4_WIDTH_PT
-
-            strip_display_h = seal_height_pt * page_scale
-            strip_display_w = group_strip_display_w * page_scale
-
-            # Position: right edge, vertically centered
-            x1 = page_rect.width - margin_right_pt
-            x0 = x1 - strip_display_w
-            y_center = page_rect.height / 2
-            y0 = y_center - strip_display_h / 2
-            y1 = y_center + strip_display_h / 2
-
-            stamp_rect = fitz.Rect(x0, y0, x1, y1)
-
-            # Insert image with transparency
-            page.insert_image(
-                stamp_rect,
-                stream=strip_bytes,
-                overlay=True,
-            )
-
-        logger.info(
-            "    Group %d: pages %d–%d (%d strips, width=%.2fpt)",
-            group_idx + 1, group_start + 1, group_end, group_size, group_strip_display_w,
+        page.insert_image(
+            stamp_rect,
+            stream=strip_bytes,
+            overlay=True,
         )
 
-    logger.info("  📍 Edge seal complete: %d groups applied", len(groups))
+    elapsed = (_time.perf_counter() - t0) * 1000
+    logger.info(
+        "  Edge seal: %d pages, strip_w=%.1fpt, h=%.1fpt in %.0fms",
+        page_count, strip_display_w, strip_display_h, elapsed,
+    )
 
 
 def _apply_company_stamp(
@@ -337,18 +307,14 @@ def _apply_company_stamp(
     the stamp is horizontally centered on the page. center_y_pt defaults to 330pt
     which matches the "Signature of translator" area.
     """
-    from PIL import Image
-    import io
+    # Read raw PNG bytes — no PIL needed, fitz handles PNG directly
+    stamp_bytes = stamp_path.read_bytes()
 
-    stamp_img = Image.open(str(stamp_path)).convert("RGBA")
-    stamp_w, stamp_h = stamp_img.size
-    aspect = stamp_h / stamp_w
+    # Get dimensions via fitz.Pixmap (avoids PIL import)
+    pix = fitz.Pixmap(stamp_bytes)
+    aspect = pix.height / pix.width
     stamp_h_pt = stamp_width_pt * aspect
-
-    # Convert to bytes
-    buf = io.BytesIO()
-    stamp_img.save(buf, format="PNG")
-    stamp_bytes = buf.getvalue()
+    del pix  # free immediately
 
     # Last page
     last_page = doc[-1]
@@ -372,6 +338,6 @@ def _apply_company_stamp(
     )
 
     logger.info(
-        "  🔏 Company stamp applied to last page (page %d) at center=(%.0f, %.0f), size=%.0fx%.0f pt",
+        "  Company stamp on last page (page %d) center=(%.0f, %.0f), size=%.0fx%.0f pt",
         len(doc), cx, cy, stamp_width_pt, stamp_h_pt,
     )

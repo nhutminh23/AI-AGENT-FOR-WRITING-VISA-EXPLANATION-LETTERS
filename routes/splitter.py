@@ -104,7 +104,7 @@ async def _process_splitter_job(file_id: str):
         if pid is not None:
             source_meta["project_id"] = pid
         # Also store original source path from mapping (for save-to-input)
-        mapping_file = os.path.join("splitter_uploads", "_source_mapping.json")
+        mapping_file = os.path.join(str(SPLITTER_UPLOAD_DIR), "_source_mapping.json")
         if os.path.isfile(mapping_file):
             try:
                 with open(mapping_file, "r", encoding="utf-8") as mmf:

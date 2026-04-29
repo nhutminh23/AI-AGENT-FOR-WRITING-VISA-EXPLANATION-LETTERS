@@ -11,6 +11,7 @@ import traceback
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, send_file
 
+from config import Config
 
 insurance_bp = Blueprint("insurance_bp", __name__)
 
@@ -20,7 +21,7 @@ INSURANCE_TEMPLATES = {
     "liberty": os.path.join(BASE_DIR, "templates", "insurance", "liberty.pdf"),
     "chubb": os.path.join(BASE_DIR, "templates", "insurance", "chubb.pdf"),
 }
-INSURANCE_OUTPUT_DIR = os.path.join(BASE_DIR, "insurance_outputs")
+INSURANCE_OUTPUT_DIR = os.path.join(BASE_DIR, Config.INSURANCE_OUTPUTS_DIR)
 os.makedirs(INSURANCE_OUTPUT_DIR, exist_ok=True)
 
 

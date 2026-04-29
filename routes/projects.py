@@ -56,10 +56,65 @@ def update_project(project_id):
 
 @projects_bp.delete("/api/projects/<int:project_id>")
 def delete_project(project_id):
-    ok = db.delete_project(project_id)
-    if not ok:
+    """Delete project from DB AND purge all associated files from disk."""
+    project = db.get_project(project_id)
+    if not project:
         return jsonify({"error": "Project not found"}), 404
-    return jsonify({"status": "deleted"})
+
+    # --- Cascade: purge files from disk before removing DB record ---
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # 1. Remove uploaded source PDFs (splitter_uploads/p{id}__*.pdf)
+    upload_dir = os.path.join(base_dir, Config.SPLITTER_UPLOADS_DIR)
+    prefix = f"p{project_id}__"
+    deleted_uploads = 0
+    if os.path.isdir(upload_dir):
+        for fname in os.listdir(upload_dir):
+            if fname.startswith(prefix) and fname.lower().endswith(".pdf"):
+                try:
+                    os.remove(os.path.join(upload_dir, fname))
+                    deleted_uploads += 1
+                except OSError:
+                    pass
+
+    # 2. Remove output folders in storage/splitter whose _source.json matches
+    output_dir = os.path.join(base_dir, Config.SPLITTER_OUTPUTS_DIR)
+    deleted_output_dirs = 0
+    if os.path.isdir(output_dir):
+        for folder_name in os.listdir(output_dir):
+            folder_path = os.path.join(output_dir, folder_name)
+            if not os.path.isdir(folder_path):
+                continue
+            meta_path = os.path.join(folder_path, "_source.json")
+            if os.path.isfile(meta_path):
+                try:
+                    with open(meta_path, "r", encoding="utf-8") as mf:
+                        meta = json.load(mf)
+                    if meta.get("project_id") == project_id:
+                        shutil.rmtree(folder_path, ignore_errors=True)
+                        deleted_output_dirs += 1
+                        zip_path = os.path.join(output_dir, f"{folder_name}.zip")
+                        if os.path.isfile(zip_path):
+                            try:
+                                os.remove(zip_path)
+                            except OSError:
+                                pass
+                except Exception as e:
+                    logging.debug("Error reading meta %s: %s", meta_path, e)
+
+    # --- Finally remove from DB ---
+    db.delete_project(project_id)
+
+    logging.info(
+        "Deleted project %d: removed %d uploads, %d output dirs",
+        project_id, deleted_uploads, deleted_output_dirs,
+    )
+    return jsonify({
+        "status": "deleted",
+        "deleted_uploads": deleted_uploads,
+        "deleted_output_dirs": deleted_output_dirs,
+    })
+
 
 
 @projects_bp.post("/api/projects/<int:project_id>/clear")

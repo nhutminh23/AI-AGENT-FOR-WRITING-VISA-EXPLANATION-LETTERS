@@ -530,7 +530,7 @@ async function markWorkspaceComplete() {
     ? `hồ sơ "${_workspaceDisplayName(targetWorkspaces[0])}"`
     : `${targetWorkspaces.length} hồ sơ`;
 
-  if (!confirm(`Xác nhận đã dịch xong ${confirmTargetText}?\n\nDanh sách:\n${shortList}${extraLine}\n\nThao tác này sẽ:\n• Đổi tên folder trên Drive thành "DONE - ..."\n• Chuyển workspace local sang "Khai Imm"`)) {
+  if (!confirm(`Xác nhận đã dịch xong ${confirmTargetText}?\n\nDanh sách:\n${shortList}${extraLine}\n\nThao tác này sẽ:\n• Cập nhật trạng thái folder trên Drive\n• Chuyển workspace local sang "Khai Imm"`)) {
     return;
   }
 

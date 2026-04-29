@@ -485,8 +485,8 @@ def translate_original_pages_by_ref():
 @splitter_translate_bp.get("/api/translate/certification_template")
 def translate_certification_template():
     """Return certification HTML template with embedded logo as base64."""
-    template_path = os.path.join("dich", "HTML template", "Xác nhận dịch.html")
-    logo_path = os.path.join("dich", "HTML template", "passport_lounge.jpg")
+    template_path = os.path.join(Config.TRANSLATION_TEMPLATE_DIR, "Xác nhận dịch.html")
+    logo_path = os.path.join(Config.TRANSLATION_TEMPLATE_DIR, "passport_lounge.jpg")
 
     if not os.path.isfile(template_path):
         return jsonify({"error": "template_not_found"}), 404
@@ -584,7 +584,7 @@ def translate_rebuild_html():
 
 # ─── Serve output files (so previews persist after F5) ───
 
-_OUTPUT_DIR = os.path.join(str(_BASE_DIR), "output")
+_OUTPUT_DIR = os.path.join(str(_BASE_DIR), Config.OUTPUT_DIR)
 
 @splitter_translate_bp.route("/api/output/<path:filename>", methods=["GET"])
 def serve_output_file(filename):

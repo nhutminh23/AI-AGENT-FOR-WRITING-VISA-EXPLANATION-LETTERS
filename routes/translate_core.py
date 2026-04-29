@@ -37,7 +37,7 @@ TRANSLATE_HTML_SAVE_DIR = os.path.join(str(_BASE_DIR), Config.TRANSLATION_HTML_S
 translation_upload_cache: Dict[str, Dict] = {}
 
 # Persistent storage for original uploaded files (survives F5 + server restart)
-TRANSLATION_ORIGINALS_DIR = os.path.join(str(_BASE_DIR), "uploads", "translation_originals")
+TRANSLATION_ORIGINALS_DIR = os.path.join(str(_BASE_DIR), "storage", "uploads", "translation_originals")
 os.makedirs(TRANSLATION_ORIGINALS_DIR, exist_ok=True)
 
 _is_quota_error = is_quota_error
@@ -398,7 +398,7 @@ def _build_html_vision_clone(
 
         # Post-process: replace emblem placeholders with actual emblem image
         if 'emblem-placeholder' in html:
-            emblem_path = os.path.join(str(_BASE_DIR), "dich", "HTML template", "Emblem_of_Vietnam.png")
+            emblem_path = os.path.join(TRANSLATE_TEMPLATE_DIR, "Emblem_of_Vietnam.png")
             if os.path.isfile(emblem_path):
                 try:
                     with open(emblem_path, "rb") as f:
@@ -426,7 +426,7 @@ def _embed_template_images(html: str) -> str:
     This makes the HTML self-contained so images display correctly in web preview
     and when saved as PDF, without needing the original image files.
     """
-    template_dir = os.path.join(str(_BASE_DIR), "dich", "HTML template")
+    template_dir = TRANSLATE_TEMPLATE_DIR
 
     # Map of known image filenames in the template directory
     MIME_MAP = {
@@ -763,17 +763,20 @@ def _html_to_pdf(html_path: str, output_pdf_path: str):
 def _convert_pdf_to_grayscale(input_path: str, output_path: str):
     """Convert all pages of a PDF to grayscale (black & white).
 
-    Re-renders each page as a grayscale image at 200 DPI and rebuilds
+    Re-renders each page as a grayscale image at 150 DPI and rebuilds
     the PDF. This ensures no color appears in the final document.
+    150 DPI balances quality and speed (200 DPI is ~3x slower).
     """
     import fitz
+    import time as _time
 
+    t0 = _time.perf_counter()
     src = fitz.open(input_path)
     dst = fitz.open()
 
     for page in src:
-        # Render page as grayscale pixmap
-        pix = page.get_pixmap(dpi=200, colorspace=fitz.csGRAY)
+        # Render page as grayscale pixmap (150 DPI = good print quality, much faster than 200)
+        pix = page.get_pixmap(dpi=150, colorspace=fitz.csGRAY)
         # Convert grayscale pixmap back to RGB for PDF compatibility
         pix_rgb = fitz.Pixmap(fitz.csRGB, pix)
 
@@ -785,7 +788,8 @@ def _convert_pdf_to_grayscale(input_path: str, output_path: str):
     dst.save(output_path, garbage=4, deflate=True)
     dst.close()
     src.close()
-    logging.info("  🖤 Converted to grayscale: %s (%d pages)", output_path, total_pages)
+    elapsed = (_time.perf_counter() - t0) * 1000
+    logging.info("  Grayscale conversion: %s (%d pages) in %.0fms", output_path, total_pages, elapsed)
 
 
 def _convert_image_to_a4_pdf(image_path: str) -> str:

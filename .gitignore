@@ -22,21 +22,20 @@ venv/
 .venv/
 env/
 
-# ===== Runtime data (hồ sơ visa người dùng) =====
-input/
-output/
+# ===== Runtime data (all under storage/) =====
+# Upload & processing
 splitter_uploads/
-splitter_outputs/
-phanloai/
-dich/html
-pdf/
-test_dir/
-scan_splitter_outputs/
-insurance_outputs/
-translation_originals/
-translation_workspace/
-Khai Imm/
-
+storage/splitter/
+storage/scan_splitter/
+storage/insurance/
+storage/translation/html/
+storage/translation/output/
+storage/workspace/
+storage/archive/
+storage/output/
+storage/input/
+storage/uploads/
+# NOTE: storage/translation/templates/ is tracked (source assets needed for the app)
 
 # ===== Database =====
 visa_app.db
@@ -58,4 +57,4 @@ Thumbs.db
 # ===== Logs =====
 *.log
 logs/
-.brain/session.json
+.brain/session.json
