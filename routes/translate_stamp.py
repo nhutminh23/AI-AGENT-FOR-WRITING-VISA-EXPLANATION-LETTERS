@@ -131,8 +131,8 @@ def generate_combined_pdf():
         # ──── Step 2: Build Certification HTML → PDF ────
         cert_pdf_path = None
         try:
-            cert_template_path = os.path.join("dich", "HTML template", "Xác nhận dịch.html")
-            cert_logo_path = os.path.join("dich", "HTML template", "passport_lounge.jpg")
+            cert_template_path = os.path.join(Config.TRANSLATION_TEMPLATE_DIR, "Xác nhận dịch.html")
+            cert_logo_path = os.path.join(Config.TRANSLATION_TEMPLATE_DIR, "passport_lounge.jpg")
 
             if os.path.isfile(cert_template_path):
                 with open(cert_template_path, "r", encoding="utf-8") as cf:
@@ -315,8 +315,8 @@ def stamp_preview():
         # ──── Step 2: Build Certification HTML → PDF ────
         cert_pdf_path = None
         try:
-            cert_template_path = os.path.join("dich", "HTML template", "Xác nhận dịch.html")
-            cert_logo_path = os.path.join("dich", "HTML template", "passport_lounge.jpg")
+            cert_template_path = os.path.join(Config.TRANSLATION_TEMPLATE_DIR, "Xác nhận dịch.html")
+            cert_logo_path = os.path.join(Config.TRANSLATION_TEMPLATE_DIR, "passport_lounge.jpg")
 
             if os.path.isfile(cert_template_path):
                 with open(cert_template_path, "r", encoding="utf-8") as cf:
